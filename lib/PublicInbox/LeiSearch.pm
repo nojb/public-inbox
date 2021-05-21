@@ -63,7 +63,9 @@ sub content_key ($) {
 }
 
 sub _cmp_1st { # git->cat_async callback
-	my ($bref, $oid, $type, $size, $cmp) = @_; # cmp: [chash, xoids, smsg]
+	my ($bref, $oid, $type, $size, $cmp) = @_;
+	# cmp: [chash, xoids, smsg, lms]
+	$bref //= $cmp->[3] ? $cmp->[3]->local_blob($oid, 1) : undef;
 	if ($bref && content_hash(PublicInbox::Eml->new($bref)) eq $cmp->[0]) {
 		$cmp->[1]->{$oid} = $cmp->[2]->{num};
 	}
@@ -78,6 +80,8 @@ sub xoids_for {
 	my @overs = ($self->over // $self->overs_all);
 	my $git = $self->git;
 	my $xoids = {};
+	# no lms when used via {ale}:
+	my $lms = $self->{-lms_ro} //= lms($self) if defined($self->{topdir});
 	for my $mid (@$mids) {
 		for my $o (@overs) {
 			my ($id, $prev);
@@ -85,7 +89,7 @@ sub xoids_for {
 				next if $cur->{bytes} == 0 ||
 					$xoids->{$cur->{blob}};
 				$git->cat_async($cur->{blob}, \&_cmp_1st,
-						[ $chash, $xoids, $cur ]);
+						[$chash, $xoids, $cur, $lms]);
 				if ($min && scalar(keys %$xoids) >= $min) {
 					$git->cat_async_wait;
 					return $xoids;

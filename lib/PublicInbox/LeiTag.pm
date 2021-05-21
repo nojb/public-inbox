@@ -9,7 +9,8 @@ use parent qw(PublicInbox::IPC PublicInbox::LeiInput);
 
 sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 	my ($self, $eml) = @_;
-	if (my $xoids = $self->{lei}->{ale}->xoids_for($eml)) {
+	if (my $xoids = $self->{lse}->xoids_for($eml) // # tries LeiMailSync
+			$self->{lei}->{ale}->xoids_for($eml)) {
 		$self->{lei}->{sto}->ipc_do('update_xvmd', $xoids, $eml,
 						$self->{vmd_mod});
 	} else {
@@ -17,7 +18,11 @@ sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 	}
 }
 
-sub input_mbox_cb { input_eml_cb($_[1], $_[0]) }
+sub input_mbox_cb {
+	my ($eml, $self) = @_;
+	$eml->header_set($_) for (qw(X-Status Status));
+	input_eml_cb($self, $eml);
+}
 
 sub input_maildir_cb { # maildir_each_eml cb
 	my ($f, $kw, $eml, $self) = @_;
@@ -60,6 +65,7 @@ sub note_missing {
 sub ipc_atfork_child {
 	my ($self) = @_;
 	PublicInbox::LeiInput::input_only_atfork_child($self);
+	$self->{lse} = $self->{lei}->{sto}->search;
 	# this goes out-of-scope at worker process exit:
 	PublicInbox::OnDestroy->new($$, \&note_missing, $self);
 }

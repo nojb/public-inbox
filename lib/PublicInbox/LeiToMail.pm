@@ -650,7 +650,9 @@ sub ipc_atfork_child {
 	my ($self) = @_;
 	my $lei = $self->{lei};
 	$lei->_lei_atfork_child;
-	$self->{-lms_ro} = $lei->{lse}->lms if $lei->{lse};
+	if (my $lse = $lei->{lse}) {
+		$self->{-lms_ro} = $lse->{-lms_ro} //= $lse->lms;
+	}
 	$lei->{auth}->do_auth_atfork($self) if $lei->{auth};
 	$SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
 	$self->SUPER::ipc_atfork_child;

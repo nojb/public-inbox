@@ -40,7 +40,7 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	my $res_a = json_utf8->decode($lei_out);
 	my $blob = $res_a->[0]->{'blob'};
 	like($blob, qr/\A[0-9a-f]{40,}\z/, 'got blob from qp@example');
-	lei_ok('blob', $blob);
+	lei_ok(qw(-C / blob), $blob);
 	is($lei_out, $expect, 'got expected blob via Maildir');
 	lei_ok(qw(q mid:qp@example.com -f text));
 	like($lei_out, qr/^hi = bye/sm, 'lei2mail fallback');
@@ -57,6 +57,16 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	lei_ok(qw(q m:qp@example.com --dedupe=none));
 	my $res_b = json_utf8->decode($lei_out);
 	is_deeply($res_b, $res_a, 'no extra DB entries');
+
+	# ensure tag works on index-only messages:
+	lei_ok(qw(tag +kw:seen t/utf8.eml));
+	lei_ok(qw(q mid:testmessage@example.com));
+	is_deeply(json_utf8->decode($lei_out)->[0]->{kw},
+		['seen'], 'seen kw can be set on index-only message');
+
+	lei_ok(qw(q z:0.. -o), "$tmpdir/all-results") for (1..2);
+	is_deeply([xqx($all_obj)], \@objs,
+		'no new objects after 2x q to trigger implicit import');
 
 	lei_ok('index', "nntp://$nntp_host_port/t.v2");
 	lei_ok('index', "imap://$imap_host_port/t.v2.0");
