@@ -108,8 +108,9 @@ EOM
 	push @cmd, '--'.($opt->{color} && !$opt->{'no-color'} ? '' : 'no-').
 			'color';
 	for my $o (@PublicInbox::LEI::diff_opt) {
-		$o =~ s/\|([a-z0-9])\b//i; # remove single char short option
-		my $c = $1;
+		my $c = '';
+		# remove single char short option
+		$o =~ s/\|([a-z0-9])\b//i and $c = $1;
 		if ($o =~ s/=[is]@\z//) {
 			my $v = $opt->{$o} or next;
 			push @cmd, map { $c ? "-$c$_" : "--$o=$_" } @$v;
