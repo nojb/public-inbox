@@ -138,6 +138,16 @@ DELETE FROM blob2num WHERE fid = ? AND uid = ?
 	$sth->execute($fid, $id);
 }
 
+# Maildir-only
+sub mv_src {
+	my ($self, $folder, $oidbin, $id, $newbn) = @_;
+	my $fid = $self->{fmap}->{$folder} //= _fid_for($self, $folder, 1);
+	my $sth = $self->{dbh}->prepare_cached(<<'');
+UPDATE blob2name SET name = ? WHERE fid = ? AND oidbin = ? AND name = ?
+
+	$sth->execute($newbn, $fid, $oidbin, $$id);
+}
+
 # read-only, iterates every oidbin + UID or name for a given folder
 sub each_src {
 	my ($self, $folder, $cb, @args) = @_;

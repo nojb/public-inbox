@@ -202,6 +202,7 @@ lib/PublicInbox/LeiConvert.pm
 lib/PublicInbox/LeiCurl.pm
 lib/PublicInbox/LeiDedupe.pm
 lib/PublicInbox/LeiEditSearch.pm
+lib/PublicInbox/LeiExportKw.pm
 lib/PublicInbox/LeiExternal.pm
 lib/PublicInbox/LeiForgetSearch.pm
 lib/PublicInbox/LeiHelp.pm
@@ -408,6 +409,7 @@ t/iso-2202-jp.eml
 t/kqnotify.t
 t/lei-convert.t
 t/lei-daemon.t
+t/lei-export-kw.t
 t/lei-externals.t
 t/lei-import-http.t
 t/lei-import-imap.t

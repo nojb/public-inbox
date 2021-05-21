@@ -243,6 +243,10 @@ our %CMD = ( # sorted in order of importance/use:
 	qw(stdin| offset=i recursive|r exclude=s include|I=s
 	lock=s@ in-format|F=s kw! verbose|v+ incremental! mail-sync!),
 	qw(no-torsocks torsocks=s), PublicInbox::LeiQuery::curl_opt(), @c_opt ],
+
+'export-kw' => [ 'LOCATION...|--all',
+	'one-time export of keywords of sync sources',
+	qw(all:s mode=s), @c_opt ],
 'convert' => [ 'LOCATION...|--stdin',
 	'one-time conversion from URL or filesystem to another format',
 	qw(stdin| in-format|F=s out-format|f=s output|mfolder|o=s lock=s@ kw!),

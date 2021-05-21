@@ -86,4 +86,18 @@ sub maildir_each_eml {
 
 sub new { bless {}, __PACKAGE__ }
 
+sub flags2kw ($) {
+	my @unknown;
+	my %kw;
+	for (split(//, $_[0])) {
+		my $k = $c2kw{$_};
+		if (defined($k)) {
+			$kw{$k} = 1;
+		} else {
+			push @unknown, $_;
+		}
+	}
+	(\%kw, \@unknown);
+}
+
 1;

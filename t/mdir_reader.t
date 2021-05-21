@@ -19,4 +19,9 @@ is(maildir_path_flags('/path/to/foo:2,'), '', 'no flags in path');
 use_ok 'PublicInbox::InboxWritable', qw(eml_from_path);
 is(eml_from_path('.'), undef, 'eml_from_path fails on directory');
 
+is_deeply([PublicInbox::MdirReader::flags2kw('S')], [{ 'seen' => 1 }, []],
+	"`seen' kw set from flag");
+is_deeply([PublicInbox::MdirReader::flags2kw('Su')], [{ 'seen' => 1 }, ['u']],
+	'unknown flag ignored');
+
 done_testing;

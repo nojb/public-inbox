@@ -243,10 +243,14 @@ sub _rand () {
 	sprintf('%x,%x,%x,%x', rand(0xffffffff), time, $$, ++$seq);
 }
 
+sub kw2suffix ($;@) {
+	my $kw = shift;
+	join('', sort(map { $kw2char{$_} // () } @$kw, @_));
+}
+
 sub _buf2maildir {
 	my ($dst, $buf, $smsg) = @_;
 	my $kw = $smsg->{kw} // [];
-	my $sfx = join('', sort(map { $kw2char{$_} // () } @$kw));
 	my $rand = ''; # chosen by die roll :P
 	my ($tmp, $fh, $base, $ok);
 	my $common = $smsg->{blob} // _rand;
@@ -263,7 +267,7 @@ sub _buf2maildir {
 		$dst .= 'cur/';
 		$rand = '';
 		do {
-			$base = $rand.$common.':2,'.$sfx
+			$base = $rand.$common.':2,'.kw2suffix($kw);
 		} while (!($ok = link($tmp, $dst.$base)) && $!{EEXIST} &&
 			($rand = _rand.','));
 		die "link($tmp, $dst$base): $!" unless $ok;

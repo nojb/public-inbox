@@ -27,6 +27,20 @@ sub msg_keywords {
 	wantarray ? sort(keys(%$kw)) : $kw;
 }
 
+# returns undef if blob is unknown
+sub oid_keywords {
+	my ($self, $oidhex) = @_;
+	my @num = $self->over->blob_exists($oidhex) or return;
+	my $xdb = $self->xdb; # set {nshard};
+	my %kw;
+	for my $num (@num) { # there should only be one...
+		my $doc = $xdb->get_document(num2docid($self, $num));
+		my $x = xap_terms('K', $doc);
+		%kw = (%kw, %$x);
+	}
+	\%kw;
+}
+
 # lookup keywords+labels for external messages
 sub xsmsg_vmd {
 	my ($self, $smsg, $want_label) = @_;
