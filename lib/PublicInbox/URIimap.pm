@@ -12,11 +12,14 @@
 # RFC 2192 also describes ";TYPE=<list_type>"
 package PublicInbox::URIimap;
 use strict;
+use v5.10.1;
 use URI::Split qw(uri_split uri_join); # part of URI
-use URI::Escape qw(uri_unescape);
+use URI::Escape qw(uri_unescape uri_escape);
 use overload '""' => \&as_string;
 
 my %default_ports = (imap => 143, imaps => 993);
+# for enc-auth-type and enc-user in RFC 5092
+my $achar = qr/[A-Za-z0-9%\-_\.\!\$'\(\)\+\,\&\=\*]+/;
 
 sub new {
 	my ($class, $url) = @_;
@@ -86,14 +89,15 @@ sub uidvalidity { # read/write
 	$path =~ m!\A[^;/]+;UIDVALIDITY=([1-9][0-9]*)\b!i ? ($1 + 0) : undef;
 }
 
-sub iuid {
+sub uid {
 	my ($self, $val) = @_;
 	my ($scheme, $auth, $path, $query, $frag) = uri_split($$self);
-	if (defined $val) {
-		if ($path =~ s!/;UID=[^;/]*\b!/;UID=$val!i) {
-			# s// already changed it
-		} else { # both s// failed, so just append
-			$path .= ";UID=$val";
+	if (scalar(@_) == 2) {
+		if (!defined $val) {
+			$path =~ s!/;UID=[^;/]*\b!!i;
+		} else {
+			$path =~ s!/;UID=[^;/]*\b!/;UID=$val!i or
+				$path .= ";UID=$val";
 		}
 		$$self = uri_join($scheme, $auth, $path, $query);
 	}
@@ -114,12 +118,34 @@ sub authority {
 }
 
 sub user {
-	my ($self) = @_;
-	my (undef, $auth) = uri_split($$self);
-	$auth =~ s/@.*\z// or return undef; # drop host:port
-	$auth =~ s/;.*\z//; # drop ;AUTH=...
-	$auth =~ s/:.*\z//; # drop password
-	uri_unescape($auth);
+	my ($self, $val) = @_;
+	my ($scheme, $auth, $path, $query) = uri_split($$self);
+	my $at_host_port;
+	$auth =~ s/(@.*)\z// and $at_host_port = $1; # stash host:port for now
+	if (scalar(@_) == 2) { # set, this clobbers password, too
+		if (defined $val) {
+			my $uval = uri_escape($val);
+			if (defined($at_host_port)) {
+				$auth =~ s!\A.*?(;AUTH=$achar).*!$uval$1!ix
+					or $auth = $uval;
+			} else {
+				substr($auth, 0, 0) = "$uval@";
+			}
+		} elsif (defined($at_host_port)) { # clobber
+			$auth =~ s!\A.*?(;AUTH=$achar).*!$1!i or $auth = '';
+			if ($at_host_port && $auth eq '') {
+				$at_host_port =~ s/\A\@//;
+			}
+		}
+		$at_host_port //= '';
+		$$self = uri_join($scheme, $auth.$at_host_port, $path, $query);
+		$val;
+	} else { # read-only
+		$at_host_port // return undef; # explicit undef for scalar
+		$auth =~ s/;.*\z//; # drop ;AUTH=...
+		$auth =~ s/:.*\z//; # drop password
+		$auth eq '' ? undef : uri_unescape($auth);
+	}
 }
 
 sub password {
@@ -131,10 +157,32 @@ sub password {
 }
 
 sub auth {
-	my ($self) = @_;
-	my (undef, $auth) = uri_split($$self);
-	$auth =~ s/@.*\z//; # drop host:port
-	$auth =~ /;AUTH=(.+)\z/i ? uri_unescape($1) : undef;
+	my ($self, $val) = @_;
+	my ($scheme, $auth, $path, $query) = uri_split($$self);
+	my $at_host_port;
+	$auth =~ s/(@.*)\z// and $at_host_port = $1; # stash host:port for now
+	if (scalar(@_) == 2) {
+		if (defined $val) {
+			my $uval = uri_escape($val);
+			if ($auth =~ s!;AUTH=$achar!;AUTH=$uval!ix) {
+				# replaced existing
+			} elsif (defined($at_host_port)) {
+				$auth .= ";AUTH=$uval";
+			} else {
+				substr($auth, 0, 0) = ";AUTH=$uval@";
+			}
+		} else { # clobber
+			$auth =~ s!;AUTH=$achar!!i;
+			if ($at_host_port && $auth eq '') {
+				$at_host_port =~ s/\A\@//;
+			}
+		}
+		$at_host_port //= '';
+		$$self = uri_join($scheme, $auth.$at_host_port, $path, $query);
+		$val;
+	} else { # read-only
+		$auth =~ /;AUTH=(.+)\z/i ? uri_unescape($1) : undef;
+	}
 }
 
 sub scheme {

@@ -2,7 +2,7 @@
 # Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use Test::More;
+use v5.10.1;
 use PublicInbox::TestCommon;
 require_mods 'URI::Split';
 use_ok 'PublicInbox::URIimap';
@@ -69,36 +69,66 @@ $uri = PublicInbox::URIimap->new('imap://0/mmm;UIDVALIDITY=21');
 is($uri->uidvalidity, 21, 'multi-digit UIDVALIDITY');
 $uri = PublicInbox::URIimap->new('imap://0/mmm;UIDVALIDITY=bogus');
 is($uri->uidvalidity, undef, 'bogus UIDVALIDITY');
-is($uri->uidvalidity(2), 2, 'iuid set');
+is($uri->uidvalidity(2), 2, 'uid set');
 is($$uri, 'imap://0/mmm;UIDVALIDITY=2', 'bogus uidvalidity replaced');
-is($uri->uidvalidity(13), 13, 'iuid set');
+is($uri->uidvalidity(13), 13, 'uid set');
 is($$uri, 'imap://0/mmm;UIDVALIDITY=13', 'valid uidvalidity replaced');
 
 $uri = PublicInbox::URIimap->new('imap://0/mmm');
-is($uri->uidvalidity(2), 2, 'iuid set');
+is($uri->uidvalidity(2), 2, 'uid set');
 is($$uri, 'imap://0/mmm;UIDVALIDITY=2', 'uidvalidity appended');
-is($uri->iuid, undef, 'no iuid');
+is($uri->uid, undef, 'no uid');
 
 is(PublicInbox::URIimap->new('imap://0/x;uidvalidity=1')->canonical->as_string,
 	'imap://0/x;UIDVALIDITY=1', 'capitalized UIDVALIDITY');
 
 $uri = PublicInbox::URIimap->new('imap://0/mmm/;uid=8');
 is($uri->canonical->as_string, 'imap://0/mmm/;UID=8', 'canonicalized UID');
-is($uri->mailbox, 'mmm', 'mailbox works with iuid');
-is($uri->iuid, 8, 'iuid extracted');
-is($uri->iuid(9), 9, 'iuid set');
-is($$uri, 'imap://0/mmm/;UID=9', 'correct iuid when stringified');
-is($uri->uidvalidity(1), 1, 'set uidvalidity with iuid');
+is($uri->mailbox, 'mmm', 'mailbox works with uid');
+is($uri->uid, 8, 'uid extracted');
+is($uri->uid(9), 9, 'uid set');
+is($$uri, 'imap://0/mmm/;UID=9', 'correct uid when stringified');
+is($uri->uidvalidity(1), 1, 'set uidvalidity with uid');
 is($$uri, 'imap://0/mmm;UIDVALIDITY=1/;UID=9',
-	'uidvalidity added with iuid');
-is($uri->uidvalidity(4), 4, 'set uidvalidity with iuid');
+	'uidvalidity added with uid');
+is($uri->uidvalidity(4), 4, 'set uidvalidity with uid');
 is($$uri, 'imap://0/mmm;UIDVALIDITY=4/;UID=9',
-	'uidvalidity replaced with iuid');
-is($uri->iuid(3), 3, 'iuid set with uidvalidity');
-is($$uri, 'imap://0/mmm;UIDVALIDITY=4/;UID=3', 'iuid replaced properly');
+	'uidvalidity replaced with uid');
+is($uri->uid(3), 3, 'uid set with uidvalidity');
+is($$uri, 'imap://0/mmm;UIDVALIDITY=4/;UID=3', 'uid replaced properly');
 
 my $lc = lc($$uri);
 is(PublicInbox::URIimap->new($lc)->canonical->as_string, "$$uri",
 	'canonical uppercased both params');
+
+is($uri->uid(undef), undef, 'uid can be clobbered');
+is($$uri, 'imap://0/mmm;UIDVALIDITY=4', 'uid dropped');
+
+$uri->auth('ANONYMOUS');
+is($$uri, 'imap://;AUTH=ANONYMOUS@0/mmm;UIDVALIDITY=4', 'AUTH= set');
+is($uri->user, undef, 'user is undef w/ AUTH=');
+is($uri->password, undef, 'password is undef w/ AUTH=');
+
+$uri->user('foo');
+is($$uri, 'imap://foo;AUTH=ANONYMOUS@0/mmm;UIDVALIDITY=4', 'user set w/AUTH');
+is($uri->password, undef, 'password is undef w/ AUTH= & user');
+$uri->auth(undef);
+is($$uri, 'imap://foo@0/mmm;UIDVALIDITY=4', 'user remains set w/o auth');
+is($uri->password, undef, 'password is undef w/ user only');
+
+$uri->user('bar');
+is($$uri, 'imap://bar@0/mmm;UIDVALIDITY=4', 'user set w/o AUTH');
+$uri->auth('NTML');
+is($$uri, 'imap://bar;AUTH=NTML@0/mmm;UIDVALIDITY=4', 'auth set w/user');
+$uri->auth(undef);
+$uri->user(undef);
+is($$uri, 'imap://0/mmm;UIDVALIDITY=4', 'auth and user both cleared');
+is($uri->user, undef, 'user is undef');
+is($uri->auth, undef, 'auth is undef');
+is($uri->password, undef, 'password is undef');
+$uri = PublicInbox::URIimap->new('imap://[::1]:36281/');
+my $cred = bless { username => $uri->user, password => $uri->password };
+is($cred->{username}, undef, 'user is undef in array context');
+is($cred->{password}, undef, 'password is undef in array context');
 
 done_testing;
