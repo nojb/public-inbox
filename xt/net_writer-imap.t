@@ -157,12 +157,20 @@ test_lei(sub {
 
 	lei_ok qw(import -F eml), $f, \'import local copy w/o keywords';
 
+	lei_ok 'ls-mail-sync'; diag $lei_out;
+	lei_ok 'import', $$folder_uri; # populate mail_sync.sqlite3
+	lei_ok qw(tag +kw:seen +kw:answered +kw:flagged), $f;
+	lei_ok 'ls-mail-sync'; diag $lei_out;
+	chomp(my $uri_val = $lei_out);
+	lei_ok 'export-kw', $uri_val;
 	$mic = $nwr->mic_for_folder($folder_uri);
-	# dummy set to ensure second set_kw clobbers
-	$nwr->imap_set_kw($mic, $uid[0], [ qw(seen answered flagged) ]
-			)->expunge or BAIL_OUT "expunge $@";
-	$nwr->imap_set_kw($mic, $uid[0], [ 'seen' ]
-			)->expunge or BAIL_OUT "expunge $@";
+	my $flags = $mic->flags($uid[0]);
+	is_deeply([sort @$flags], [ qw(\\Answered \\Flagged \\Seen) ],
+		'IMAP flags set by export-kw') or diag explain($flags);
+
+	# ensure this imap_set_kw clobbers
+	$nwr->imap_set_kw($mic, $uid[0], [ 'seen' ])->expunge or
+		BAIL_OUT "expunge $@";
 	$mic = undef;
 	@res = ();
 	$nwr->imap_each($folder_uri, $imap_slurp_all, \@res);

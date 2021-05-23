@@ -59,15 +59,28 @@ sub export_kw_md { # LeiMailSync->each_src callback
 	$self->{lei}->child_error(1, "link($orig, $dst) ($oidhex): $e");
 }
 
+sub export_kw_imap { # LeiMailSync->each_src callback
+	my ($oidbin, $id, $self, $mic) = @_;
+	my $oidhex = unpack('H*', $oidbin);
+	my $sto_kw = $self->{lse}->oid_keywords($oidhex) or return;
+	$self->{imap_mod_kw}->($self->{nwr}, $mic, $id, [ keys %$sto_kw ]);
+}
+
 # overrides PublicInbox::LeiInput::input_path_url
 sub input_path_url {
 	my ($self, $input, @args) = @_;
 	my $lms = $self->{lms} //= $self->{lse}->lms;
 	$lms->lms_begin;
-	if ($input =~ s/\Amaildir://i) {
+	if ($input =~ /\Amaildir:(.+)/i) {
+		my $mdir = $1;
 		require PublicInbox::LeiToMail; # kw2suffix
-		$lms->each_src("maildir:$input", \&export_kw_md, $self, $input);
-	}
+		$lms->each_src($input, \&export_kw_md, $self, $mdir);
+	} elsif ($input =~ m!\Aimaps?://!) {
+		my $uri = PublicInbox::URIimap->new($input);
+		my $mic = $self->{nwr}->mic_for_folder($uri);
+		$lms->each_src($$uri, \&export_kw_imap, $self, $mic);
+		$mic->expunge;
+	} else { die "BUG: $input not supported" }
 	$lms->lms_commit;
 }
 
@@ -137,11 +150,6 @@ EOF
 	if (my @ro = grep(!/\A(?:maildir|imaps?):/, @folders)) {
 		return $lei->fail("cannot export to read-only folders: @ro");
 	}
-	if (my $net = $lei->{net}) {
-		require PublicInbox::NetWriter;
-		bless $net, 'PublicInbox::NetWriter';
-	}
-	undef $lms;
 	my $m = $opt->{mode} // 'merge';
 	if ($m eq 'merge') { # default
 		$self->{-merge_kw} = 1;
@@ -151,6 +159,13 @@ EOF
 --mode=$m not supported (`set' or `merge')
 EOM
 	}
+	if (my $net = $lei->{net}) {
+		require PublicInbox::NetWriter;
+		$self->{nwr} = bless $net, 'PublicInbox::NetWriter';
+		$self->{imap_mod_kw} = $net->can($self->{-merge_kw} ?
+					'imap_add_kw' : 'imap_set_kw');
+	}
+	undef $lms;
 	my $ops = {};
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
 	$self->{-wq_nr_workers} = $j // 1; # locked

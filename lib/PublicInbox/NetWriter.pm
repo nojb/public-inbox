@@ -26,10 +26,20 @@ sub imap_append {
 		die "APPEND $folder: $@";
 }
 
+# updates $uri with UIDVALIDITY
 sub mic_for_folder {
 	my ($self, $uri) = @_;
 	my $mic = $self->mic_get($uri) or die "E: not connected: $@";
 	$mic->select($uri->mailbox) or return;
+	my $uidval;
+	for ($mic->Results) {
+		/^\* OK \[UIDVALIDITY ([0-9]+)\].*/ or next;
+		$uidval = $1;
+		last;
+	}
+	$uidval //= $mic->uidvalidity($uri->mailbox) or
+		die "E: failed to get uidvalidity from <$uri>: $@";
+	$uri->uidvalidity($uidval);
 	$mic;
 }
 

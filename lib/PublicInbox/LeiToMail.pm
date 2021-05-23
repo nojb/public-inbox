@@ -307,11 +307,12 @@ sub _imap_write_cb ($$) {
 	my $dedupe = $lei->{dedupe};
 	$dedupe->prepare_dedupe if $dedupe;
 	my $append = $lei->{net}->can('imap_append');
-	my $mic = $lei->{net}->mic_get($self->{uri});
-	my $folder = $self->{uri}->mailbox;
+	my $uri = $self->{uri};
+	my $mic = $lei->{net}->mic_get($uri);
+	my $folder = $uri->mailbox;
+	$uri->uidvalidity($mic->uidvalidity($folder));
 	my $lse = $lei->{lse}; # may be undef
 	my $sto = $lei->{opt}->{'mail-sync'} ? $lei->{sto} : undef;
-	my $out = $lei->{ovv}->{dst};
 	sub { # for git_to_mail
 		my ($bref, $smsg, $eml) = @_;
 		$mic // return $lei->fail; # mic may be undef-ed in last run
@@ -327,7 +328,7 @@ sub _imap_write_cb ($$) {
 		# imap_append returns UID if IMAP server has UIDPLUS extension
 		($sto && $uid =~ /\A[0-9]+\z/) and
 			$sto->ipc_do('set_sync_info',
-					$smsg->{blob}, $out, $uid + 0);
+					$smsg->{blob}, $$uri, $uid + 0);
 		++$lei->{-nr_write};
 	}
 }
