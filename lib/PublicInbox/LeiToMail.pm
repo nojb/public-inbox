@@ -452,10 +452,10 @@ sub _do_augment_maildir {
 }
 
 sub _imap_augment_or_delete { # PublicInbox::NetReader::imap_each cb
-	my ($url, $uid, $kw, $eml, $lei, $lse, $delete_mic) = @_;
+	my ($uri, $uid, $kw, $eml, $lei, $lse, $delete_mic) = @_;
 	update_kw_maybe($lei, $lse, $eml, $kw);
 	if ($delete_mic) {
-		$lei->{net}->imap_delete_1($url, $uid, $delete_mic);
+		$lei->{net}->imap_delete_1($uri, $uid, $delete_mic);
 	} else {
 		_augment($eml, $lei);
 	}

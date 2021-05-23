@@ -42,9 +42,9 @@ sub input_maildir_cb { # maildir_each_eml cb
 }
 
 sub input_net_cb { # imap_each / nntp_each
-	my ($url, $uid, $kw, $eml, $self) = @_;
+	my ($uri, $uid, $kw, $eml, $self) = @_;
 	my $vmd = $self->{-import_kw} ? { kw => $kw } : undef;
-	$vmd->{sync_info} = [ $url, $uid ] if $self->{-mail_sync};
+	$vmd->{sync_info} = [ $$uri, $uid ] if $self->{-mail_sync};
 	$self->input_eml_cb($eml, $vmd);
 }
 

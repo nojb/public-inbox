@@ -28,18 +28,14 @@ sub imap_append {
 
 sub mic_for_folder {
 	my ($self, $uri) = @_;
-	if (!ref($uri)) {
-		my $u = PublicInbox::URIimap->new($uri);
-		$_[1] = $uri = $u;
-	}
 	my $mic = $self->mic_get($uri) or die "E: not connected: $@";
 	$mic->select($uri->mailbox) or return;
 	$mic;
 }
 
 sub imap_delete_all {
-	my ($self, $url) = @_;
-	my $mic = mic_for_folder($self, my $uri = $url) or return;
+	my ($self, $uri) = @_;
+	my $mic = mic_for_folder($self, $uri) or return;
 	my $sec = $self->can('uri_section')->($uri);
 	local $0 = $uri->mailbox." $sec";
 	if ($mic->delete_message('1:*')) {
@@ -48,8 +44,8 @@ sub imap_delete_all {
 }
 
 sub imap_delete_1 {
-	my ($self, $url, $uid, $delete_mic) = @_;
-	$$delete_mic //= mic_for_folder($self, my $uri = $url) or return;
+	my ($self, $uri, $uid, $delete_mic) = @_;
+	$$delete_mic //= mic_for_folder($self, $uri) or return;
 	$$delete_mic->delete_message($uid);
 }
 

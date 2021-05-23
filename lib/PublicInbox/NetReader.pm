@@ -397,7 +397,7 @@ sub errors {
 }
 
 sub _imap_do_msg ($$$$$) {
-	my ($self, $url, $uid, $raw, $flags) = @_;
+	my ($self, $uri, $uid, $raw, $flags) = @_;
 	# our target audience expects LF-only, save storage
 	$$raw =~ s/\r\n/\n/sg;
 	my $kw = [];
@@ -408,12 +408,12 @@ sub _imap_do_msg ($$$$$) {
 		} elsif ($f eq "\\Deleted") { # not in JMAP
 			return;
 		} elsif ($self->{verbose}) {
-			warn "# unknown IMAP flag $f <$url/;UID=$uid>\n";
+			warn "# unknown IMAP flag $f <$uri/;UID=$uid>\n";
 		}
 	}
 	@$kw = sort @$kw; # for all UI/UX purposes
 	my ($eml_cb, @args) = @{$self->{eml_each}};
-	$eml_cb->($url, $uid, $kw, PublicInbox::Eml->new($raw), @args);
+	$eml_cb->($uri, $uid, $kw, PublicInbox::Eml->new($raw), @args);
 }
 
 sub run_commit_cb ($) {
@@ -532,7 +532,7 @@ EOF
 				# messages get deleted, so holes appear
 				my $per_uid = delete $r->{$uid} // next;
 				my $raw = delete($per_uid->{$key}) // next;
-				_imap_do_msg($self, $$uri, $uid, \$raw,
+				_imap_do_msg($self, $uri, $uid, \$raw,
 						$per_uid->{FLAGS});
 				$last_uid = $uid;
 				last if $self->{quit};
@@ -638,7 +638,6 @@ sub _nntp_fetch_all ($$$) {
 		warn "# $uri fetching ARTICLE $beg..$end\n";
 	}
 	my $n = $self->{max_batch};
-	my $url = $$uri;
 	for ($beg..$end) {
 		last if $self->{quit};
 		$art = $_;
@@ -661,7 +660,7 @@ sub _nntp_fetch_all ($$$) {
 		$raw = join('', @$raw);
 		$raw =~ s/\r\n/\n/sg;
 		my ($eml_cb, @args) = @{$self->{eml_each}};
-		$eml_cb->($url, $art, $kw, PublicInbox::Eml->new(\$raw), @args);
+		$eml_cb->($uri, $art, $kw, PublicInbox::Eml->new(\$raw), @args);
 		$last_art = $art;
 	}
 	run_commit_cb($self);
