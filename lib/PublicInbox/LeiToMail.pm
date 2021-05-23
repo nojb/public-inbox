@@ -41,11 +41,14 @@ sub _mbox_hdr_buf ($$$) {
 			warn "# keyword `$k' not supported for mbox\n";
 		}
 	}
-	# Messages are always 'O' (non-\Recent in IMAP), it saves
-	# MUAs the trouble of rewriting the mbox if no other
-	# changes are made.  We put 'O' at the end (e.g. "Status: RO")
-	# to match mutt(1) output.
-	$eml->header_set('Status', join('', sort(@{$hdr{Status}})). 'O');
+	# When writing to empty mboxes, messages are always 'O'
+	# (not-\Recent in IMAP), it saves MUAs the trouble of
+	# rewriting the mbox if no other changes are made.
+	# We put 'O' at the end (e.g. "Status: RO") to match mutt(1) output.
+	# We only set smsg->{-recent} if augmenting existing stores.
+	my $status = join('', sort(@{$hdr{Status}}));
+	$status .= 'O' unless $smsg->{-recent};
+	$eml->header_set('Status', $status) if $status;
 	if (my $chars = delete $hdr{'X-Status'}) {
 		$eml->header_set('X-Status', join('', sort(@$chars)));
 	}
@@ -196,11 +199,13 @@ sub _mbox_write_cb ($$) {
 	my $dedupe = $lei->{dedupe};
 	$dedupe->prepare_dedupe;
 	my $lse = $lei->{lse}; # may be undef
+	my $set_recent = $dedupe->dedupe_nr;
 	sub { # for git_to_mail
 		my ($buf, $smsg, $eml) = @_;
 		$eml //= PublicInbox::Eml->new($buf);
 		return if $dedupe->is_dup($eml, $smsg);
 		$lse->xsmsg_vmd($smsg) if $lse;
+		$smsg->{-recent} = 1 if $set_recent;
 		$buf = $eml2mbox->($eml, $smsg);
 		if ($atomic_append) {
 			atomic_append($lei, $buf);
@@ -248,8 +253,8 @@ sub kw2suffix ($;@) {
 	join('', sort(map { $kw2char{$_} // () } @$kw, @_));
 }
 
-sub _buf2maildir {
-	my ($dst, $buf, $smsg) = @_;
+sub _buf2maildir ($$$$) {
+	my ($dst, $buf, $smsg, $dir) = @_;
 	my $kw = $smsg->{kw} // [];
 	my $rand = ''; # chosen by die roll :P
 	my ($tmp, $fh, $base, $ok);
@@ -260,11 +265,7 @@ sub _buf2maildir {
 	} while (!($ok = sysopen($fh, $tmp, O_CREAT|O_EXCL|O_WRONLY)) &&
 		$!{EEXIST} && ($rand = _rand.','));
 	if ($ok && print $fh $$buf and close($fh)) {
-		# ignore new/ and write only to cur/, otherwise MUAs
-		# with R/W access to the Maildir will end up doing
-		# a mass rename which can take a while with thousands
-		# of messages.
-		$dst .= 'cur/';
+		$dst .= $dir; # 'new/' or 'cur/'
 		$rand = '';
 		do {
 			$base = $rand.$common.':2,'.kw2suffix($kw);
@@ -289,6 +290,11 @@ sub _maildir_write_cb ($$) {
 	my $lse = $lei->{lse}; # may be undef
 	my $sto = $lei->{opt}->{'mail-sync'} ? $lei->{sto} : undef;
 	my $out = $sto ? 'maildir:'.$lei->rel2abs($dst) : undef;
+
+	# Favor cur/ and only write to new/ when augmenting.  This
+	# saves MUAs from having to do a mass rename when the initial
+	# search result set is huge.
+	my $dir = $dedupe && $dedupe->dedupe_nr ? 'new/' : 'cur/';
 	sub { # for git_to_mail
 		my ($bref, $smsg, $eml) = @_;
 		$dst // return $lei->fail; # dst may be undef-ed in last run
@@ -296,7 +302,8 @@ sub _maildir_write_cb ($$) {
 						PublicInbox::Eml->new($$bref),
 						$smsg);
 		$lse->xsmsg_vmd($smsg) if $lse;
-		my $n = _buf2maildir($dst, $bref // \($eml->as_string), $smsg);
+		my $n = _buf2maildir($dst, $bref // \($eml->as_string),
+					$smsg, $dir);
 		$sto->ipc_do('set_sync_info', $smsg->{blob}, $out, $n) if $sto;
 		++$lei->{-nr_write};
 	}
@@ -648,7 +655,16 @@ sub do_post_auth {
 		$lei->{1} = $zpipe->[1];
 		close $zpipe->[0];
 	}
+	my $au_peers = delete $self->{au_peers};
+	if ($au_peers) { # wait for peer l2m to finish augmenting:
+		$au_peers->[1] = undef;
+		sysread($au_peers->[0], my $barrier1, 1);
+	}
 	$self->{wcb} = $self->write_cb($lei);
+	if ($au_peers) { # wait for peer l2m to set write_cb
+		$au_peers->[3] = undef;
+		sysread($au_peers->[2], my $barrier2, 1);
+	}
 }
 
 sub ipc_atfork_child {

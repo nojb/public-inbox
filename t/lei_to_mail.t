@@ -90,7 +90,7 @@ my $fn = "$tmpdir/x.mbox";
 my ($mbox) = shuffle(@MBOX); # pick one, shouldn't matter
 my $wcb_get = sub {
 	my ($fmt, $dst) = @_;
-	delete $lei->{dedupe};
+	delete $lei->{dedupe}; # to be recreated
 	$lei->{ovv} = bless {
 		fmt => $fmt,
 		dst => $dst
@@ -119,13 +119,12 @@ my $orig = do {
 	like($raw, qr/^blah\n/sm, 'wrote content');
 	unlink $fn or BAIL_OUT $!;
 
-	local $lei->{opt} = { jobs => 2 };
 	$wcb = $wcb_get->($mbox, $fn);
 	ok(-f $fn && !-s _, 'truncated mbox destination');
 	$wcb->(\($dup = $buf), $deadbeef);
 	$commit->($wcb);
 	open $fh, '<', $fn or BAIL_OUT $!;
-	is(do { local $/; <$fh> }, $raw, 'jobs > 1');
+	is(do { local $/; <$fh> }, $raw, 'wrote identical content');
 	$raw;
 };
 
@@ -158,21 +157,20 @@ for my $zsfx (qw(gz bz2 xz)) {
 		ok($dc_cmd, "decompressor for .$zsfx");
 		my $f = "$fn.$zsfx";
 		my $wcb = $wcb_get->($mbox, $f);
-		$wcb->(\(my $dup = $buf), $deadbeef);
+		$wcb->(\(my $dup = $buf), { %$deadbeef });
 		$commit->($wcb);
 		my $uncompressed = xqx([@$dc_cmd, $f]);
 		is($uncompressed, $orig, "$zsfx works unlocked");
 
-		local $lei->{opt} = { jobs => 2 }; # for atomic writes
 		unlink $f or BAIL_OUT "unlink $!";
 		$wcb = $wcb_get->($mbox, $f);
-		$wcb->(\($dup = $buf), $deadbeef);
+		$wcb->(\($dup = $buf), { %$deadbeef });
 		$commit->($wcb);
 		is(xqx([@$dc_cmd, $f]), $orig, "$zsfx matches with lock");
 
 		local $lei->{opt} = { augment => 1 };
 		$wcb = $wcb_get->($mbox, $f);
-		$wcb->(\($dup = $buf . "\nx\n"), $deadbeef);
+		$wcb->(\($dup = $buf . "\nx\n"), { %$deadbeef });
 		$commit->($wcb);
 
 		my $cat = popen_rd([@$dc_cmd, $f]);
@@ -182,9 +180,9 @@ for my $zsfx (qw(gz bz2 xz)) {
 		like($raw[1], qr/\nblah\n\nx\n\z/s, "augmented $zsfx");
 		like($raw[0], qr/\nblah\n\z/s, "original preserved $zsfx");
 
-		local $lei->{opt} = { augment => 1, jobs => 2 };
+		local $lei->{opt} = { augment => 1 };
 		$wcb = $wcb_get->($mbox, $f);
-		$wcb->(\($dup = $buf . "\ny\n"), $deadbeef);
+		$wcb->(\($dup = $buf . "\ny\n"), { %$deadbeef });
 		$commit->($wcb);
 
 		my @raw3;

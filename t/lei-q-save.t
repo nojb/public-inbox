@@ -42,7 +42,7 @@ test_lei(sub {
 	lei_ok qw(up -q md -C), $home;
 	lei_ok qw(up -q . -C), "$home/md";
 	lei_ok qw(up -q), "/$home/md";
-	my %after = map { $_ => 1 } glob("$home/md/cur/*");
+	my %after = map { $_ => 1 } glob("$home/md/{new,cur}/*");
 	is(delete $after{(keys(%before))[0]}, 1, 'original message kept');
 	is(scalar(keys %after), 1, 'one new message added');
 	is_deeply(eml_load((keys %after)[0]), $doc2, 'doc2 matches');
@@ -155,7 +155,7 @@ test_lei(sub {
 	$im->add(PublicInbox::Eml->new($diff));
 	$im->done;
 	lei_ok('up', $o);
-	@m = glob("$o/cur/*");
+	@m = glob("$o/{new,cur}/*");
 	is(scalar(@m), 2, 'got 2nd result due to different OID');
 
 	SKIP: {

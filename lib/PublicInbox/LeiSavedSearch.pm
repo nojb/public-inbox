@@ -309,6 +309,13 @@ E: rename($dir_old, $dir_new) error: $!
 EOM
 }
 
+# cf. LeiDedupe->dedupe_nr
+sub dedupe_nr {
+	my $oidx = $_[0]->{oidx} // die 'BUG: no {oidx}';
+	my @n = $oidx->{dbh}->selectrow_array('SELECT COUNT(*) FROM over');
+	$n[0];
+}
+
 no warnings 'once';
 *nntp_url = \&cloneurl;
 *base_url = \&PublicInbox::Inbox::base_url;

@@ -14,7 +14,6 @@ my $exp = {
 	'<testmessage@example.com>' => eml_load('t/utf8.eml'),
 };
 $exp->{'<qp@example.com>'}->header_set('Status', 'RO');
-$exp->{'<testmessage@example.com>'}->header_set('Status', 'O');
 
 test_lei(sub {
 lei_ok(qw(import -F eml t/plack-qp.eml));
@@ -105,7 +104,17 @@ for my $sfx ('', '.gz') {
 	my %res;
 	PublicInbox::MboxReader->mboxrd($fh, sub {
 		my ($eml) = @_;
-		$res{$eml->header_raw('Message-ID')} = $eml;
+		my $mid = $eml->header_raw('Message-ID');
+		if ($mid eq '<testmessage@example.com>') {
+			is_deeply([$eml->header('Status')], [],
+				"no status $sfx");
+			$eml->header_set('Status');
+		} elsif ($mid eq '<qp@example.com>') {
+			is($eml->header('Status'), 'RO', 'status preserved');
+		} else {
+			fail("unknown mid $mid");
+		}
+		$res{$mid} = $eml;
 	});
 	is_deeply(\%res, $exp, '--augment worked');
 
