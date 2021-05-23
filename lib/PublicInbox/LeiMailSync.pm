@@ -7,6 +7,7 @@ use strict;
 use v5.10.1;
 use DBI;
 use PublicInbox::ContentHash qw(git_sha);
+use Carp ();
 
 sub dbh_new {
 	my ($self, $rw) = @_;
@@ -88,6 +89,10 @@ UPDATE folders SET loc = ? WHERE fid = ?
 EOM
 			return $fid;
 		}
+	} elsif ($rw && $folder =~ m!\Aimaps?://!i) {
+		require PublicInbox::URIimap;
+		PublicInbox::URIimap->new($folder)->uidvalidity //
+			Carp::croak("BUG: $folder has no UIDVALIDITY");
 	}
 	return unless $rw;
 
