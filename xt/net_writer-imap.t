@@ -23,7 +23,8 @@ my $folder = "INBOX.$base-$host-".strftime('%Y%m%d%H%M%S', gmtime(time)).
 		"-$$-".sprintf('%x', int(rand(0xffffffff)));
 my $nwr = PublicInbox::NetWriter->new;
 chop($imap_url) if substr($imap_url, -1) eq '/';
-my $folder_uri = PublicInbox::URIimap->new("$imap_url/$folder");
+my $folder_url = "$imap_url/$folder";
+my $folder_uri = PublicInbox::URIimap->new($folder_url);
 is($folder_uri->mailbox, $folder, 'folder correct') or
 		BAIL_OUT "BUG: bad $$uri";
 $nwr->add_url($$folder_uri);
@@ -120,13 +121,13 @@ test_lei(sub {
 	}
 	$set_cred_helper->("$ENV{HOME}/.gitconfig", $cred_set) if $cred_set;
 
-	lei_ok qw(q f:qp@example.com -o), $$folder_uri;
+	lei_ok qw(q f:qp@example.com -o), $folder_url;
 	$nwr->imap_each($folder_uri, $imap_slurp_all, my $res = []);
 	is(scalar(@$res), 1, 'got one deduped result') or diag explain($res);
 	is_deeply($res->[0]->[1], $plack_qp_eml,
 			'lei q wrote expected result');
 
-	lei_ok qw(q f:matz -a -o), $$folder_uri;
+	lei_ok qw(q f:matz -a -o), $folder_url;
 	$nwr->imap_each($folder_uri, $imap_slurp_all, my $aug = []);
 	is(scalar(@$aug), 2, '2 results after augment') or diag explain($aug);
 	my $exp = $res->[0]->[1]->as_string;
@@ -136,13 +137,13 @@ test_lei(sub {
 	is(scalar(grep { $_->[1]->as_string eq $exp } @$aug), 1,
 			'new result shown after augment');
 
-	lei_ok qw(q s:thisbetternotgiveanyresult -o), $folder_uri->as_string;
+	lei_ok qw(q s:thisbetternotgiveanyresult -o), $folder_url;
 	$nwr->imap_each($folder_uri, $imap_slurp_all, my $empty = []);
 	is(scalar(@$empty), 0, 'no results w/o augment');
 
 	my $f = 't/utf8.eml'; # <testmessage@example.com>
 	$exp = eml_load($f);
-	lei_ok qw(convert -F eml -o), $$folder_uri, $f;
+	lei_ok qw(convert -F eml -o), $folder_url, $f;
 	my (@uid, @res);
 	$nwr->imap_each($folder_uri, sub {
 		my ($u, $uid, $kw, $eml) = @_;
@@ -157,12 +158,15 @@ test_lei(sub {
 
 	lei_ok qw(import -F eml), $f, \'import local copy w/o keywords';
 
-	lei_ok 'ls-mail-sync'; diag $lei_out;
-	lei_ok 'import', $$folder_uri; # populate mail_sync.sqlite3
+	lei_ok 'import', $folder_url; # populate mail_sync.sqlite3
 	lei_ok qw(tag +kw:seen +kw:answered +kw:flagged), $f;
-	lei_ok 'ls-mail-sync'; diag $lei_out;
-	chomp(my $uri_val = $lei_out);
-	lei_ok 'export-kw', $uri_val;
+	lei_ok 'ls-mail-sync';
+	my @ls = split(/\n/, $lei_out);
+	is(scalar(@ls), 1, 'only one folder in ls-mail-sync') or xbail(\@ls);
+	for my $l (@ls) {
+		like($l, qr/;UIDVALIDITY=\d+\z/, 'UIDVALIDITY');
+	}
+	lei_ok 'export-kw', $folder_url;
 	$mic = $nwr->mic_for_folder($folder_uri);
 	my $flags = $mic->flags($uid[0]);
 	is_deeply([sort @$flags], [ qw(\\Answered \\Flagged \\Seen) ],
@@ -177,7 +181,7 @@ test_lei(sub {
 	is_deeply(\@res, [ [ ['seen'], $exp ] ], 'seen flag set') or
 		diag explain(\@res);
 
-	lei_ok qw(q s:thisbetternotgiveanyresult -o), $folder_uri->as_string,
+	lei_ok qw(q s:thisbetternotgiveanyresult -o), $folder_url,
 		\'clobber folder but import flag';
 	$nwr->imap_each($folder_uri, $imap_slurp_all, $empty = []);
 	is_deeply($empty, [], 'clobbered folder');
@@ -206,7 +210,7 @@ EOM
 	run_script(\@cmd) or BAIL_OUT "init wtest";
 	xsys(qw(git config), "--file=$ENV{HOME}/.public-inbox/config",
 			'publicinbox.wtest.watch',
-			$$folder_uri) == 0 or BAIL_OUT "git config $?";
+			$folder_url) == 0 or BAIL_OUT "git config $?";
 	my $watcherr = "$ENV{HOME}/watch.err";
 	open my $err_wr, '>>', $watcherr or BAIL_OUT $!;
 	my $pub_cfg = PublicInbox::Config->new;
@@ -231,7 +235,7 @@ EOM
 	ok(defined($mm->num_for('forwarded@test.example.com')),
 		'-watch takes forwarded message');
 	undef $w; # done with watch
-	lei_ok qw(import), $$folder_uri;
+	lei_ok qw(import), $folder_url;
 	lei_ok qw(q m:forwarded@test.example.com);
 	is_deeply(json_utf8->decode($lei_out)->[0]->{kw}, ['forwarded'],
 		'forwarded kw imported from IMAP');

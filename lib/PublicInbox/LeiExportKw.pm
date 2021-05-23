@@ -84,6 +84,37 @@ sub input_path_url {
 	$lms->lms_commit;
 }
 
+sub match_imap_url ($$) {
+	my ($all, $url) = @_; # $all = [ $lms->folders ];
+	require PublicInbox::URIimap;
+	my $cli = PublicInbox::URIimap->new($url)->canonical;
+	my ($s, $h, $mb) = ($cli->scheme, $cli->host, $cli->mailbox);
+	my @uri = map { PublicInbox::URIimap->new($_)->canonical }
+		grep(m!\A\Q$s\E://.*?\Q$h\E\b.*?/\Q$mb\E\b!, @$all);
+	my @match;
+	for my $x (@uri) {
+		next if $x->mailbox ne $cli->mailbox;
+		next if $x->host ne $cli->host;
+		next if $x->port != $cli->port;
+		my $x_uidval = $x->uidvalidity;
+		next if ($cli->uidvalidity // $x_uidval) != $x_uidval;
+
+		# allow nothing in CLI to possibly match ";AUTH=ANONYMOUS"
+		if (defined($x->auth) && !defined($cli->auth) &&
+				!defined($cli->user)) {
+			push @match, $x;
+		# or maybe user was forgotten on CLI:
+		} elsif (defined($x->user) && !defined($cli->user)) {
+			push @match, $x;
+		} elsif (($x->user//"\0") eq ($cli->user//"\0")) {
+			push @match, $x;
+		}
+	}
+	return $match[0] if scalar(@match) <= 1;
+	warn "E: `$url' is ambiguous:\n\t", join("\n\t", @match), "\n";
+	undef;
+}
+
 sub lei_export_kw {
 	my ($lei, @folders) = @_;
 	my $sto = $lei->_lei_store or return $lei->fail(<<EOM);
@@ -133,6 +164,16 @@ EOM
 				my $d = 'maildir:'.$lei->rel2abs($_);
 				push(@no, $_) unless $all{$d};
 				$_ = $d;
+			} elsif (m!\Aimaps?://!i) {
+				my $orig = $_;
+				if (my $canon = match_imap_url(\@all, $orig)) {
+					$lei->qerr(<<EOM);
+# using `$canon' instead of `$orig'
+EOM
+					$_ = $canon;
+				} else {
+					push @no, $orig;
+				}
 			} else {
 				push @no, $_;
 			}
