@@ -265,4 +265,36 @@ WHERE b.oidbin = ?
 	undef;
 }
 
+sub match_imap_url {
+	my ($self, $url, $all) = @_; # $all = [ $lms->folders ];
+	$all //= [ $self->folders ];
+	require PublicInbox::URIimap;
+	my $want = PublicInbox::URIimap->new($url)->canonical;
+	my ($s, $h, $mb) = ($want->scheme, $want->host, $want->mailbox);
+	my @uri = map { PublicInbox::URIimap->new($_)->canonical }
+		grep(m!\A\Q$s\E://.*?\Q$h\E\b.*?/\Q$mb\E\b!, @$all);
+	my @match;
+	for my $x (@uri) {
+		next if $x->mailbox ne $want->mailbox;
+		next if $x->host ne $want->host;
+		next if $x->port != $want->port;
+		my $x_uidval = $x->uidvalidity;
+		next if ($want->uidvalidity // $x_uidval) != $x_uidval;
+
+		# allow nothing in want to possibly match ";AUTH=ANONYMOUS"
+		if (defined($x->auth) && !defined($want->auth) &&
+				!defined($want->user)) {
+			push @match, $x;
+		# or maybe user was forgotten on CLI:
+		} elsif (defined($x->user) && !defined($want->user)) {
+			push @match, $x;
+		} elsif (($x->user//"\0") eq ($want->user//"\0")) {
+			push @match, $x;
+		}
+	}
+	return @match if wantarray;
+	scalar(@match) <= 1 ? $match[0] :
+			"E: `$url' is ambiguous:\n\t".join("\n\t", @match)."\n";
+}
+
 1;

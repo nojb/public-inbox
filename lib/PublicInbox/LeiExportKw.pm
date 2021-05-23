@@ -75,44 +75,13 @@ sub input_path_url {
 		my $mdir = $1;
 		require PublicInbox::LeiToMail; # kw2suffix
 		$lms->each_src($input, \&export_kw_md, $self, $mdir);
-	} elsif ($input =~ m!\Aimaps?://!) {
+	} elsif ($input =~ m!\Aimaps?://i!) {
 		my $uri = PublicInbox::URIimap->new($input);
 		my $mic = $self->{nwr}->mic_for_folder($uri);
 		$lms->each_src($$uri, \&export_kw_imap, $self, $mic);
 		$mic->expunge;
 	} else { die "BUG: $input not supported" }
 	$lms->lms_commit;
-}
-
-sub match_imap_url ($$) {
-	my ($all, $url) = @_; # $all = [ $lms->folders ];
-	require PublicInbox::URIimap;
-	my $cli = PublicInbox::URIimap->new($url)->canonical;
-	my ($s, $h, $mb) = ($cli->scheme, $cli->host, $cli->mailbox);
-	my @uri = map { PublicInbox::URIimap->new($_)->canonical }
-		grep(m!\A\Q$s\E://.*?\Q$h\E\b.*?/\Q$mb\E\b!, @$all);
-	my @match;
-	for my $x (@uri) {
-		next if $x->mailbox ne $cli->mailbox;
-		next if $x->host ne $cli->host;
-		next if $x->port != $cli->port;
-		my $x_uidval = $x->uidvalidity;
-		next if ($cli->uidvalidity // $x_uidval) != $x_uidval;
-
-		# allow nothing in CLI to possibly match ";AUTH=ANONYMOUS"
-		if (defined($x->auth) && !defined($cli->auth) &&
-				!defined($cli->user)) {
-			push @match, $x;
-		# or maybe user was forgotten on CLI:
-		} elsif (defined($x->user) && !defined($cli->user)) {
-			push @match, $x;
-		} elsif (($x->user//"\0") eq ($cli->user//"\0")) {
-			push @match, $x;
-		}
-	}
-	return $match[0] if scalar(@match) <= 1;
-	warn "E: `$url' is ambiguous:\n\t", join("\n\t", @match), "\n";
-	undef;
 }
 
 sub lei_export_kw {
@@ -166,12 +135,14 @@ EOM
 				$_ = $d;
 			} elsif (m!\Aimaps?://!i) {
 				my $orig = $_;
-				if (my $canon = match_imap_url(\@all, $orig)) {
+				my $res = $lms->match_imap_url($orig, $all);
+				if (ref $res) {
+					$_ = $$res;
 					$lei->qerr(<<EOM);
-# using `$canon' instead of `$orig'
+# using `$res' instead of `$orig'
 EOM
-					$_ = $canon;
 				} else {
+					$lei->err($res) if defined $res;
 					push @no, $orig;
 				}
 			} else {
@@ -188,7 +159,7 @@ EOF
 	$lei->{opt}->{'mail-sync'} = 1; # for prepare_inputs
 	$self->prepare_inputs($lei, \@folders) or return;
 	my $j = $opt->{jobs} // scalar(@{$self->{inputs}}) || 1;
-	if (my @ro = grep(!/\A(?:maildir|imaps?):/, @folders)) {
+	if (my @ro = grep(!/\A(?:maildir|imaps?):/i, @folders)) {
 		return $lei->fail("cannot export to read-only folders: @ro");
 	}
 	my $m = $opt->{mode} // 'merge';

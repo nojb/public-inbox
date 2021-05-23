@@ -22,9 +22,15 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	is_deeply(json_utf8->decode($lei_out), {}, 'no inspect stats, yet');
 
 	lei_ok('import', $url);
+	lei_ok('inspect', $url);
+	my $res = json_utf8->decode($lei_out);
+	is(scalar keys %$res, 1, 'got one key in inspect URL');
+	my $re = qr!\Aimap://;AUTH=ANONYMOUS\@\Q$host_port\E
+			/t\.v2\.0;UIDVALIDITY=\d+!x;
+	like((keys %$res)[0], qr/$re\z/, 'got expanded key');
+
 	lei_ok 'ls-mail-sync';
-	like($lei_out, qr!\Aimap://;AUTH=ANONYMOUS\@\Q$host_port\E
-			/t\.v2\.0;UIDVALIDITY=\d+\n\z!x, 'ls-mail-sync');
+	like($lei_out, qr!$re\n\z!, 'ls-mail-sync');
 	chomp(my $u = $lei_out);
 	lei_ok('import', $u, \'UIDVALIDITY match in URL');
 	$url = $u;

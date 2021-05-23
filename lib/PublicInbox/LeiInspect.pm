@@ -31,18 +31,7 @@ sub inspect_sync_folder ($$) {
 	my $lms = $lse->lms or return $ent;
 	my @folders;
 	if ($folder =~ m!\Aimaps?://!i) {
-		require PublicInbox::URIimap;
-		my $uri = PublicInbox::URIimap->new($folder)->canonical;
-		if (defined($uri->uidvalidity)) {
-			$folders[0] = $$uri;
-		} else {
-			my @maybe = $lms->folders($$uri);
-			@folders = grep {
-				my $u = PublicInbox::URIimap->new($_);
-				$uri->uidvalidity($u->uidvalidity);
-				$$uri eq $$u;
-			} @maybe;
-		}
+		@folders = map { $_->as_string } $lms->match_imap_url($folder);
 	} elsif ($folder =~ m!\A(maildir|mh):(.+)!i) {
 		my $type = lc $1;
 		$folders[0] = "$type:".$lei->abs_path($2);
