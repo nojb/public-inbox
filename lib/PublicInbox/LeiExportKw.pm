@@ -75,7 +75,7 @@ sub input_path_url {
 		my $mdir = $1;
 		require PublicInbox::LeiToMail; # kw2suffix
 		$lms->each_src($input, \&export_kw_md, $self, $mdir);
-	} elsif ($input =~ m!\Aimaps?://i!) {
+	} elsif ($input =~ m!\Aimaps?://!i) {
 		my $uri = PublicInbox::URIimap->new($input);
 		my $mic = $self->{nwr}->mic_for_folder($uri);
 		$lms->each_src($$uri, \&export_kw_imap, $self, $mic);
