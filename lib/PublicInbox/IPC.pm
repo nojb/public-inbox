@@ -251,7 +251,7 @@ sub wq_worker_loop ($) {
 
 sub do_sock_stream { # via wq_io_do, for big requests
 	my ($self, $len) = @_;
-	recv_and_run($self, delete $self->{0}, $len, 1);
+	recv_and_run($self, my $s2 = delete $self->{0}, $len, 1);
 }
 
 sub wq_broadcast {
