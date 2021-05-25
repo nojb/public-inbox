@@ -71,5 +71,9 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	like($lei_out, qr!^Content-Type: multipart/mixed;!sm, 'got full blob');
 	lei_ok('blob', "$psgi_attach:2");
 	is($lei_out, "b64\xde\xad\xbe\xef\n", 'got attachment');
+
+	lei_ok 'forget-mail-sync', $url;
+	lei_ok 'ls-mail-sync';
+	unlike($lei_out, qr!\Q$host_port\E!, 'sync info gone after forget');
 });
 done_testing;

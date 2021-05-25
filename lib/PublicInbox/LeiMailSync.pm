@@ -345,4 +345,15 @@ EOF
 	$err;
 }
 
+sub forget_folder {
+	my ($self, $folder) = @_;
+	my ($fid, $sth);
+	$fid = delete($self->{fmap}->{$folder}) //
+		_fid_for($self, $folder) // return;
+	my $dbh = $self->{dbh};
+	$dbh->do('DELETE FROM blob2name WHERE fid = ?', undef, $fid);
+	$dbh->do('DELETE FROM blob2num WHERE fid = ?', undef, $fid);
+	$dbh->do('DELETE FROM folders WHERE fid = ?', undef, $fid);
+}
+
 1;
