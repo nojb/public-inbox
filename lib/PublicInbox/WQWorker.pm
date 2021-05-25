@@ -23,7 +23,7 @@ sub event_step {
 	my ($self) = @_;
 	my $n;
 	do {
-		$n = $self->{wq}->recv_and_run($self->{sock}, 4096 * 33);
+		$n = $self->{wq}->recv_and_run($self->{sock});
 	} while ($n);
 	return if !defined($n) && $! == EAGAIN; # likely
 	warn "wq worker error: $!\n" if !defined($n) && $! != ECONNRESET;

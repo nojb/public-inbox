@@ -122,11 +122,16 @@ for my $t ('local', 'worker', 'worker again') {
 	$ipc->wq_io_do('test_sha', [ $wa, $wb ], 'hello world');
 	is(readline($rb), sha1_hex('hello world')."\n", "SHA small ($t)");
 	{
-		my $bigger = $big x 10;
+		my $bigger = $big x 10; # to hit EMSGSIZE
 		$ipc->wq_io_do('test_sha', [ $wa, $wb ], $bigger);
 		my $exp = sha1_hex($bigger)."\n";
-		undef $bigger;
-		is(readline($rb), $exp, "SHA big ($t)");
+		is(readline($rb), $exp, "SHA big for EMSGSIZE ($t)");
+
+		# to hit the WQWorker recv_and_run length
+		substr($bigger, my $MY_MAX_ARG_STRLEN = 4096 * 33, -1) = '';
+		$ipc->wq_io_do('test_sha', [ $wa, $wb ], $bigger);
+		$exp = sha1_hex($bigger)."\n";
+		is(readline($rb), $exp, "SHA WQWorker limit ($t)");
 	}
 	my $ppid = $ipc->wq_workers_start('wq', 1);
 	push(@ppids, $ppid);
