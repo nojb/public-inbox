@@ -130,7 +130,7 @@ EOM
 		for (@folders) {
 			next if $all{$_}; # ok
 			if (-d "$_/new" && -d "$_/cur") {
-				my $d = 'maildir:'.$lei->rel2abs($_);
+				my $d = 'maildir:'.$lei->abs_path($_);
 				push(@no, $_) unless $all{$d};
 				$_ = $d;
 			} elsif (m!\Aimaps?://!i) {
