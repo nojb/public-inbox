@@ -302,4 +302,47 @@ sub match_imap_url {
 			"E: `$url' is ambiguous:\n\t".join("\n\t", @match)."\n";
 }
 
+# map CLI args to folder table entries, returns undef on failure
+sub arg2folder {
+	my ($self, $lei, $folders) = @_;
+	my @all = $self->folders;
+	my %all = map { $_ => 1 } @all;
+	my ($err, @no);
+	for (@$folders) {
+		next if $all{$_}; # ok
+		if (m!\A(maildir|mh):(.+)!i) {
+			my $type = lc $1;
+			my $d = "$type:".$lei->abs_path($2);
+			push(@no, $_) unless $all{$d};
+			$_ = $d;
+		} elsif (-d "$_/new" && -d "$_/cur") {
+			my $d = 'maildir:'.$lei->abs_path($_);
+			push(@no, $_) unless $all{$d};
+			$_ = $d;
+		} elsif (m!\Aimaps?://!i) {
+			my $orig = $_;
+			my $res = match_imap_url($self, $orig, \@all);
+			if (ref $res) {
+				$_ = $$res;
+				push(@{$err->{qerr}}, <<EOM);
+# using `$res' instead of `$orig'
+EOM
+			} else {
+				$lei->err($res) if defined $res;
+				push @no, $orig;
+			}
+		} else {
+			push @no, $_;
+		}
+	}
+	if (@no) {
+		my $no = join("\n\t", @no);
+		$err->{fail} = <<EOF;
+No sync information for: $no
+Run `lei ls-mail-sync' to display valid choices
+EOF
+	}
+	$err;
+}
+
 1;

@@ -95,7 +95,6 @@ lei mail_sync uninitialized, see lei-import(1)
 EOM
 	my $opt = $lei->{opt};
 	my $all = $opt->{all};
-	my @all = $lms->folders;
 	if (defined $all) { # --all=<local|remote>
 		my %x = map { $_ => $_ } split(/,/, $all);
 		my @ok = grep(defined, delete(@x{qw(local remote), ''}));
@@ -107,6 +106,7 @@ EOM
 EOM
 		}
 		my (%seen, @inc);
+		my @all = $lms->folders;
 		for my $ok (@ok) {
 			if ($ok eq 'local') {
 				@inc = grep(!m!\A[a-z0-9\+]+://!i, @all);
@@ -125,35 +125,9 @@ EOM
 no --mail-sync folders known to lei
 EOM
 	} else {
-		my %all = map { $_ => 1 } @all;
-		my @no;
-		for (@folders) {
-			next if $all{$_}; # ok
-			if (-d "$_/new" && -d "$_/cur") {
-				my $d = 'maildir:'.$lei->abs_path($_);
-				push(@no, $_) unless $all{$d};
-				$_ = $d;
-			} elsif (m!\Aimaps?://!i) {
-				my $orig = $_;
-				my $res = $lms->match_imap_url($orig, $all);
-				if (ref $res) {
-					$_ = $$res;
-					$lei->qerr(<<EOM);
-# using `$res' instead of `$orig'
-EOM
-				} else {
-					$lei->err($res) if defined $res;
-					push @no, $orig;
-				}
-			} else {
-				push @no, $_;
-			}
-		}
-		my $no = join("\n\t", @no);
-		return $lei->fail(<<EOF) if @no;
-No sync information for: $no
-Run `lei ls-mail-sync' to display valid choices
-EOF
+		my $err = $lms->arg2folder($lei, \@folders);
+		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
+		return $lei->fail($err->{fail}) if $err->{fail};
 	}
 	my $self = bless { lse => $lse }, __PACKAGE__;
 	$lei->{opt}->{'mail-sync'} = 1; # for prepare_inputs

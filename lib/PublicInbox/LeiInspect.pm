@@ -29,19 +29,16 @@ sub inspect_sync_folder ($$) {
 	my $ent = {};
 	my $lse = $lei->{lse} or return $ent;
 	my $lms = $lse->lms or return $ent;
-	my @folders;
-	if ($folder =~ m!\Aimaps?://!i) {
-		@folders = map { $_->as_string } $lms->match_imap_url($folder);
-	} elsif ($folder =~ m!\A(maildir|mh):(.+)!i) {
-		my $type = lc $1;
-		$folders[0] = "$type:".$lei->abs_path($2);
-	} elsif (-d $folder) {
-		$folders[0] = 'maildir:'.$lei->abs_path($folder);
-	} else {
-		$lei->fail("$folder not understood");
+	my $folders = [ $folder ];
+	my $err = $lms->arg2folder($lei, $folders);
+	if ($err) {
+		if ($err->{fail}) {
+			$lei->qerr("# no folders match $folder (non-fatal)");
+			@$folders = ();
+		}
+		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
 	}
-	$lei->qerr("# no folders match $folder (non-fatal)") if !@folders;
-	for my $f (@folders) {
+	for my $f (@$folders) {
 		$ent->{$f} = $lms->location_stats($f); # may be undef
 	}
 	$ent
