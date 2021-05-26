@@ -544,7 +544,8 @@ EOM
 	($tmpdir, $for_destroy) = tmpdir unless $tmpdir;
 	state $persist_xrd = $ENV{TEST_LEI_DAEMON_PERSIST_DIR};
 	SKIP: {
-		skip 'TEST_LEI_ONESHOT set', 1 if $ENV{TEST_LEI_ONESHOT};
+		$ENV{TEST_LEI_ONESHOT} and
+			xbail 'TEST_LEI_ONESHOT no longer supported';
 		my $home = "$tmpdir/lei-daemon";
 		mkdir($home, 0700) or BAIL_OUT "mkdir: $!";
 		local $ENV{HOME} = $home;
@@ -568,22 +569,12 @@ EOM
 			lei_ok(qw(daemon-kill), \"daemon-kill after $t");
 		}
 	}; # SKIP for lei_daemon
-	unless ($test_opt->{daemon_only}) {
-		$ENV{TEST_LEI_DAEMON_ONLY} and
-			skip 'TEST_LEI_DAEMON_ONLY set', 1;
-		require_ok 'PublicInbox::LEI';
-		my $home = "$tmpdir/lei-oneshot";
-		mkdir($home, 0700) or BAIL_OUT "mkdir: $!";
-		local $ENV{HOME} = $home;
-		local $ENV{XDG_RUNTIME_DIR} = '/dev/null';
-		$cb->();
-	}
 	if ($daemon_pid) {
 		for (0..10) {
 			kill(0, $daemon_pid) or last;
 			tick;
 		}
-		ok(!kill(0, $daemon_pid), "$t daemon stopped after oneshot");
+		ok(!kill(0, $daemon_pid), "$t daemon stopped");
 		my $f = "$daemon_xrd/lei/errors.log";
 		open my $fh, '<', $f or BAIL_OUT "$f: $!";
 		my @l = <$fh>;

@@ -444,19 +444,6 @@ sub x_it ($$) {
 	dump_and_clear_log();
 	if (my $s = $self->{pkt_op_p} // $self->{sock}) {
 		send($s, "x_it $code", MSG_EOR);
-	} elsif ($self->{oneshot}) {
-		# don't want to end up using $? from child processes
-		_drop_wq($self);
-		# cleanup anything that has tempfiles or open file handles
-		%PATH2CFG = ();
-		delete @$self{qw(ovv dedupe sto cfg)};
-		if (my $signum = ($code & 127)) { # usually SIGPIPE (13)
-			$SIG{PIPE} = 'DEFAULT'; # $SIG{$signum} doesn't work
-			kill $signum, $$;
-			sleep(1) while 1; # wait for signal
-		} else {
-			$quit->($code >> 8);
-		}
 	} # else ignore if client disconnected
 }
 
@@ -921,17 +908,6 @@ sub start_mua {
 		my $io = [];
 		$io->[0] = $self->{1} if $self->{opt}->{stdin} && -t $self->{1};
 		send_exec_cmd($self, $io, \@cmd, {});
-	} elsif ($self->{oneshot}) {
-		my $pid = fork // die "fork: $!";
-		if ($pid > 0) { # original process
-			if ($self->{opt}->{stdin} && -t STDOUT) {
-				open STDIN, '+<&', \*STDOUT or die "dup2: $!";
-			}
-			exec(@cmd);
-			warn "exec @cmd: $!\n";
-			POSIX::_exit(1);
-		}
-		POSIX::setsid() > 0 or die "setsid: $!";
 	}
 	if ($self->{lxs} && $self->{au_done}) { # kick wait_startq
 		syswrite($self->{au_done}, 'q' x ($self->{lxs}->{jobs} // 0));
@@ -952,14 +928,11 @@ sub send_exec_cmd { # tell script/lei to execute a command
 sub poke_mua { # forces terminal MUAs to wake up and hopefully notice new mail
 	my ($self) = @_;
 	my $alerts = $self->{opt}->{alert} // return;
+	my $sock = $self->{sock};
 	while (my $op = shift(@$alerts)) {
 		if ($op eq ':WINCH') {
 			# hit the process group that started the MUA
-			if ($self->{sock}) {
-				send($self->{sock}, '-WINCH', MSG_EOR);
-			} elsif ($self->{oneshot}) {
-				kill('-WINCH', $$);
-			}
+			send($sock, '-WINCH', MSG_EOR) if $sock;
 		} elsif ($op eq ':bell') {
 			out($self, "\a");
 		} elsif ($op =~ /(?<!\\),/) { # bare ',' (not ',,')
@@ -968,11 +941,7 @@ sub poke_mua { # forces terminal MUAs to wake up and hopefully notice new mail
 			my $cmd = $1; # run an arbitrary command
 			require Text::ParseWords;
 			$cmd = [ Text::ParseWords::shellwords($cmd) ];
-			if (my $s = $self->{sock}) {
-				send($s, exec_buf($cmd, {}), MSG_EOR);
-			} elsif ($self->{oneshot}) {
-				$self->{"pid.$self.$$"}->{spawn($cmd)} = $cmd;
-			}
+			send($sock, exec_buf($cmd, {}), MSG_EOR) if $sock;
 		} else {
 			err($self, "W: unsupported --alert=$op"); # non-fatal
 		}
@@ -1009,9 +978,6 @@ sub start_pager {
 	if ($self->{sock}) { # lei(1) process runs it
 		delete @$new_env{keys %$env}; # only set iff unset
 		send_exec_cmd($self, [ @$rdr{0..2} ], [$pager], $new_env);
-	} elsif ($self->{oneshot}) {
-		my $cmd = [$pager];
-		$self->{"pid.$self.$$"}->{spawn($cmd, $new_env, $rdr)} = $cmd;
 	} else {
 		die 'BUG: start_pager w/o socket';
 	}
@@ -1253,29 +1219,13 @@ sub lazy_start {
 
 sub busy { 1 } # prevent daemon-shutdown if client is connected
 
-# for users w/o Socket::Msghdr installed or Inline::C enabled
-sub oneshot {
-	my ($main_pkg) = @_;
-	my $exit = $main_pkg->can('exit'); # caller may override exit()
-	local $quit = $exit if $exit;
-	local %PATH2CFG;
-	umask(077) // die("umask(077): $!");
-	my $self = bless { oneshot => 1, env => \%ENV }, __PACKAGE__;
-	for (0..2) { open($self->{$_}, '+<&=', $_) or die "open fd=$_: $!" }
-	dispatch($self, @ARGV);
-	x_it($self, $self->{child_error}) if $self->{child_error};
-}
-
 # ensures stdout hits the FS before sock disconnects so a client
 # can immediately reread it
 sub DESTROY {
 	my ($self) = @_;
 	$self->{1}->autoflush(1) if $self->{1};
 	stop_pager($self);
-	my $err = $?;
-	my $oneshot_pids = delete $self->{"pid.$self.$$"} or return;
-	waitpid($_, 0) for keys %$oneshot_pids;
-	$? = $err if $err; # preserve ->fail or ->x_it code
+	# preserve $? for ->fail or ->x_it code
 }
 
 sub wq_done_wait { # dwaitpid callback

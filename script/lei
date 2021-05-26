@@ -9,10 +9,18 @@ my $narg = 5;
 my $sock;
 my $recv_cmd = PublicInbox::CmdIPC4->can('recv_cmd4');
 my $send_cmd = PublicInbox::CmdIPC4->can('send_cmd4') // do {
+	my $inline_dir = $ENV{PERL_INLINE_DIRECTORY} //= (
+			$ENV{XDG_CACHE_HOME} //
+			( ($ENV{HOME} // '/nonexistent').'/.cache' )
+			).'/public-inbox/inline-c';
+	if (!-d $inline_dir) {
+		require File::Path;
+		File::Path::make_path($inline_dir);
+	}
 	require PublicInbox::Spawn; # takes ~50ms even if built *sigh*
 	$recv_cmd = PublicInbox::Spawn->can('recv_cmd4');
 	PublicInbox::Spawn->can('send_cmd4');
-};
+} // die 'please install Inline::C or Socket::MsgHdr';
 
 my %pids;
 my $sigchld = sub {
@@ -66,80 +74,69 @@ my $exec_cmd = sub {
 	}
 };
 
-if ($send_cmd && eval {
-	my $path = do {
-		my $runtime_dir = ($ENV{XDG_RUNTIME_DIR} // '') . '/lei';
-		die \0 if $runtime_dir eq '/dev/null/lei'; # oneshot forced
-		if ($runtime_dir eq '/lei') {
-			require File::Spec;
-			$runtime_dir = File::Spec->tmpdir."/lei-$<";
-		}
-		unless (-d $runtime_dir) {
-			require File::Path;
-			File::Path::mkpath($runtime_dir, 0, 0700);
-		}
-		"$runtime_dir/$narg.seq.sock";
-	};
-	my $addr = pack_sockaddr_un($path);
-	socket($sock, AF_UNIX, SOCK_SEQPACKET, 0) or die "socket: $!";
-	unless (connect($sock, $addr)) { # start the daemon if not started
-		local $ENV{PERL5LIB} = join(':', @INC);
-		open(my $daemon, '-|', $^X, qw[-MPublicInbox::LEI
-			-E PublicInbox::LEI::lazy_start(@ARGV)],
-			$path, $! + 0, $narg) or die "popen: $!";
-		while (<$daemon>) { warn $_ } # EOF when STDERR is redirected
-		close($daemon) or warn <<"";
+my $runtime_dir = ($ENV{XDG_RUNTIME_DIR} // '') . '/lei';
+if ($runtime_dir eq '/lei') {
+	require File::Spec;
+	$runtime_dir = File::Spec->tmpdir."/lei-$<";
+}
+unless (-d $runtime_dir) {
+	require File::Path;
+	File::Path::make_path($runtime_dir, { mode => 0700 });
+}
+my $path = "$runtime_dir/$narg.seq.sock";
+my $addr = pack_sockaddr_un($path);
+socket($sock, AF_UNIX, SOCK_SEQPACKET, 0) or die "socket: $!";
+unless (connect($sock, $addr)) { # start the daemon if not started
+	local $ENV{PERL5LIB} = join(':', @INC);
+	open(my $daemon, '-|', $^X, qw[-MPublicInbox::LEI
+		-E PublicInbox::LEI::lazy_start(@ARGV)],
+		$path, $! + 0, $narg) or die "popen: $!";
+	while (<$daemon>) { warn $_ } # EOF when STDERR is redirected
+	close($daemon) or warn <<"";
 lei-daemon could not start, exited with \$?=$?
 
-		# try connecting again anyways, unlink+bind may be racy
-		connect($sock, $addr) or die <<"";
+	# try connecting again anyways, unlink+bind may be racy
+	connect($sock, $addr) or die <<"";
 connect($path): $! (after attempted daemon start)
 Falling back to (slow) one-shot mode
 
-	}
-	# (Socket::MsgHdr|Inline::C), $sock are all available:
-	open my $dh, '<', '.' or die "open(.) $!";
-	my $buf = join("\0", scalar(@ARGV), @ARGV);
-	while (my ($k, $v) = each %ENV) { $buf .= "\0$k=$v" }
-	$buf .= "\0\0";
-	my $n = $send_cmd->($sock, [0, 1, 2, fileno($dh)], $buf, MSG_EOR);
-	if (!$n) {
-		die "sendmsg: $! (check RLIMIT_NOFILE)\n" if $!{ETOOMANYREFS};
-		die "sendmsg: $!\n";
-	}
-	1;
-}) { # connected and request sent to lei-daemon, wait for responses or EOF
-	my $x_it_code = 0;
-	while (1) {
-		my (@fds) = $recv_cmd->($sock, my $buf, 4096 * 33);
-		if (scalar(@fds) == 1 && !defined($fds[0])) {
-			next if $!{EINTR};
-			last if $!{ECONNRESET};
-			die "recvmsg: $!";
-		}
-		last if $buf eq '';
-		if ($buf =~ /\Aexec (.+)\z/) {
-			$exec_cmd->(\@fds, split(/\0/, $1));
-		} elsif ($buf eq '-WINCH') {
-			kill($buf, @parent); # for MUA
-		} elsif ($buf =~ /\Ax_it ([0-9]+)\z/) {
-			$x_it_code ||= $1 + 0;
-			last;
-		} elsif ($buf =~ /\Achild_error ([0-9]+)\z/) {
-			$x_it_code ||= $1 + 0;
-		} else {
-			$sigchld->();
-			die $buf;
-		}
-	}
-	$sigchld->();
-	if (my $sig = ($x_it_code & 127)) {
-		kill $sig, $$;
-		sleep(1) while 1;
-	}
-	exit($x_it_code >> 8);
-} else { # for systems lacking Socket::MsgHdr or Inline::C
-	warn $@ if $@ && !ref($@);
-	require PublicInbox::LEI;
-	PublicInbox::LEI::oneshot(__PACKAGE__);
 }
+# (Socket::MsgHdr|Inline::C), $sock are all available:
+open my $dh, '<', '.' or die "open(.) $!";
+my $buf = join("\0", scalar(@ARGV), @ARGV);
+while (my ($k, $v) = each %ENV) { $buf .= "\0$k=$v" }
+$buf .= "\0\0";
+my $n = $send_cmd->($sock, [0, 1, 2, fileno($dh)], $buf, MSG_EOR);
+if (!$n) {
+	die "sendmsg: $! (check RLIMIT_NOFILE)\n" if $!{ETOOMANYREFS};
+	die "sendmsg: $!\n";
+}
+my $x_it_code = 0;
+while (1) {
+	my (@fds) = $recv_cmd->($sock, my $buf, 4096 * 33);
+	if (scalar(@fds) == 1 && !defined($fds[0])) {
+		next if $!{EINTR};
+		last if $!{ECONNRESET};
+		die "recvmsg: $!";
+	}
+	last if $buf eq '';
+	if ($buf =~ /\Aexec (.+)\z/) {
+		$exec_cmd->(\@fds, split(/\0/, $1));
+	} elsif ($buf eq '-WINCH') {
+		kill($buf, @parent); # for MUA
+	} elsif ($buf =~ /\Ax_it ([0-9]+)\z/) {
+		$x_it_code ||= $1 + 0;
+		last;
+	} elsif ($buf =~ /\Achild_error ([0-9]+)\z/) {
+		$x_it_code ||= $1 + 0;
+	} else {
+		$sigchld->();
+		die $buf;
+	}
+}
+$sigchld->();
+if (my $sig = ($x_it_code & 127)) {
+	kill $sig, $$;
+	sleep(1) while 1;
+}
+exit($x_it_code >> 8);

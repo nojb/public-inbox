@@ -23,8 +23,7 @@ sub lei_sucks {
 	}
 	eval { require PublicInbox };
 	my $pi_ver = eval('$PublicInbox::VERSION') // '(???)';
-	my $daemon = $lei->{oneshot} ? 'oneshot' : 'daemon';
-	my @out = ("lei $pi_ver mode=$daemon\n",
+	my @out = ("lei $pi_ver\n",
 		"perl $Config{version} / $os $rel / $mac ".
 		"ptrsize=$Config{ptrsize}\n");
 	chomp(my $gv = `git --version` || "git missing");

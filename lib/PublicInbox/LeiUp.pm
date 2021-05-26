@@ -76,22 +76,18 @@ sub lei_up {
 		my @all = PublicInbox::LeiSavedSearch::list($lei);
 		my @local = grep(!m!\Aimaps?://!i, @all);
 		$lei->_lei_store->write_prepare($lei); # share early
-		if ($lei->{oneshot}) { # synchronous
-			up1_redispatch($lei, $_) for @local;
-		} else {
-			# daemon mode, re-dispatch into our event loop w/o
-			# creating an extra fork-level
-			require PublicInbox::DS;
-			require PublicInbox::PktOp;
-			my ($op_c, $op_p) = PublicInbox::PktOp->pair;
-			for my $o (@local) {
-				PublicInbox::DS::requeue(sub {
-					up1_redispatch($lei, $o, $op_p);
-				});
-			}
-			$lei->event_step_init;
-			$op_c->{ops} = { '' => [$lei->can('dclose'), $lei] };
+		# daemon mode, re-dispatch into our event loop w/o
+		# creating an extra fork-level
+		require PublicInbox::DS;
+		require PublicInbox::PktOp;
+		my ($op_c, $op_p) = PublicInbox::PktOp->pair;
+		for my $o (@local) {
+			PublicInbox::DS::requeue(sub {
+				up1_redispatch($lei, $o, $op_p);
+			});
 		}
+		$lei->event_step_init;
+		$op_c->{ops} = { '' => [$lei->can('dclose'), $lei] };
 	} else {
 		up1($lei, $out);
 	}

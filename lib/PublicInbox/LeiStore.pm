@@ -431,20 +431,15 @@ sub write_prepare {
 		my $d = $lei->store_path;
 		$self->ipc_lock_init("$d/ipc.lock");
 		substr($d, -length('/lei/store'), 10, '');
-		my $err_pipe;
-		unless ($lei->{oneshot}) {
-			pipe(my ($r, $w)) or die "pipe: $!";
-			$err_pipe = [ $r, $w ];
-		}
+		pipe(my ($r, $w)) or die "pipe: $!";
+		my $err_pipe = [ $r, $w ];
 		# Mail we import into lei are private, so headers filtered out
 		# by -mda for public mail are not appropriate
 		local @PublicInbox::MDA::BAD_HEADERS = ();
 		$self->ipc_worker_spawn("lei/store $d", $lei->oldset,
 					{ lei => $lei, err_pipe => $err_pipe });
-		if ($err_pipe) {
-			require PublicInbox::LeiStoreErr;
-			PublicInbox::LeiStoreErr->new($err_pipe->[0], $lei);
-		}
+		require PublicInbox::LeiStoreErr;
+		PublicInbox::LeiStoreErr->new($err_pipe->[0], $lei);
 	}
 	$lei->{sto} = $self;
 }

@@ -73,15 +73,6 @@ test_lei({ daemon_only => 1 }, sub {
 	lei_ok('daemon-pid');
 	chomp $lei_out;
 	is($lei_out, $new_pid, 'PID unchanged after -0/-CHLD');
-
-	SKIP: { # socket inaccessible
-		skip "cannot test connect EPERM as root", 3 if $> == 0;
-		chmod 0000, $sock or BAIL_OUT "chmod 0000: $!";
-		lei_ok('help', \'connect fail, one-shot fallback works');
-		like($lei_err, qr/\bconnect\(/, 'connect error noted');
-		like($lei_out, qr/^usage: /, 'help output works');
-		chmod 0700, $sock or BAIL_OUT "chmod 0700: $!";
-	}
 	unlink $sock or BAIL_OUT "unlink($sock) $!";
 	for (0..100) {
 		kill('CHLD', $new_pid) or last;

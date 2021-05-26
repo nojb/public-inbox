@@ -9,7 +9,7 @@ sub run ($$;$) {
 	my ($in_r, $in_w, $out_r);
 	my $cmd = [ qw(git credential), $op ];
 	pipe($in_r, $in_w) or die "pipe: $!";
-	if ($lei && !$lei->{oneshot}) { # we'll die if disconnected:
+	if ($lei) { # we'll die if disconnected:
 		pipe($out_r, my $out_w) or die "pipe: $!";
 		$lei->send_exec_cmd([ $in_r, $out_w ], $cmd, {});
 	} else {
