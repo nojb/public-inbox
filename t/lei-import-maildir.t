@@ -68,5 +68,12 @@ test_lei(sub {
 	$res = json_utf8->decode($lei_out);
 	is_deeply($res, [ undef ], 'trashed message not imported')
 			or diag explain($imp_err, $res);
+
+	lei_ok qw(rm t/data/0001.patch);
+	lei_ok(qw(q s:boolean));
+	is($lei_out, "[null]\n", 'removed message gone from results');
+	my $g0 = "$ENV{HOME}/.local/share/lei/store/local/0.git";
+	my $x = xqx(['git', "--git-dir=$g0", qw(cat-file blob HEAD:d)]);
+	is($?, 0, "git cat-file shows file is `d'");
 });
 done_testing;

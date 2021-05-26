@@ -183,7 +183,7 @@ sub add_eml_vmd {
 	\@docids;
 }
 
-sub remove_eml_vmd {
+sub remove_eml_vmd { # remove just the VMD
 	my ($self, $eml, $vmd) = @_;
 	my ($eidx, $tl) = eidx_init($self);
 	my @docids = _docids_for($self, $eml);
@@ -202,6 +202,33 @@ sub set_sync_info {
 		$lms->lms_begin;
 		$lms;
 	})->set_src($oidhex, $folder, $id);
+}
+
+sub _remove_if_local { # git->cat_async arg
+	my ($bref, $oidhex, $type, $size, $self) = @_;
+	$self->{im}->remove($bref) if $bref;
+}
+
+# remove the entire message from the index, does not touch mail_sync.sqlite3
+sub remove_eml {
+	my ($self, $eml) = @_;
+	my $im = $self->importer; # may create new epoch
+	my ($eidx, $tl) = eidx_init($self);
+	my $oidx = $eidx->{oidx};
+	my @docids = _docids_for($self, $eml);
+	my $git = $eidx->git;
+	for my $docid (@docids) {
+		my $xr3 = $oidx->get_xref3($docid, 1);
+		for my $row (@$xr3) {
+			my (undef, undef, $oidbin) = @$row;
+			my $oidhex = unpack('H*', $oidbin);
+			$git->cat_async($oidhex, \&_remove_if_local, $self);
+		}
+		$eidx->idx_shard($docid)->ipc_do('xdb_remove', $docid);
+		$oidx->delete_by_num($docid);
+	}
+	$git->cat_async_wait;
+	\@docids;
 }
 
 sub add_eml {

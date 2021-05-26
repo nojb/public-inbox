@@ -206,7 +206,10 @@ our %CMD = ( # sorted in order of importance/use:
 		qw(verbose|v+), @c_opt ],
 'edit-search' => [ 'OUTPUT', "edit saved search via `git config --edit'",
 			@c_opt ],
-
+'rm' => [ '--stdin|LOCATION...',
+	'remove a message from the index and prevent reindexing',
+	'stdin|', # /|\z/ must be first for lone dash
+	@c_opt ],
 'plonk' => [ '--threads|--from=IDENT',
 	'exclude mail matching From: or threads from non-Message-ID searches',
 	qw(stdin| threads|t from|f=s mid=s oid=s), @c_opt ],

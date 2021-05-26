@@ -223,6 +223,7 @@ lib/PublicInbox/LeiP2q.pm
 lib/PublicInbox/LeiQuery.pm
 lib/PublicInbox/LeiRediff.pm
 lib/PublicInbox/LeiRemote.pm
+lib/PublicInbox/LeiRm.pm
 lib/PublicInbox/LeiSavedSearch.pm
 lib/PublicInbox/LeiSearch.pm
 lib/PublicInbox/LeiStore.pm
