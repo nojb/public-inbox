@@ -75,5 +75,20 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	lei_ok 'forget-mail-sync', $url;
 	lei_ok 'ls-mail-sync';
 	unlike($lei_out, qr!\Q$host_port\E!, 'sync info gone after forget');
+	my $uid_url = "$url/;UID=".$stats->{'uid.max'};
+	lei_ok 'import', $uid_url;
+	lei_ok 'inspect', $uid_url;
+	$lei_out =~ /([a-f0-9]{40,})/ or
+		xbail 'inspect missed blob with UID URL';
+	my $blob = $1;
+	lei_ok 'lcat', $uid_url;
+	like $lei_out, qr/^Subject: /sm,
+		'lcat shows mail text with UID URL';
+	like $lei_out, qr/\bblob:$blob\b/, 'lcat showed blob';
+	my $orig = $lei_out;
+	lei_ok 'lcat', "blob:$blob";
+	is($lei_out, $orig, 'lcat understands blob:...');
+	ok(!lei('lcat', $url), "lcat doesn't work on IMAP URL w/o UID");
 });
+
 done_testing;

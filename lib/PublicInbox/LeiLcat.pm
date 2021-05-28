@@ -9,27 +9,31 @@ use strict;
 use v5.10.1;
 use PublicInbox::LeiViewText;
 use URI::Escape qw(uri_unescape);
-use URI;
 use PublicInbox::MID qw($MID_EXTRACT);
 
-sub lcat_redispatch {
-	my ($lei, $out, $op_p) = @_;
-	my $l = bless { %$lei }, ref($lei);
-	delete $l->{sock};
-	$l->{''} = $op_p; # daemon only
-	eval {
-		$l->qerr("# updating $out");
-		up1($l, $out);
-		$l->qerr("# $out done");
-	};
-	$l->err($@) if $@;
+sub lcat_imap_uid_uri ($$) {
+	my ($lei, $uid_uri) = @_;
+	my $lms = $lei->{lse}->lms or return;
+	my $oidhex = $lms->imap_oid($lei, $uid_uri);
+	if (ref(my $err = $oidhex)) { # art2folder error
+		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
+	}
+	push @{$lei->{lcat_blob}}, $oidhex; # cf. LeiToMail->wq_atexit_child
 }
 
 sub extract_1 ($$) {
 	my ($lei, $x) = @_;
-	if ($x =~ m!\b([a-z]+?://\S+)!i) {
+	if ($x =~ m!\b(imaps?://[^>]+)!i) {
+		my $u = $1;
+		require PublicInbox::URIimap;
+		$u = PublicInbox::URIimap->new($u);
+		defined($u->uid) ? lcat_imap_uid_uri($lei, $u) :
+				$lei->child_error(1 << 8, "# no UID= in $u");
+		'""'; # blank query, using {lcat_blob}
+	} elsif ($x =~ m!\b([a-z]+?://\S+)!i) {
 		my $u = $1;
 		$u =~ s/[\>\]\)\,\.\;]+\z//;
+		require URI;
 		$u = URI->new($u);
 		my $p = $u->path;
 		my $term;
@@ -57,6 +61,9 @@ sub extract_1 ($$) {
 		$1;
 	} elsif ($x =~ /\bid:(\S+)/) { # notmuch convention
 		"mid:$1";
+	} elsif ($x =~ /\bblob:([0-9a-f]{7,})\b/) {
+		push @{$lei->{lcat_blob}}, $1; # cf. LeiToMail->wq_atexit_child
+		'""'; # blank query
 	} else {
 		undef;
 	}

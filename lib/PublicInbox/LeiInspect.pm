@@ -24,6 +24,19 @@ sub inspect_blob ($$) {
 	$ent;
 }
 
+sub inspect_imap_uid ($$) {
+	my ($lei, $uid_uri) = @_;
+	my $ent = {};
+	my $lse = $lei->{lse} or return $ent;
+	my $lms = $lse->lms or return $ent;
+	my $oidhex = $lms->imap_oid($lei, $uid_uri);
+	if (ref(my $err = $oidhex)) { # art2folder error
+		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
+	}
+	$ent->{$$uid_uri} = $oidhex;
+	$ent;
+}
+
 sub inspect_sync_folder ($$) {
 	my ($lei, $folder) = @_;
 	my $ent = {};
@@ -49,8 +62,15 @@ sub inspect1 ($$$) {
 	my $ent;
 	if ($item =~ /\Ablob:(.+)/) {
 		$ent = inspect_blob($lei, $1);
-	} elsif ($item =~ m!\Aimaps?://!i ||
-			$item =~ m!\A(?:maildir|mh):!i || -d $item) {
+	} elsif ($item =~ m!\Aimaps?://!i) {
+		require PublicInbox::URIimap;
+		my $uri = PublicInbox::URIimap->new($item);
+		if (defined($uri->uid)) {
+			$ent = inspect_imap_uid($lei, $uri);
+		} else {
+			$ent = inspect_sync_folder($lei, $item);
+		}
+	} elsif ($item =~ m!\A(?:maildir|mh):!i || -d $item) {
 		$ent = inspect_sync_folder($lei, $item);
 	} else { # TODO: more things
 		return $lei->fail("$item not understood");

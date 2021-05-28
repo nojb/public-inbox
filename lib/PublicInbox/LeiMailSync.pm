@@ -356,6 +356,28 @@ sub forget_folder {
 	$dbh->do('DELETE FROM folders WHERE fid = ?', undef, $fid);
 }
 
+sub imap_oid {
+	my ($self, $lei, $uid_uri) = @_;
+	my $mailbox_uri = $uid_uri->clone;
+	$mailbox_uri->uid(undef);
+	my $folders = [ $$mailbox_uri ];
+	if (my $err = $self->arg2folder($lei, $folders)) {
+		if ($err->{fail}) {
+			$lei->qerr("# no sync information for $mailbox_uri");
+			return;
+		}
+		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
+	}
+	my $fid = $self->{fmap}->{$folders->[0]} //=
+		_fid_for($self, $folders->[0]) // return;
+	my $sth = $self->{dbh}->prepare_cached(<<EOM, undef, 1);
+SELECT oidbin FROM blob2num WHERE fid = ? AND uid = ?
+EOM
+	$sth->execute($fid, $uid_uri->uid);
+	my ($oidbin) = $sth->fetchrow_array;
+	$oidbin ? unpack('H*', $oidbin) : undef;
+}
+
 # FIXME: something with "lei <up|q>" is causing uncommitted transaction
 # warnings, not sure what...
 sub DESTROY {

@@ -469,7 +469,10 @@ E: $orig_uri UIDVALIDITY mismatch (got $r_uidval)
 EOF
 
 	my $uri = $orig_uri->clone;
+	my $single_uid = $uri->uid;
 	my ($itrk, $l_uid, $l_uidval) = itrk_last($self, $uri, $r_uidval, $mic);
+	$itrk = $l_uid = undef if defined($single_uid);
+
 	return <<EOF if $l_uidval != $r_uidval;
 E: $uri UIDVALIDITY mismatch
 E: local=$l_uidval != remote=$r_uidval
@@ -499,7 +502,9 @@ EOF
 		# I wish "UID FETCH $START:*" could work, but:
 		# 1) servers do not need to return results in any order
 		# 2) Mail::IMAPClient doesn't offer a streaming API
-		unless ($uids = $mic->search("UID $l_uid:*")) {
+		if (defined $single_uid) {
+			$uids = [ $single_uid ];
+		} elsif (!($uids = $mic->search("UID $l_uid:*"))) {
 			return if $!{EINTR} && $self->{quit};
 			return "E: $uri UID SEARCH $l_uid:* error: $!";
 		}
@@ -541,7 +546,7 @@ EOF
 		}
 		run_commit_cb($self);
 		$itrk->update_last($r_uidval, $last_uid) if $itrk;
-	} until ($err || $self->{quit});
+	} until ($err || $self->{quit} || defined($single_uid));
 	$err;
 }
 
