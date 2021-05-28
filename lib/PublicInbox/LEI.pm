@@ -1239,6 +1239,12 @@ sub wq_done_wait { # dwaitpid callback
 	$lei->dclose;
 }
 
+sub fchdir {
+	my ($lei) = @_;
+	my $dh = $lei->{3} // die 'BUG: lei->{3} (CWD) gone';
+	chdir($dh) || $lei->fail("fchdir: $!");
+}
+
 sub wq_eof { # EOF callback for main daemon
 	my ($lei) = @_;
 	my $wq1 = delete $lei->{wq1} // return $lei->fail; # already failed

@@ -89,9 +89,7 @@ sub _stdin { # PublicInbox::InputPipe::consume callback for --stdin
 	my ($lei) = @_; # $_[1] = $rbuf
 	if (defined($_[1])) {
 		$_[1] eq '' and return eval {
-			if (my $dfd = $lei->{3}) {
-				chdir($dfd) or return $lei->fail("fchdir: $!");
-			}
+			$lei->fchdir or return;
 			my @argv = split(/\s+/, $lei->{mset_opt}->{qstr});
 			$lei->{mset_opt}->{qstr} = extract_all($lei, @argv)
 				or return;

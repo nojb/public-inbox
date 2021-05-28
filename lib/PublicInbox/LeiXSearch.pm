@@ -394,6 +394,7 @@ Error closing $lei->{ovv}->{dst}: $!
 sub do_post_augment {
 	my ($lei) = @_;
 	my $l2m = $lei->{l2m} or return; # client disconnected
+	$lei->fchdir or return;
 	my $err;
 	eval { $l2m->post_augment($lei) };
 	$err = $@;

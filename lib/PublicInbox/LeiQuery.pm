@@ -51,9 +51,7 @@ sub qstr_add { # PublicInbox::InputPipe::consume callback for --stdin
 	my ($self) = @_; # $_[1] = $rbuf
 	if (defined($_[1])) {
 		$_[1] eq '' and return eval {
-			if (my $dfd = $self->{3}) {
-				chdir($dfd) or return $self->fail("fchdir: $!");
-			}
+			$self->fchdir or return;
 			$self->{mset_opt}->{q_raw} = $self->{mset_opt}->{qstr};
 			$self->{lse}->query_approxidate($self->{lse}->git,
 						$self->{mset_opt}->{qstr});
