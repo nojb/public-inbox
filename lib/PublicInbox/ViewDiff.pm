@@ -15,8 +15,7 @@ use URI::Escape qw(uri_escape_utf8);
 use PublicInbox::Hval qw(ascii_html to_attr);
 use PublicInbox::Git qw(git_unquote);
 
-sub UNSAFE () { "^A-Za-z0-9\-\._~/" }
-
+my $UNSAFE = "^A-Za-z0-9\-\._~/"; # '/' + $URI::Escape::Unsafe{RFC3986}
 my $OID_NULL = '0{7,}';
 my $OID_BLOB = '[a-f0-9]{7,}';
 my $LF = qr!\n!;
@@ -124,14 +123,14 @@ sub diff_header ($$$) {
 	$pa = (split(m'/', git_unquote($pa), 2))[1] if $pa ne '/dev/null';
 	$pb = (split(m'/', git_unquote($pb), 2))[1] if $pb ne '/dev/null';
 	if ($pa eq $pb && $pb ne '/dev/null') {
-		$dctx->{Q} = "?b=".uri_escape_utf8($pb, UNSAFE);
+		$dctx->{Q} = "?b=".uri_escape_utf8($pb, $UNSAFE);
 	} else {
 		my @q;
 		if ($pb ne '/dev/null') {
-			push @q, 'b='.uri_escape_utf8($pb, UNSAFE);
+			push @q, 'b='.uri_escape_utf8($pb, $UNSAFE);
 		}
 		if ($pa ne '/dev/null') {
-			push @q, 'a='.uri_escape_utf8($pa, UNSAFE);
+			push @q, 'a='.uri_escape_utf8($pa, $UNSAFE);
 		}
 		$dctx->{Q} = '?'.join('&amp;', @q);
 	}
