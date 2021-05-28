@@ -77,7 +77,7 @@ sub anchor0 ($$$$) {
 	# which works well in practice. If projects put "=>", or trailing
 	# spaces in filenames, oh well :P
 	$fn =~ s/$DIFFSTAT_COMMENT//;
-	$fn =~ s/{(?:.+) => (.+)}/$1/ or $fn =~ s/.* => (.+)/$1/;
+	$fn =~ s/\{(?:.+) => (.+)\}/$1/ or $fn =~ s/.* => (.+)/$1/;
 	$fn = git_unquote($fn);
 
 	# long filenames will require us to check in anchor1()
