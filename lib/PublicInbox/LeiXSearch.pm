@@ -67,15 +67,21 @@ sub remotes { @{$_[0]->{remotes} // []} }
 # called by PublicInbox::Search::xdb (usually via ->mset)
 sub xdb_shards_flat { @{$_[0]->{shards_flat} // []} }
 
-sub mitem_kw ($$;$) {
-	my ($smsg, $mitem, $flagged) = @_;
-	my $kw = xap_terms('K', my $doc = $mitem->get_document);
+sub _mitem_kw { # retry_reopen callback
+	my ($srch, $smsg, $mitem, $flagged) = @_;
+	my $doc = $mitem->get_document;
+	my $kw = xap_terms('K', $doc);
 	$kw->{flagged} = 1 if $flagged;
+	my $L = xap_terms('L', $doc);
 	# we keep the empty {kw} array here to prevent expensive work in
 	# ->xsmsg_vmd, _unbless_smsg will clobber it iff it's empty
 	$smsg->{kw} = [ sort keys %$kw ];
-	my $L = xap_terms('L', $doc);
 	$smsg->{L} = [ sort keys %$L ] if scalar(keys %$L);
+}
+
+sub mitem_kw ($$$;$) {
+	my ($srch, $smsg, $mitem, $flagged) = @_;
+	$srch->retry_reopen(\&_mitem_kw, $smsg, $mitem, $flagged);
 }
 
 # like over->get_art
@@ -90,7 +96,7 @@ sub smsg_for {
 	my $smsg = $ibx->over->get_art($num);
 	return if $smsg->{bytes} == 0; # external message
 	if ($ibx->can('msg_keywords')) {
-		mitem_kw($smsg, $mitem);
+		mitem_kw($self, $smsg, $mitem);
 	}
 	$smsg;
 }
@@ -194,7 +200,8 @@ sub query_one_mset { # for --threads and l2m w/o sort
 					my $mitem = delete $n2item{$n};
 					next if $smsg->{bytes} == 0;
 					if ($mitem && $can_kw) {
-						mitem_kw($smsg, $mitem, $fl);
+						mitem_kw($srch, $smsg, $mitem,
+							$fl);
 					} elsif ($mitem && $fl) {
 						# call ->xsmsg_vmd, later
 						$smsg->{lei_q_tt_flagged} = 1;
@@ -210,7 +217,7 @@ sub query_one_mset { # for --threads and l2m w/o sort
 				my $mitem = $items[$i++];
 				my $smsg = $over->get_art($n) or next;
 				next if $smsg->{bytes} == 0;
-				mitem_kw($smsg, $mitem, $fl) if $can_kw;
+				mitem_kw($srch, $smsg, $mitem, $fl) if $can_kw;
 				$each_smsg->($smsg, $mitem);
 			}
 		}

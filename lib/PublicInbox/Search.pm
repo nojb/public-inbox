@@ -9,6 +9,7 @@ use parent qw(Exporter);
 our @EXPORT_OK = qw(retry_reopen int_val get_pct xap_terms);
 use List::Util qw(max);
 use POSIX qw(strftime);
+use Carp ();
 
 # values for searching, changing the numeric value breaks
 # compatibility with old indices (so don't change them it)
@@ -405,16 +406,16 @@ sub retry_reopen {
 		# Exception: The revision being read has been discarded -
 		# you should call Xapian::Database::reopen()
 		if (ref($@) =~ /\bDatabaseModifiedError\b/) {
-			warn "reopen try #$i on $@\n";
+			warn "# reopen try #$i on $@\n";
 			reopen($self);
 		} else {
 			# let caller decide how to spew, because ExtMsg queries
 			# get wonky and trigger:
 			# "something terrible happened at .../Xapian/Enquire.pm"
-			die;
+			Carp::croak($@);
 		}
 	}
-	die "Too many Xapian database modifications in progress\n";
+	Carp::croak("Too many Xapian database modifications in progress\n");
 }
 
 sub _do_enquire {

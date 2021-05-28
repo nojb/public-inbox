@@ -18,7 +18,7 @@ sub num2docid ($$) {
 	($num - 1) * $nshard + $num % $nshard + 1;
 }
 
-sub msg_keywords {
+sub _msg_kw { # retry_reopen callback
 	my ($self, $num) = @_; # num_or_mitem
 	my $xdb = $self->xdb; # set {nshard};
 	my $docid = ref($num) ? $num->get_docid : num2docid($self, $num);
@@ -27,13 +27,16 @@ sub msg_keywords {
 	wantarray ? sort(keys(%$kw)) : $kw;
 }
 
-# returns undef if blob is unknown
-sub oid_keywords {
-	my ($self, $oidhex) = @_;
-	my @num = $self->over->blob_exists($oidhex) or return;
+sub msg_keywords {
+	my ($self, $num) = @_; # num_or_mitem
+	$self->retry_reopen(\&_msg_kw, $num);
+}
+
+sub _oid_kw { # retry_reopen callback
+	my ($self, $nums) = @_;
 	my $xdb = $self->xdb; # set {nshard};
 	my %kw;
-	for my $num (@num) { # there should only be one...
+	for my $num (@$nums) { # there should only be one...
 		my $doc = $xdb->get_document(num2docid($self, $num));
 		my $x = xap_terms('K', $doc);
 		%kw = (%kw, %$x);
@@ -41,10 +44,15 @@ sub oid_keywords {
 	\%kw;
 }
 
-# lookup keywords+labels for external messages
-sub xsmsg_vmd {
+# returns undef if blob is unknown
+sub oid_keywords {
+	my ($self, $oidhex) = @_;
+	my @num = $self->over->blob_exists($oidhex) or return;
+	$self->retry_reopen(\&_oid_kw, \@num);
+}
+
+sub _xsmsg_vmd { # retry_reopen
 	my ($self, $smsg, $want_label) = @_;
-	return if $smsg->{kw};
 	my $xdb = $self->xdb; # set {nshard};
 	my (%kw, %L, $doc, $x);
 	$kw{flagged} = 1 if delete($smsg->{lei_q_tt_flagged});
@@ -60,6 +68,13 @@ sub xsmsg_vmd {
 	}
 	$smsg->{kw} = [ sort keys %kw ] if scalar(keys(%kw));
 	$smsg->{L} = [ sort keys %L ] if scalar(keys(%L));
+}
+
+# lookup keywords+labels for external messages
+sub xsmsg_vmd {
+	my ($self, $smsg, $want_label) = @_;
+	return if $smsg->{kw}; # already set by LeiXSearch->mitem_kw
+	$self->retry_reopen(\&_xsmsg_vmd, $smsg, $want_label);
 }
 
 # when a message has no Message-IDs at all, this is needed for
