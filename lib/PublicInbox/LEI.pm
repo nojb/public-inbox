@@ -274,13 +274,11 @@ our %CMD = ( # sorted in order of importance/use:
 'daemon-pid' => [ '', 'show the PID of the lei-daemon' ],
 'help' => [ '[SUBCOMMAND]', 'show help' ],
 
-# XXX do we need this?
-# 'git' => [ '[ANYTHING...]', 'git(1) wrapper', pass_through('git') ],
-
-'reorder-local-store-and-break-history' => [ '[REFNAME]',
-	'rewrite git history in an attempt to improve compression',
-	qw(gc!), @c_opt ],
-
+# TODO
+#'reorder-local-store-and-break-history' => [ '[REFNAME]',
+#	'rewrite git history in an attempt to improve compression',
+#	qw(gc!), @c_opt ],
+#
 # internal commands are prefixed with '_'
 '_complete' => [ '[...]', 'internal shell completion helper',
 		pass_through('everything') ],
