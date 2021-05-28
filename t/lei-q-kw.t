@@ -116,7 +116,7 @@ for my $sfx ('', '.gz') {
 		}
 		$res{$mid} = $eml;
 	});
-	is_deeply(\%res, $exp, '--augment worked');
+	is_deeply(\%res, $exp, '--augment worked') or diag $lei_err;
 
 	lei_ok(qw(q -o), "mboxrd:/dev/stdout", qw(m:qp@example.com)) or
 		diag $lei_err;

@@ -49,10 +49,10 @@ test_lei({ tmpdir => $tmpdir }, sub {
 
 	open my $fh, '>', "$o.lock";
 	$cmd[-1] = 'm:qp@example.com';
-	unlink $o or BAIL_OUT $!;
+	unlink $o or xbail("unlink $o $! cwd=".Cwd::getcwd());
 	lei_ok(@cmd, '--lock=none');
-	ok(-f $o && -s _, '--lock=none respected');
-	unlink $o or BAIL_OUT $!;
+	ok(-f $o && -s _, '--lock=none respected') or diag $lei_err;
+	unlink $o or xbail("unlink $o $! cwd=".Cwd::getcwd());
 	ok(!lei(@cmd, '--lock=dotlock,timeout=0.000001'), 'dotlock fails');
 	ok(-f $o && !-s _, 'nothing output on lock failure');
 	unlink "$o.lock" or BAIL_OUT $!;

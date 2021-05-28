@@ -25,7 +25,8 @@ test_lei(sub {
 	lei_ok [qw(import -q -F eml -)], undef, { 0 => \$in, %$lei_opt };
 	lei_ok qw(q -q --save z:0.. d:last.week..), '-o', "MAILDIR:$home/md/";
 	my %before = map { $_ => 1 } glob("$home/md/cur/*");
-	is_deeply(eml_load((keys %before)[0]), $doc1, 'doc1 matches');
+	my $f = (keys %before)[0] or xbail({before => \%before});
+	is_deeply(eml_load($f), $doc1, 'doc1 matches');
 	lei_ok qw(ls-mail-sync);
 	is($lei_out, "maildir:$home/md\n", 'canonicalized mail sync name');
 
@@ -45,7 +46,8 @@ test_lei(sub {
 	my %after = map { $_ => 1 } glob("$home/md/{new,cur}/*");
 	is(delete $after{(keys(%before))[0]}, 1, 'original message kept');
 	is(scalar(keys %after), 1, 'one new message added');
-	is_deeply(eml_load((keys %after)[0]), $doc2, 'doc2 matches');
+	$f = (keys %after)[0] or xbail({after => \%after});
+	is_deeply(eml_load($f), $doc2, 'doc2 matches');
 
 	# check stdin
 	lei_ok [qw(q --save - -o), "mboxcl2:mbcl2" ],
