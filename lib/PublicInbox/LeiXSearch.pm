@@ -357,6 +357,9 @@ sub query_done { # EOF callback for main daemon
 	if (my $lxs = delete $lei->{lxs}) {
 		$lxs->wq_wait_old(\&xsearch_done_wait, $lei);
 	}
+	if ($lei->{opt}->{'mail-sync'} && !$lei->{sto}) {
+		warn "BUG: {sto} missing with --mail-sync";
+	}
 	my $wait = $lei->{sto} ? $lei->{sto}->ipc_do('done') : undef;
 	$lei->{ovv}->ovv_end($lei);
 	my $start_mua;

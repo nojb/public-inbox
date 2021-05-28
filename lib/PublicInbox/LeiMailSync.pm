@@ -356,4 +356,14 @@ sub forget_folder {
 	$dbh->do('DELETE FROM folders WHERE fid = ?', undef, $fid);
 }
 
+# FIXME: something with "lei <up|q>" is causing uncommitted transaction
+# warnings, not sure what...
+sub DESTROY {
+	my ($self) = @_;
+	my $dbh = $self->{dbh} or return;
+	return if $dbh->{ReadOnly};
+	use Carp;
+	warn "BUG $$ $0 $self {dbh} UNCOMMITTED ", Carp::longmess();
+}
+
 1;
