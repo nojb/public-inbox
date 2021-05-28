@@ -98,7 +98,6 @@ lei-daemon could not start, exited with \$?=$?
 	# try connecting again anyways, unlink+bind may be racy
 	connect($sock, $addr) or die <<"";
 connect($path): $! (after attempted daemon start)
-Falling back to (slow) one-shot mode
 
 }
 # (Socket::MsgHdr|Inline::C), $sock are all available:
