@@ -14,7 +14,7 @@ use PublicInbox::Spawn qw(run_die);
 use PublicInbox::ContentHash qw(git_sha);
 use PublicInbox::MID qw(mids_for_index);
 use Digest::SHA qw(sha256_hex);
-my $LOCAL_PFX = qr!\A(?:maildir|mh|mbox.+|mmdf):!i; # TODO: put in LeiToMail?
+my $LOCAL_PFX = qr!\A(?:maildir|mh|mbox.+|mmdf|v2):!i; # TODO: put in LeiToMail?
 
 # move this to PublicInbox::Config if other things use it:
 my %cquote = ("\n" => '\\n', "\t" => '\\t', "\b" => '\\b');
@@ -290,6 +290,12 @@ EOM
 	my $dir_old = lss_dir_for($lei, \$old_path, 1);
 	my $dir_new = lss_dir_for($lei, \$new_path);
 	return if $dir_new eq $dir_old; # no change, likely
+
+	($old_out =~ m!\Av2:!i || $new_out =~ m!\Av2:!) and
+		return $lei->fail(<<EOM);
+conversions from/to v2 inboxes not supported at this time
+EOM
+
 	return $lei->fail(<<EOM) if -e $dir_new;
 lei.q.output changed from `$old_out' to `$new_out'
 However, $dir_new exists

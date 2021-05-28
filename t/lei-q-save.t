@@ -3,6 +3,8 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 use PublicInbox::Smsg;
+use List::Util qw(sum);
+
 my $doc1 = eml_load('t/plack-qp.eml');
 $doc1->header_set('Date', PublicInbox::Smsg::date({ds => time - (86400 * 5)}));
 my $doc2 = eml_load('t/utf8.eml');
@@ -165,5 +167,33 @@ test_lei(sub {
 			skip "symlinks not supported in $home?: $!", 1;
 		lei_ok('up', "$home/ln -s");
 	};
+
+	my $v2 = "$home/v2"; # v2: as an output destination
+	my (@before, @after);
+	require PublicInbox::MboxReader;
+	lei_ok(qw(q z:0.. -o), "v2:$v2");
+	lei_ok(qw(q z:0.. -o), "mboxrd:$home/before", '--only', $v2, '-j1,1');
+	open my $fh, '<', "$home/before";
+	PublicInbox::MboxReader->mboxrd($fh, sub { push @before, $_[0] });
+	isnt(scalar(@before), 0, 'initial v2 written');
+	my $orig = sum(map { -f $_ ? -s _ : () } (
+			glob("$v2/git/0.git/objects/*/*")));
+	lei_ok(qw(import t/data/0001.patch));
+	lei_ok 'up', $v2;
+	lei_ok(qw(q z:0.. -o), "mboxrd:$home/after", '--only', $v2, '-j1,1');
+	open $fh, '<', "$home/after";
+	PublicInbox::MboxReader->mboxrd($fh, sub { push @after, $_[0] });
+
+	my $last = shift @after;
+	$last->header_set('Status');
+	is_deeply($last, eml_load('t/data/0001.patch'), 'lei up worked on v2');
+	is_deeply(\@before, \@after, 'got same results');
+
+	my $v2s = "$home/v2s";
+	lei_ok(qw(q --shared z:0.. -o), "v2:$v2s");
+	my $shared = sum(map { -f $_ ? -s _ : () } (
+			glob("$v2s/git/0.git/objects/*/*")));
+	ok($shared < $orig, 'fewer bytes stored with --shared') or
+		diag "shared=$shared orig=$orig";
 });
 done_testing;

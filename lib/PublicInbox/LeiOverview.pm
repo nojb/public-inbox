@@ -108,6 +108,8 @@ sub new {
 			$opt->{alert} //= [ ':WINCH,:bell' ] if -t $lei->{1};
 		}
 	}
+	return $lei->fail('--shared is only for v2 inbox output') if
+		$self->{fmt} ne 'v2' && $lei->{opt}->{shared};
 	$self;
 }
 

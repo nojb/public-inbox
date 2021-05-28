@@ -368,6 +368,7 @@ sub query_done { # EOF callback for main daemon
 		warn "BUG: {sto} missing with --mail-sync";
 	}
 	my $wait = $lei->{sto} ? $lei->{sto}->ipc_do('done') : undef;
+	$wait = $lei->{v2w} ? $lei->{v2w}->ipc_do('done') : undef;
 	$lei->{ovv}->ovv_end($lei);
 	my $start_mua;
 	if ($l2m) { # close() calls LeiToMail reap_compress

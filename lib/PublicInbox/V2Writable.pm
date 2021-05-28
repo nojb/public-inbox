@@ -6,7 +6,7 @@
 package PublicInbox::V2Writable;
 use strict;
 use v5.10.1;
-use parent qw(PublicInbox::Lock);
+use parent qw(PublicInbox::Lock PublicInbox::IPC);
 use PublicInbox::SearchIdxShard;
 use PublicInbox::IPC;
 use PublicInbox::Eml;
@@ -1429,6 +1429,15 @@ sub index_sync {
 	warn <<EOF if $quit_warn;
 W: interrupted, --xapian-only --reindex required upon restart
 EOF
+}
+
+sub ipc_atfork_child {
+	my ($self) = @_;
+	if (my $lei = delete $self->{lei}) {
+		$lei->_lei_atfork_child;
+		close(delete $lei->{pkt_op_p});
+	}
+	$self->SUPER::ipc_atfork_child;
 }
 
 1;

@@ -353,16 +353,28 @@ sub _text_write_cb ($$) {
 	sub { # for git_to_mail
 		my ($bref, $smsg, $eml) = @_;
 		$lse->xsmsg_vmd($smsg) if $lse;
-		$eml //= PublicInbox::Eml->new($bref); # copy bref
+		$eml //= PublicInbox::Eml->new($bref);
 		return if $dedupe && $dedupe->is_dup($eml, $smsg);
 		my $lk = $ovv->lock_for_scope;
 		$lei->out(${$lvt->eml_to_text($smsg, $eml)}, "\n");
 	}
 }
 
+sub _v2_write_cb ($$) {
+	my ($self, $lei) = @_;
+	my $dedupe = $lei->{dedupe};
+	$dedupe->prepare_dedupe if $dedupe;
+	sub { # for git_to_mail
+		my ($bref, $smsg, $eml) = @_;
+		$eml //= PublicInbox::Eml->new($bref);
+		return if $dedupe && $dedupe->is_dup($eml, $smsg);
+		$lei->{v2w}->ipc_do('add', $eml); # V2Writable->add
+	}
+}
+
 sub write_cb { # returns a callback for git_to_mail
 	my ($self, $lei) = @_;
-	# _mbox_write_cb, _maildir_write_cb or _imap_write_cb
+	# _mbox_write_cb, _maildir_write_cb, _imap_write_cb, _v2_write_cb
 	my $m = "_$self->{base_type}_write_cb";
 	$self->$m($lei);
 }
@@ -400,6 +412,13 @@ sub new {
 		require PublicInbox::LeiViewText;
 		$lei->{lvt} = PublicInbox::LeiViewText->new($lei);
 		$self->{base_type} = 'text';
+	} elsif ($fmt eq 'v2') {
+		die "--dedupe=oid and v2 are incompatible\n" if
+			($lei->{opt}->{dedupe}//'') eq 'oid';
+		$self->{base_type} = 'v2';
+		$lei->{opt}->{save} = \1;
+		die "--mua incompatible with v2\n" if $lei->{opt}->{mua};
+		$dst = $lei->{ovv}->{dst} = $lei->abs_path($dst);
 	} else {
 		die "bad mail --format=$fmt\n";
 	}
@@ -599,9 +618,43 @@ sub _do_augment_mbox {
 	$dedupe->pause_dedupe if $dedupe;
 }
 
+sub _pre_augment_v2 {
+	my ($self, $lei) = @_;
+	my $dir = $self->{dst};
+	require PublicInbox::InboxWritable;
+	my ($ibx, @creat);
+	if (-d $dir) {
+		my $opt = { -min_inbox_version => 2 };
+		require PublicInbox::Admin;
+		my @ibx = PublicInbox::Admin::resolve_inboxes([ $dir ], $opt);
+		$ibx = $ibx[0] or die "$dir is not a v2 inbox\n";
+	} else {
+		$creat[0] = {};
+		$ibx = PublicInbox::Inbox->new({
+			name => 'lei-result', # XXX configurable
+			inboxdir => $dir,
+			version => 2,
+			address => [ 'lei@example.com' ],
+		});
+	}
+	PublicInbox::InboxWritable->new($ibx, @creat);
+	$ibx->init_inbox if @creat;
+	my $v2w = $lei->{v2w} = $ibx->importer;
+	$v2w->ipc_lock_init("$dir/ipc.lock");
+	$v2w->ipc_worker_spawn("lei/v2w $dir", $lei->oldset, { lei => $lei });
+	return if !$lei->{opt}->{shared};
+	my $d = "$lei->{ale}->{git}->{git_dir}/objects";
+	my $al = "$dir/git/0.git/objects/info/alternates";
+	open my $fh, '+>>', $al or die "open($al): $!";
+	seek($fh, 0, SEEK_SET) or die "seek($al): $!";
+	grep(/\A\Q$d\E\n/, <$fh>) and return;
+	print $fh "$d\n" or die "print($al): $!";
+	close $fh or die "close($al): $!";
+}
+
 sub pre_augment { # fast (1 disk seek), runs in same process as post_augment
 	my ($self, $lei) = @_;
-	# _pre_augment_maildir, _pre_augment_mbox
+	# _pre_augment_maildir, _pre_augment_mbox, _pre_augment_v2
 	my $m = $self->can("_pre_augment_$self->{base_type}") or return;
 	$m->($self, $lei);
 }
