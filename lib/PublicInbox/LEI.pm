@@ -278,6 +278,7 @@ our %CMD = ( # sorted in order of importance/use:
 #'reorder-local-store-and-break-history' => [ '[REFNAME]',
 #	'rewrite git history in an attempt to improve compression',
 #	qw(gc!), @c_opt ],
+#'fuse-mount' => [ 'PATHNAME', 'expose lei/store as Maildir(s)', @c_opt ],
 #
 # internal commands are prefixed with '_'
 '_complete' => [ '[...]', 'internal shell completion helper',
