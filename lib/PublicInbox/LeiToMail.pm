@@ -289,7 +289,7 @@ sub _maildir_write_cb ($$) {
 	my $dst = $lei->{ovv}->{dst};
 	my $lse = $lei->{lse}; # may be undef
 	my $sto = $lei->{opt}->{'mail-sync'} ? $lei->{sto} : undef;
-	my $out = $sto ? 'maildir:'.$lei->rel2abs($dst) : undef;
+	my $out = $sto ? 'maildir:'.$lei->abs_path($dst) : undef;
 
 	# Favor cur/ and only write to new/ when augmenting.  This
 	# saves MUAs from having to do a mass rename when the initial
