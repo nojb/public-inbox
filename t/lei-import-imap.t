@@ -48,6 +48,13 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	ok($stats->{'uid.min'} < $stats->{'uid.max'}, 'min < max');
 	ok($stats->{'uid.count'} > 0, 'count > 0');
 
+	lei_ok('lcat', $url);
+	is(scalar(grep(/^# blob:/, split(/\n/ms, $lei_out))),
+		$stats->{'uid.count'}, 'lcat on URL dumps folder');
+	lei_ok qw(lcat -f json), $url;
+	$out = json_utf8->decode($lei_out);
+	is(scalar(@$out) - 1, $stats->{'uid.count'}, 'lcat JSON dumps folder');
+
 	lei_ok(qw(q z:1..));
 	$out = json_utf8->decode($lei_out);
 	ok(scalar(@$out) > 1, 'got imported messages');
@@ -77,6 +84,8 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	unlike($lei_out, qr!\Q$host_port\E!, 'sync info gone after forget');
 	my $uid_url = "$url/;UID=".$stats->{'uid.max'};
 	lei_ok 'import', $uid_url;
+	lei_ok 'ls-mail-sync';
+	is($lei_out, "$url\n", 'ls-mail-sync added URL w/o UID');
 	lei_ok 'inspect', $uid_url;
 	$lei_out =~ /([a-f0-9]{40,})/ or
 		xbail 'inspect missed blob with UID URL';
@@ -88,7 +97,9 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	my $orig = $lei_out;
 	lei_ok 'lcat', "blob:$blob";
 	is($lei_out, $orig, 'lcat understands blob:...');
-	ok(!lei('lcat', $url), "lcat doesn't work on IMAP URL w/o UID");
+	lei_ok qw(lcat -f json), $uid_url;
+	$out = json_utf8->decode($lei_out);
+	is(scalar(@$out), 2, 'got JSON') or diag explain($out);
 });
 
 done_testing;

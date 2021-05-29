@@ -64,9 +64,9 @@ CREATE TABLE IF NOT EXISTS blob2name (
 
 }
 
-sub _fid_for {
+sub fid_for {
 	my ($self, $folder, $rw) = @_;
-	my $dbh = $self->{dbh};
+	my $dbh = $self->{dbh} //= dbh_new($self, $rw);
 	my $sel = 'SELECT fid FROM folders WHERE loc = ? LIMIT 1';
 	my ($fid) = $dbh->selectrow_array($sel, undef, $folder);
 	return $fid if defined $fid;
@@ -111,7 +111,7 @@ EOM
 
 sub set_src {
 	my ($self, $oidhex, $folder, $id) = @_;
-	my $fid = $self->{fmap}->{$folder} //= _fid_for($self, $folder, 1);
+	my $fid = $self->{fmap}->{$folder} //= fid_for($self, $folder, 1);
 	my $sth;
 	if (ref($id)) { # scalar name
 		$id = $$id;
@@ -128,7 +128,7 @@ INSERT OR IGNORE INTO blob2num (oidbin, fid, uid) VALUES (?, ?, ?)
 
 sub clear_src {
 	my ($self, $folder, $id) = @_;
-	my $fid = $self->{fmap}->{$folder} //= _fid_for($self, $folder, 1);
+	my $fid = $self->{fmap}->{$folder} //= fid_for($self, $folder, 1);
 	my $sth;
 	if (ref($id)) { # scalar name
 		$id = $$id;
@@ -146,7 +146,7 @@ DELETE FROM blob2num WHERE fid = ? AND uid = ?
 # Maildir-only
 sub mv_src {
 	my ($self, $folder, $oidbin, $id, $newbn) = @_;
-	my $fid = $self->{fmap}->{$folder} //= _fid_for($self, $folder, 1);
+	my $fid = $self->{fmap}->{$folder} //= fid_for($self, $folder, 1);
 	my $sth = $self->{dbh}->prepare_cached(<<'');
 UPDATE blob2name SET name = ? WHERE fid = ? AND oidbin = ? AND name = ?
 
@@ -158,7 +158,12 @@ sub each_src {
 	my ($self, $folder, $cb, @args) = @_;
 	my $dbh = $self->{dbh} //= dbh_new($self);
 	my ($fid, $sth);
-	$fid = $self->{fmap}->{$folder} //= _fid_for($self, $folder) // return;
+	if (ref($folder) eq 'HASH') {
+		$fid = $folder->{fid} // die "BUG: no `fid'";
+	} else {
+		$fid = $self->{fmap}->{$folder} //=
+			fid_for($self, $folder) // return;
+	}
 	$sth = $dbh->prepare('SELECT oidbin,uid FROM blob2num WHERE fid = ?');
 	$sth->execute($fid);
 	while (my ($oidbin, $id) = $sth->fetchrow_array) {
@@ -176,7 +181,7 @@ sub location_stats {
 	my $dbh = $self->{dbh} //= dbh_new($self);
 	my $fid;
 	my $ret = {};
-	$fid = $self->{fmap}->{$folder} //= _fid_for($self, $folder) // return;
+	$fid = $self->{fmap}->{$folder} //= fid_for($self, $folder) // return;
 	my ($row) = $dbh->selectrow_array(<<"", undef, $fid);
 SELECT COUNT(name) FROM blob2name WHERE fid = ?
 
@@ -349,7 +354,7 @@ sub forget_folder {
 	my ($self, $folder) = @_;
 	my ($fid, $sth);
 	$fid = delete($self->{fmap}->{$folder}) //
-		_fid_for($self, $folder) // return;
+		fid_for($self, $folder) // return;
 	my $dbh = $self->{dbh};
 	$dbh->do('DELETE FROM blob2name WHERE fid = ?', undef, $fid);
 	$dbh->do('DELETE FROM blob2num WHERE fid = ?', undef, $fid);
@@ -369,7 +374,7 @@ sub imap_oid {
 		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
 	}
 	my $fid = $self->{fmap}->{$folders->[0]} //=
-		_fid_for($self, $folders->[0]) // return;
+		fid_for($self, $folders->[0]) // return;
 	my $sth = $self->{dbh}->prepare_cached(<<EOM, undef, 1);
 SELECT oidbin FROM blob2num WHERE fid = ? AND uid = ?
 EOM

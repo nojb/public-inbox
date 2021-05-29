@@ -756,12 +756,6 @@ sub write_mail { # via ->wq_io_do
 sub wq_atexit_child {
 	my ($self) = @_;
 	my $lei = $self->{lei};
-	if (!$self->{-wq_worker_nr} && $lei->{lcat_blob}) {
-		for my $oid (@{$lei->{lcat_blob}}) {
-			my $smsg = { blob => $oid, pct => 100 };
-			write_mail($self, $smsg);
-		}
-	}
 	delete $self->{wcb};
 	$lei->{ale}->git->async_wait_all;
 	my $nr = delete($lei->{-nr_write}) or return;

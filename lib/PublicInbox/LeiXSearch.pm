@@ -256,6 +256,14 @@ sub query_combined_mset { # non-parallel for non-"--threads" users
 	$lei->{ovv}->ovv_atexit_child($lei);
 }
 
+sub _smsg_fill ($$) {
+	my ($smsg, $eml) = @_;
+	$smsg->populate($eml);
+	$smsg->parse_references($eml, mids($eml));
+	$smsg->{$_} //= '' for qw(from to cc ds subject references mid);
+	delete @$smsg{qw(From Subject -ds -ts)};
+}
+
 sub each_remote_eml { # callback for MboxReader->mboxrd
 	my ($eml, $self, $lei, $each_smsg) = @_;
 	my $xoids = $lei->{ale}->xoids_for($eml, 1);
@@ -265,10 +273,7 @@ sub each_remote_eml { # callback for MboxReader->mboxrd
 	my $smsg = bless {}, 'PublicInbox::Smsg';
 	$smsg->{blob} = $xoids ? (keys(%$xoids))[0]
 				: git_sha(1, $eml)->hexdigest;
-	$smsg->populate($eml);
-	$smsg->parse_references($eml, mids($eml));
-	$smsg->{$_} //= '' for qw(from to cc ds subject references mid);
-	delete @$smsg{qw(From Subject -ds -ts)};
+	_smsg_fill($smsg, $eml);
 	wait_startq($lei);
 	if ($lei->{-progress}) {
 		++$lei->{-nr_remote_eml};
@@ -453,6 +458,9 @@ sub start_query ($;$) { # always runs in main (lei-daemon) process
 	for my $uris (@$q) {
 		$self->wq_io_do('query_remote_mboxrd', [], $uris);
 	}
+	if ($self->{-do_lcat}) {
+		$self->wq_io_do('lcat_dump', []);
+	}
 	$self->wq_close(1); # lei_xsearch workers stop when done
 }
 
@@ -518,6 +526,7 @@ sub do_query {
 	@$end = ();
 	$self->{opt_threads} = $lei->{opt}->{threads};
 	$self->{opt_sort} = $lei->{opt}->{'sort'};
+	$self->{-do_lcat} = $lei->{lcat_blob} // $lei->{lcat_fid};
 	if ($l2m) {
 		$l2m->net_merge_all_done unless $lei->{auth};
 	} else {
@@ -561,5 +570,48 @@ sub prepare_external {
 	push @{$self->{locals}}, $loc;
 }
 
+sub _lcat_i { # LeiMailSync->each_src iterator callback
+	my ($oidbin, $id, $each_smsg) = @_;
+	$each_smsg->({blob => unpack('H*', $oidbin), pct => 100});
+}
+
+sub _lcat2smsg { # git->cat_async callback
+	my ($bref, $oid, $type, $size, $smsg) = @_;
+	if ($bref) {
+		my $eml = PublicInbox::Eml->new($bref);
+		my $json_dump = delete $smsg->{-json_dump};
+		bless $smsg, 'PublicInbox::Smsg';
+		_smsg_fill($smsg, $eml);
+		$json_dump->($smsg, undef, $eml);
+	}
+}
+
+sub lcat_dump {
+	my ($self) = @_;
+	my $lei = $self->{lei};
+	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei);
+	my $git = $lei->{ale}->git;
+	if (!$lei->{l2m}) {
+		my $json_dump = $each_smsg;
+		$each_smsg = sub {
+			my ($smsg) = @_;
+			use Data::Dumper;
+			$smsg->{-json_dump} = $json_dump;
+			$git->cat_async($smsg->{blob}, \&_lcat2smsg, $smsg);
+		};
+	}
+	for my $oid (@{$lei->{lcat_blob} // []}) {
+		$each_smsg->({ blob => $oid, pct => 100 });
+	}
+	if (my $fids = delete $lei->{lcat_fid}) {
+		my $lms = $lei->{lse}->lms;
+		for my $fid (@$fids) {
+			$lms->each_src({fid => $fid}, \&_lcat_i, $each_smsg);
+		}
+	}
+	$git->async_wait_all;
+	undef $each_smsg; # may commit
+	$lei->{ovv}->ovv_atexit_child($lei);
+}
 
 1;

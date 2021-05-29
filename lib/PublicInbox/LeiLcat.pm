@@ -11,14 +11,21 @@ use PublicInbox::LeiViewText;
 use URI::Escape qw(uri_unescape);
 use PublicInbox::MID qw($MID_EXTRACT);
 
-sub lcat_imap_uid_uri ($$) {
-	my ($lei, $uid_uri) = @_;
+sub lcat_imap_uri ($$) {
+	my ($lei, $uri) = @_;
 	my $lms = $lei->{lse}->lms or return;
-	my $oidhex = $lms->imap_oid($lei, $uid_uri);
-	if (ref(my $err = $oidhex)) { # art2folder error
-		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
+	# cf. LeiToMail->wq_atexit_child
+	if (defined $uri->uid) {
+		my $oidhex = $lms->imap_oid($lei, $uri);
+		if (ref(my $err = $oidhex)) { # art2folder error
+			$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
+		}
+		push @{$lei->{lcat_blob}}, $oidhex;
+	} elsif (defined(my $fid = $lms->fid_for($$uri))) {
+		push @{$lei->{lcat_fid}}, $fid;
+	} else {
+		$lei->child_error(1 << 8, "# unknown folder: $uri");
 	}
-	push @{$lei->{lcat_blob}}, $oidhex; # cf. LeiToMail->wq_atexit_child
 }
 
 sub extract_1 ($$) {
@@ -26,10 +33,8 @@ sub extract_1 ($$) {
 	if ($x =~ m!\b(imaps?://[^>]+)!i) {
 		my $u = $1;
 		require PublicInbox::URIimap;
-		$u = PublicInbox::URIimap->new($u);
-		defined($u->uid) ? lcat_imap_uid_uri($lei, $u) :
-				$lei->child_error(1 << 8, "# no UID= in $u");
-		'""'; # blank query, using {lcat_blob}
+		lcat_imap_uri($lei, PublicInbox::URIimap->new($u));
+		'""'; # blank query, using {lcat_blob} or {lcat
 	} elsif ($x =~ m!\b([a-z]+?://\S+)!i) {
 		my $u = $1;
 		$u =~ s/[\>\]\)\,\.\;]+\z//;

@@ -471,8 +471,10 @@ EOF
 	my $uri = $orig_uri->clone;
 	my $single_uid = $uri->uid;
 	my ($itrk, $l_uid, $l_uidval) = itrk_last($self, $uri, $r_uidval, $mic);
-	$itrk = $l_uid = undef if defined($single_uid);
-
+	if (defined($single_uid)) {
+		$itrk = $l_uid = undef;
+		$uri->uid(undef); # for eml_cb
+	}
 	return <<EOF if $l_uidval != $r_uidval;
 E: $uri UIDVALIDITY mismatch
 E: local=$l_uidval != remote=$r_uidval
