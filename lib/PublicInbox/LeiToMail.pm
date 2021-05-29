@@ -384,6 +384,7 @@ sub new {
 	my $fmt = $lei->{ovv}->{fmt};
 	my $dst = $lei->{ovv}->{dst};
 	my $self = bless {}, $cls;
+	my @conflict;
 	if ($fmt eq 'maildir') {
 		require PublicInbox::MdirReader;
 		$self->{base_type} = 'maildir';
@@ -412,13 +413,14 @@ sub new {
 		require PublicInbox::LeiViewText;
 		$lei->{lvt} = PublicInbox::LeiViewText->new($lei);
 		$self->{base_type} = 'text';
+		@conflict = qw(mua save);
 	} elsif ($fmt eq 'v2') {
 		die "--dedupe=oid and v2 are incompatible\n" if
 			($lei->{opt}->{dedupe}//'') eq 'oid';
 		$self->{base_type} = 'v2';
 		$lei->{opt}->{save} = \1;
-		die "--mua incompatible with v2\n" if $lei->{opt}->{mua};
 		$dst = $lei->{ovv}->{dst} = $lei->abs_path($dst);
+		@conflict = qw(mua sort);
 	} else {
 		die "bad mail --format=$fmt\n";
 	}
@@ -426,12 +428,8 @@ sub new {
 		(-d $dst || (-e _ && !-w _)) and die
 			"$dst exists and is not a writable file\n";
 	}
-	if ($self->{base_type} eq 'text') {
-		my @err = map {
-			defined($lei->{opt}->{$_}) ? "--$_" : ();
-		} (qw(mua save));
-		die "@err incompatible with $fmt\n" if @err;
-	}
+	my @err = map { defined($lei->{opt}->{$_}) ? "--$_" : () } @conflict;
+	die "@err incompatible with $fmt\n" if @err;
 	$self->{dst} = $dst;
 	$lei->{dedupe} = $lei->{lss} // do {
 		my $dd_cls = 'PublicInbox::'.

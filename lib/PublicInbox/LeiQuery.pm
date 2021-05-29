@@ -1,7 +1,8 @@
 # Copyright (C) 2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
-# handles lei <q|ls-query|rm-query|mv-query> commands
+# handles "lei q" command and provides internals for
+# several other sub-commands (up, lcat, ...)
 package PublicInbox::LeiQuery;
 use strict;
 use v5.10.1;
@@ -130,6 +131,8 @@ sub lei_q {
 		} else {
 			die "unrecognized --sort=$sort\n";
 		}
+		$opt->{save} and return
+			$self->fail('--save and --sort are incompatible');
 	}
 	$self->{mset_opt} = \%mset_opt;
 
