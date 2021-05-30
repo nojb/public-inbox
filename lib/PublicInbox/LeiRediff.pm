@@ -201,7 +201,6 @@ sub input_eml_cb { # callback for all emails
 sub lei_rediff {
 	my ($lei, @inputs) = @_;
 	$lei->_lei_store(1)->write_prepare($lei);
-	$lei->{opt}->{stdin} = 1 if !@inputs;
 	$lei->{opt}->{'in-format'} //= 'eml';
 	# maybe it's a non-email (code) blob from a coderepo
 	my $git_dirs = $lei->{opt}->{'git-dir'} //= [];

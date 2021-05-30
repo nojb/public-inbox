@@ -31,7 +31,6 @@ sub input_maildir_cb {
 sub lei_rm {
 	my ($lei, @inputs) = @_;
 	$lei->_lei_store(1)->write_prepare($lei);
-	$lei->{opt}->{stdin} = 1 if !@inputs;
 	$lei->{opt}->{'in-format'} //= 'eml';
 	my $self = bless { -wq_nr_workers => 1 }, __PACKAGE__;
 	$self->prepare_inputs($lei, \@inputs) or return;

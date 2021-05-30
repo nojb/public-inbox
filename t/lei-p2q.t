@@ -14,6 +14,10 @@ test_lei(sub {
 	lei_ok([qw(p2q -w dfpost -)], undef, { %$lei_opt, 0 => $fh });
 	is($lei_out, "dfpost:6e006fd73b1d\n", '--stdin') or diag $lei_err;
 
+	sysseek($fh, 0, 0) or xbail "lseek: $!";
+	lei_ok([qw(p2q -w dfpost)], undef, { %$lei_opt, 0 => $fh });
+	is($lei_out, "dfpost:6e006fd73b1d\n", 'implicit --stdin');
+
 	lei_ok(qw(p2q --uri t/data/0001.patch -w), 'dfpost,dfn');
 	is($lei_out, "dfpost%3A6e006fd73b1d+".
 		"dfn%3Alib%2FPublicInbox%2FSearch.pm\n",

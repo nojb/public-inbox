@@ -638,7 +638,15 @@ sub optparse ($$$) {
 			my $ok;
 			for my $o (@or) {
 				if ($o =~ /\A--([a-z0-9\-]+)/) {
-					$ok = defined($OPT->{$1});
+					my $sw = $1;
+					# assume pipe/regular file on stdin
+					# w/o args means stdin
+					if ($sw eq 'stdin' && !@$argv &&
+							(-p $self->{0} ||
+							 -f _) && -r _) {
+						$OPT->{stdin} //= 1;
+					}
+					$ok = defined($OPT->{$sw});
 					last if $ok;
 				} elsif (defined($argv->[$i])) {
 					$ok = 1;
@@ -906,7 +914,7 @@ sub start_mua {
 	}
 	push @cmd, $mfolder unless defined($replaced);
 	if ($self->{sock}) { # lei(1) client process runs it
-		# restore terminal: echo $query | lei q -stdin --mua=...
+		# restore terminal: echo $query | lei q --stdin --mua=...
 		my $io = [];
 		$io->[0] = $self->{1} if $self->{opt}->{stdin} && -t $self->{1};
 		send_exec_cmd($self, $io, \@cmd, {});
