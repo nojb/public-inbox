@@ -11,10 +11,26 @@ use PublicInbox::LeiViewText;
 use URI::Escape qw(uri_unescape);
 use PublicInbox::MID qw($MID_EXTRACT);
 
+sub lcat_folder ($$$) {
+	my ($lei, $lms, $folder) = @_;
+	$lms //= $lei->{lse}->lms // return;
+	my $folders = [ $folder];
+	my $err = $lms->arg2folder($lei, $folders);
+	$lei->qerr(@{$err->{qerr}}) if $err && $err->{qerr};
+	if ($err && $err->{fail}) {
+		$lei->child_error(1 << 8, "# unknown folder: $folder");
+	} else {
+		for my $f (@$folders) {
+			my $fid = $lms->fid_for($f);
+			push @{$lei->{lcat_fid}}, $fid;
+		}
+	}
+}
+
 sub lcat_imap_uri ($$) {
 	my ($lei, $uri) = @_;
 	my $lms = $lei->{lse}->lms or return;
-	# cf. LeiToMail->wq_atexit_child
+	# cf. LeiXsearch->lcat_dump
 	if (defined $uri->uid) {
 		my $oidhex = $lms->imap_oid($lei, $uri);
 		if (ref(my $err = $oidhex)) { # art2folder error
@@ -24,17 +40,7 @@ sub lcat_imap_uri ($$) {
 	} elsif (defined(my $fid = $lms->fid_for($$uri))) {
 		push @{$lei->{lcat_fid}}, $fid;
 	} else {
-		my $folders = [ $$uri ];
-		my $err = $lms->arg2folder($lei, $folders);
-		$lei->qerr(@{$err->{qerr}}) if $err && $err->{qerr};
-		if ($err && $err->{fail}) {
-			$lei->child_error(1 << 8, "# unknown folder: $uri");
-		} else {
-			for my $f (@$folders) {
-				my $fid = $lms->fid_for($f);
-				push @{$lei->{lcat_fid}}, $fid;
-			}
-		}
+		lcat_folder($lei, $lms, $$uri);
 	}
 }
 
@@ -44,7 +50,10 @@ sub extract_1 ($$) {
 		my $u = $1;
 		require PublicInbox::URIimap;
 		lcat_imap_uri($lei, PublicInbox::URIimap->new($u));
-		'""'; # blank query, using {lcat_blob} or {lcat
+		'""'; # blank query, using {lcat_blob} or {lcat_fid}
+	} elsif ($x =~ m!\b(maildir:.+)!i) {
+		lcat_folder($lei, undef, $1);
+		'""'; # blank query, using {lcat_blob} or {lcat_fid}
 	} elsif ($x =~ m!\b([a-z]+?://\S+)!i) {
 		my $u = $1;
 		$u =~ s/[\>\]\)\,\.\;]+\z//;
@@ -147,7 +156,7 @@ sub _complete_lcat {
 	my $sto = $lei->_lei_store or return;
 	my $lms = $sto->search->lms or return;
 	my $match_cb = $lei->complete_url_prepare(\@argv);
-	grep(m!\A[a-z]+://!, map { $match_cb->($_) } $lms->folders);
+	map { $match_cb->($_) } $lms->folders;
 }
 
 1;
