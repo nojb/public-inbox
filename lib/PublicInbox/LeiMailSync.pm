@@ -361,6 +361,17 @@ sub forget_folder {
 	$dbh->do('DELETE FROM folders WHERE fid = ?', undef, $fid);
 }
 
+sub imap_oid2 ($$$) {
+	my ($self, $uri, $uid) = @_; # $uri MUST have UIDVALIDITY
+	my $fid = $self->{fmap}->{"$uri"} //= fid_for($self, "$uri") // return;
+	my $sth = $self->{dbh}->prepare_cached(<<EOM, undef, 1);
+SELECT oidbin FROM blob2num WHERE fid = ? AND uid = ?
+EOM
+	$sth->execute($fid, $uid);
+	my ($oidbin) = $sth->fetchrow_array;
+	$oidbin ? unpack('H*', $oidbin) : undef;
+}
+
 sub imap_oid {
 	my ($self, $lei, $uid_uri) = @_;
 	my $mailbox_uri = $uid_uri->clone;
@@ -373,15 +384,9 @@ sub imap_oid {
 		}
 		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
 	}
-	my $fid = $self->{fmap}->{$folders->[0]} //=
-		fid_for($self, $folders->[0]) // return;
-	my $sth = $self->{dbh}->prepare_cached(<<EOM, undef, 1);
-SELECT oidbin FROM blob2num WHERE fid = ? AND uid = ?
-EOM
-	$sth->execute($fid, $uid_uri->uid);
-	my ($oidbin) = $sth->fetchrow_array;
-	$oidbin ? unpack('H*', $oidbin) : undef;
+	imap_oid2($self, $folders->[0], $uid_uri->uid);
 }
+
 
 # FIXME: something with "lei <up|q>" is causing uncommitted transaction
 # warnings, not sure what...

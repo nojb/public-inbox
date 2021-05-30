@@ -45,7 +45,16 @@ sub input_net_cb { # imap_each / nntp_each
 	my ($uri, $uid, $kw, $eml, $self) = @_;
 	my $vmd = $self->{-import_kw} ? { kw => $kw } : undef;
 	$vmd->{sync_info} = [ $$uri, $uid ] if $self->{-mail_sync};
-	$self->input_eml_cb($eml, $vmd);
+	if (defined $eml) {
+		$self->input_eml_cb($eml, $vmd);
+	} elsif ($vmd) { # old message, kw only
+		my $oid = $self->{-lms_ro}->imap_oid2($uri, $uid) // return;
+		my @docids = $self->{lse}->over->blob_exists($oid) or return;
+		my $lei = $self->{lei};
+		$lei->qerr("# $oid => @$kw\n") if $lei->{opt}->{verbose};
+		$self->{lei}->{sto}->ipc_do('set_eml_vmd', undef,
+						$vmd, \@docids);
+	}
 }
 
 sub do_import_index ($$@) {
@@ -65,7 +74,12 @@ sub do_import_index ($$@) {
 		# $j = $net->net_concurrency($j); TODO
 		if ($lei->{opt}->{incremental} // 1) {
 			$net->{incremental} = 1;
-			$net->{-lms_ro} = $lei->_lei_store->search->lms // 0;
+			$net->{-lms_ro} = $sto->search->lms // 0;
+			if ($self->{-import_kw}) {
+				$net->{each_old} = 1;
+				$self->{-lms_ro} = $net->{-lms_ro};
+				$self->{lse} = $sto->search;
+			}
 		}
 	} else {
 		my $nproc = $self->detect_nproc;

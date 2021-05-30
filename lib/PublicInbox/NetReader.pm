@@ -396,10 +396,8 @@ sub errors {
 	undef;
 }
 
-sub _imap_do_msg ($$$$$) {
-	my ($self, $uri, $uid, $raw, $flags) = @_;
-	# our target audience expects LF-only, save storage
-	$$raw =~ s/\r\n/\n/sg;
+sub flags2kw ($$$$) {
+	my ($self, $uri, $uid, $flags) = @_;
 	my $kw = [];
 	for my $f (split(/ /, $flags)) {
 		if (my $k = $IMAPflags2kw{$f}) {
@@ -412,6 +410,14 @@ sub _imap_do_msg ($$$$$) {
 		}
 	}
 	@$kw = sort @$kw; # for all UI/UX purposes
+	$kw;
+}
+
+sub _imap_do_msg ($$$$$) {
+	my ($self, $uri, $uid, $raw, $flags) = @_;
+	# our target audience expects LF-only, save storage
+	$$raw =~ s/\r\n/\n/sg;
+	my $kw = flags2kw($self, $uri, $uid, $flags) // return;
 	my ($eml_cb, @args) = @{$self->{eml_each}};
 	$eml_cb->($uri, $uid, $kw, PublicInbox::Eml->new($raw), @args);
 }
@@ -447,17 +453,56 @@ sub itrk_last ($$;$$) {
 	($itrk, $l_uid, $l_uidval //= $r_uidval);
 }
 
+# import flags of already-seen messages
+sub each_old_flags ($$$$) {
+	my ($self, $mic, $uri, $l_uid) = @_;
+	$l_uid ||= 1;
+	my $sec = uri_section($uri);
+	my $bs = $self->{imap_opt}->{$sec}->{batch_size} // 10000;
+	my ($eml_cb, @args) = @{$self->{eml_each}};
+	for (my $n = 1; $n <= $l_uid; $n += $bs) {
+		my $end = $n + $bs;
+		$end = $l_uid if $end > $l_uid;
+		my $r = $mic->fetch_hash("$n:$end", 'FLAGS');
+		if (!$r) {
+			return if $!{EINTR} && $self->{quit};
+			return "E: $uri UID FETCH $n:$end error: $!";
+		}
+		while (my ($uid, $per_uid) = each %$r) {
+			my $kw = flags2kw($self, $uri, $uid, $per_uid->{FLAGS})
+				// next;
+			$eml_cb->($uri, $uid, $kw, undef, @args);
+		}
+	}
+}
+
+# returns true if PERMANENTFLAGS indicates FLAGS of already imported
+# messages are meaningful
+sub perm_fl_ok ($) {
+	my ($perm_fl) = @_;
+	return if !defined($perm_fl);
+	for my $f (split(/[ \t]+/, $perm_fl)) {
+		return 1 if $IMAPflags2kw{$f};
+	}
+	undef;
+}
+
 sub _imap_fetch_all ($$$) {
 	my ($self, $mic, $orig_uri) = @_;
 	my $sec = uri_section($orig_uri);
 	my $mbx = $orig_uri->mailbox;
 	$mic->Clear(1); # trim results history
-	$mic->examine($mbx) or return "E: EXAMINE $mbx ($sec) failed: $!";
-	my ($r_uidval, $r_uidnext);
+
+	# we need to check for mailbox writability to see if we care about
+	# FLAGS from already-imported messages.
+	my $cmd = $self->{each_old} ? 'select' : 'examine';
+	$mic->$cmd($mbx) or return "E: \U$cmd\E $mbx ($sec) failed: $!";
+
+	my ($r_uidval, $r_uidnext, $perm_fl);
 	for ($mic->Results) {
+		/^\* OK \[PERMANENTFLAGS \(([^\)]*)\)\].*/ and $perm_fl = $1;
 		/^\* OK \[UIDVALIDITY ([0-9]+)\].*/ and $r_uidval = $1;
 		/^\* OK \[UIDNEXT ([0-9]+)\].*/ and $r_uidnext = $1;
-		last if $r_uidval && $r_uidnext;
 	}
 	$r_uidval //= $mic->uidvalidity($mbx) //
 		return "E: $orig_uri cannot get UIDVALIDITY";
@@ -486,6 +531,13 @@ EOF
 E: $uri local UID exceeds remote ($l_uid > $r_uid)
 E: $uri strangely, UIDVALIDLITY matches ($l_uidval)
 EOF
+	$mic->Uid(1); # the default, we hope
+	my $err;
+	if (!defined($single_uid) && $self->{each_old} &&
+				perm_fl_ok($perm_fl)) {
+		$err = each_old_flags($self, $mic, $uri, $l_uid);
+		return $err if $err;
+	}
 	return if $l_uid >= $r_uid; # nothing to do
 	$l_uid ||= 1;
 	my ($mod, $shard) = @{$self->{shard_info} // []};
@@ -493,13 +545,11 @@ EOF
 		my $m = $mod ? " [(UID % $mod) == $shard]" : '';
 		warn "# $uri fetching UID $l_uid:$r_uid$m\n";
 	}
-	$mic->Uid(1); # the default, we hope
 	my $bs = $self->{imap_opt}->{$sec}->{batch_size} // 1;
 	my $req = $mic->imap4rev1 ? 'BODY.PEEK[]' : 'RFC822.PEEK';
 	my $key = $req;
 	$key =~ s/\.PEEK//;
 	my ($uids, $batch);
-	my $err;
 	do {
 		# I wish "UID FETCH $START:*" could work, but:
 		# 1) servers do not need to return results in any order
