@@ -132,4 +132,12 @@ no args allowed on command-line with --stdin
 	$lei->_start_query;
 }
 
+sub _complete_lcat {
+	my ($lei, @argv) = @_;
+	my $sto = $lei->_lei_store or return;
+	my $lms = $sto->search->lms or return;
+	my $match_cb = $lei->complete_url_prepare(\@argv);
+	grep(m!\A[a-z]+://!, map { $match_cb->($_) } $lms->folders);
+}
+
 1;
