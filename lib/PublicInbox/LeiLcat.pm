@@ -24,7 +24,17 @@ sub lcat_imap_uri ($$) {
 	} elsif (defined(my $fid = $lms->fid_for($$uri))) {
 		push @{$lei->{lcat_fid}}, $fid;
 	} else {
-		$lei->child_error(1 << 8, "# unknown folder: $uri");
+		my $folders = [ $$uri ];
+		my $err = $lms->arg2folder($lei, $folders);
+		$lei->qerr(@{$err->{qerr}}) if $err && $err->{qerr};
+		if ($err && $err->{fail}) {
+			$lei->child_error(1 << 8, "# unknown folder: $uri");
+		} else {
+			for my $f (@$folders) {
+				my $fid = $lms->fid_for($f);
+				push @{$lei->{lcat_fid}}, $fid;
+			}
+		}
 	}
 }
 

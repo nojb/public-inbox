@@ -13,6 +13,7 @@ my $host_port = tcp_host_port($sock);
 undef $sock;
 test_lei({ tmpdir => $tmpdir }, sub {
 	my $url = "imap://$host_port/t.v2.0";
+	my $url_orig = $url;
 
 	lei_ok(qw(q z:1..));
 	my $out = json_utf8->decode($lei_out);
@@ -100,6 +101,8 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	lei_ok qw(lcat -f json), $uid_url;
 	$out = json_utf8->decode($lei_out);
 	is(scalar(@$out), 2, 'got JSON') or diag explain($out);
+	lei_ok qw(lcat), $url_orig;
+	is($lei_out, $orig, 'lcat w/o UID works');
 });
 
 done_testing;
