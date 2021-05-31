@@ -50,6 +50,7 @@ sub input_net_cb { # imap_each / nntp_each
 	} elsif ($vmd) { # old message, kw only
 		my $oid = $self->{-lms_ro}->imap_oid2($uri, $uid) // return;
 		my @docids = $self->{lse}->over->blob_exists($oid) or return;
+		$self->{lse}->kw_changed(undef, $kw, \@docids) or return;
 		my $lei = $self->{lei};
 		$lei->qerr("# $oid => @$kw\n") if $lei->{opt}->{verbose};
 		$self->{lei}->{sto}->ipc_do('set_eml_vmd', undef,

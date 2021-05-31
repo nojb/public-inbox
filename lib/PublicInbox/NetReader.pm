@@ -409,7 +409,7 @@ sub flags2kw ($$$$) {
 			warn "# unknown IMAP flag $f <$uri/;UID=$uid>\n";
 		}
 	}
-	@$kw = sort @$kw; # for all UI/UX purposes
+	@$kw = sort @$kw; # for LeiSearch->kw_changed and UI/UX purposes
 	$kw;
 }
 
