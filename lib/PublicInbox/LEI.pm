@@ -218,9 +218,6 @@ our %CMD = ( # sorted in order of importance/use:
 	qw(stdin| in-format|F=s input|i=s@ oid=s@ mid=s@),
 	qw(no-torsocks torsocks=s), PublicInbox::LeiQuery::curl_opt(), @c_opt,
 	pass_through('-kw:foo for delete') ],
-'forget' => [ '[--stdin|--oid=OID|--by-mid=MID]',
-	"exclude message(s) on stdin from `q' search results",
-	qw(stdin| oid=s exact by-mid|mid:s), @c_opt ],
 
 'purge-mailsource' => [ 'LOCATION|--all',
 	'remove imported messages from IMAP, Maildirs, and MH',
