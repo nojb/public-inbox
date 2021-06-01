@@ -392,10 +392,11 @@ sub imap_oid {
 # warnings, not sure what...
 sub DESTROY {
 	my ($self) = @_;
-	my $dbh = $self->{dbh} or return;
+	my $dbh = delete($self->{dbh}) or return;
 	return if $dbh->{ReadOnly};
 	use Carp;
-	warn "BUG $$ $0 $self {dbh} UNCOMMITTED ", Carp::longmess();
+	undef $dbh;
+	warn "BUG $$ $0 $self {dbh} OPEN ppid=".getppid.' '.Carp::longmess();
 }
 
 1;
