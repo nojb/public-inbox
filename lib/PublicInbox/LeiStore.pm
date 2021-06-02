@@ -193,15 +193,30 @@ sub remove_eml_vmd { # remove just the VMD
 	\@docids;
 }
 
-sub set_sync_info {
-	my ($self, $oidhex, $folder, $id) = @_;
-	($self->{lms} //= do {
+sub _lms_rw ($) {
+	my ($self) = @_;
+	$self->{lms} //= do {
 		require PublicInbox::LeiMailSync;
 		my $f = "$self->{priv_eidx}->{topdir}/mail_sync.sqlite3";
 		my $lms = PublicInbox::LeiMailSync->new($f);
 		$lms->lms_begin;
 		$lms;
-	})->set_src($oidhex, $folder, $id);
+	};
+}
+
+sub lms_clear_src {
+	my ($self, $folder, $id) = @_;
+	_lms_rw($self)->clear_src($folder, $id);
+}
+
+sub lms_mv_src {
+	my ($self, $folder, $oidbin, $id, $newbn) = @_;
+	_lms_rw($self)->mv_src($folder, $oidbin, $id, $newbn);
+}
+
+sub set_sync_info {
+	my ($self, $oidhex, $folder, $id) = @_;
+	_lms_rw($self)->set_src($oidhex, $folder, $id);
 }
 
 sub _remove_if_local { # git->cat_async arg

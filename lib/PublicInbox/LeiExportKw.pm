@@ -28,6 +28,7 @@ sub export_kw_md { # LeiMailSync->each_src callback
 		PublicInbox::LeiToMail::kw2suffix([keys %$sto_kw], @$unknown);
 	my $dst = "$mdir/cur/$bn";
 	my @fail;
+	my $lei = $self->{lei};
 	for my $d (@try) {
 		my $src = "$mdir/$d/$$id";
 		next if $src eq $dst;
@@ -39,15 +40,15 @@ sub export_kw_md { # LeiMailSync->each_src callback
 			# unlink(2) may ENOENT from parallel invocation,
 			# ignore it, but not other serious errors
 			if (!unlink($src) and $! != ENOENT) {
-				$self->{lei}->child_error(1,
-							"E: unlink($src): $!");
+				$lei->child_error(1, "E: unlink($src): $!");
 			}
-			$self->{lms}->mv_src("maildir:$mdir",
-						$oidbin, $id, $bn) or die;
+			$lei->{sto}->ipc_do('lms_mv_src', "maildir:$mdir",
+						$oidbin, $id, $bn);
 			return; # success anyways if link(2) worked
 		}
 		if ($! == ENOENT && !-e $src) { # some other process moved it
-			$self->{lms}->clear_src("maildir:$mdir", $id);
+			$lei->{sto}->ipc_do('lms_clear_src',
+						"maildir:$mdir", $id);
 			next;
 		}
 		push @fail, $src if $! != EEXIST;
@@ -56,7 +57,7 @@ sub export_kw_md { # LeiMailSync->each_src callback
 	# both tries failed
 	my $e = $!;
 	my $orig = '['.join('|', @fail).']';
-	$self->{lei}->child_error(1, "link($orig, $dst) ($oidhex): $e");
+	$lei->child_error(1, "link($orig, $dst) ($oidhex): $e");
 }
 
 sub export_kw_imap { # LeiMailSync->each_src callback
@@ -69,8 +70,7 @@ sub export_kw_imap { # LeiMailSync->each_src callback
 # overrides PublicInbox::LeiInput::input_path_url
 sub input_path_url {
 	my ($self, $input, @args) = @_;
-	my $lms = $self->{lms} //= $self->{lse}->lms;
-	$lms->lms_begin;
+	my $lms = $self->{-lms_ro} //= $self->{lse}->lms;
 	if ($input =~ /\Amaildir:(.+)/i) {
 		my $mdir = $1;
 		require PublicInbox::LeiToMail; # kw2suffix
@@ -81,7 +81,7 @@ sub input_path_url {
 		$lms->each_src($$uri, \&export_kw_imap, $self, $mic);
 		$mic->expunge;
 	} else { die "BUG: $input not supported" }
-	$lms->lms_commit;
+	my $wait = $self->{lei}->{sto}->ipc_do('done');
 }
 
 sub lei_export_kw {
@@ -151,8 +151,9 @@ EOM
 		$self->{imap_mod_kw} = $net->can($self->{-merge_kw} ?
 					'imap_add_kw' : 'imap_set_kw');
 	}
-	undef $lms;
+	undef $lms; # for fork
 	my $ops = {};
+	$sto->write_prepare($lei);
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
 	$self->{-wq_nr_workers} = $j // 1; # locked
 	(my $op_c, $ops) = $lei->workers_start($self, $j, $ops);
