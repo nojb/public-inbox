@@ -18,13 +18,8 @@ our @EXPORT_OK = qw(pkt_do);
 sub new {
 	my ($cls, $r) = @_;
 	my $self = bless { sock => $r }, $cls;
-	if ($PublicInbox::DS::in_loop) { # iff using DS->EventLoop
-		$r->blocking(0);
-		$self->SUPER::new($r, EPOLLIN|EPOLLET);
-	} else {
-		$self->{blocking} = 1;
-	}
-	$self;
+	$r->blocking(0);
+	$self->SUPER::new($r, EPOLLIN|EPOLLET);
 }
 
 # returns a blessed object as the consumer, and a GLOB/IO for the producer
@@ -38,12 +33,6 @@ sub pair {
 sub pkt_do { # for the producer to trigger event_step in consumer
 	my ($producer, $cmd, @args) = @_;
 	send($producer, @args ? "$cmd\0".ipc_freeze(\@args) : $cmd, MSG_EOR);
-}
-
-sub close {
-	my ($self) = @_;
-	my $c = $self->{sock} or return;
-	$self->{blocking} ? delete($self->{sock}) : $self->SUPER::close;
 }
 
 sub event_step {
@@ -75,12 +64,10 @@ sub event_step {
 	}
 }
 
-# call this when we're ready to wait on events,
-# returns immediately if non-blocking
+# call this when we're ready to wait on events
 sub op_wait_event {
 	my ($self, $ops) = @_;
 	$self->{ops} = $ops;
-	while ($self->{blocking} && $self->{sock}) { event_step($self) }
 }
 
 1;
