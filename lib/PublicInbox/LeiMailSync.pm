@@ -54,6 +54,10 @@ CREATE TABLE IF NOT EXISTS blob2num (
 	UNIQUE (oidbin, fid, uid)
 )
 
+	# speeds up LeiImport->ck_update_kw (for "lei import") by 5-6x:
+	$dbh->do(<<'');
+CREATE INDEX IF NOT EXISTS idx_fid_uid ON blob2num(fid,uid)
+
 	$dbh->do(<<'');
 CREATE TABLE IF NOT EXISTS blob2name (
 	oidbin VARBINARY NOT NULL,
@@ -361,15 +365,14 @@ sub forget_folder {
 	$dbh->do('DELETE FROM folders WHERE fid = ?', undef, $fid);
 }
 
-sub imap_oid2 ($$$) {
-	my ($self, $uri, $uid) = @_; # $uri MUST have UIDVALIDITY
-	my $fid = $self->{fmap}->{"$uri"} //= fid_for($self, "$uri") // return;
+sub imap_oidbin ($$$) {
+	my ($self, $url, $uid) = @_; # $url MUST have UIDVALIDITY
+	my $fid = $self->{fmap}->{$url} //= fid_for($self, $url) // return;
 	my $sth = $self->{dbh}->prepare_cached(<<EOM, undef, 1);
 SELECT oidbin FROM blob2num WHERE fid = ? AND uid = ?
 EOM
 	$sth->execute($fid, $uid);
-	my ($oidbin) = $sth->fetchrow_array;
-	$oidbin ? unpack('H*', $oidbin) : undef;
+	$sth->fetchrow_array;
 }
 
 sub imap_oid {
@@ -384,9 +387,9 @@ sub imap_oid {
 		}
 		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
 	}
-	imap_oid2($self, $folders->[0], $uid_uri->uid);
+	my $oidbin = imap_oidbin($self, $folders->[0], $uid_uri->uid);
+	$oidbin ? unpack('H*', $oidbin) : undef;
 }
-
 
 # FIXME: something with "lei <up|q>" is causing uncommitted transaction
 # warnings, not sure what...

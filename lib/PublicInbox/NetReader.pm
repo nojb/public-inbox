@@ -471,6 +471,7 @@ sub each_old_flags ($$$$) {
 		while (my ($uid, $per_uid) = each %$r) {
 			my $kw = flags2kw($self, $uri, $uid, $per_uid->{FLAGS})
 				// next;
+			# LeiImport->input_net_cb
 			$eml_cb->($uri, $uid, $kw, undef, @args);
 		}
 	}

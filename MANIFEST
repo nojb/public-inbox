@@ -208,6 +208,7 @@ lib/PublicInbox/LeiForgetMailSync.pm
 lib/PublicInbox/LeiForgetSearch.pm
 lib/PublicInbox/LeiHelp.pm
 lib/PublicInbox/LeiImport.pm
+lib/PublicInbox/LeiImportKw.pm
 lib/PublicInbox/LeiIndex.pm
 lib/PublicInbox/LeiInit.pm
 lib/PublicInbox/LeiInput.pm

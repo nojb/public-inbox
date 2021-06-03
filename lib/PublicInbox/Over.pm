@@ -349,13 +349,13 @@ sub check_inodes {
 	}
 }
 
-sub blob_exists {
-	my ($self, $oidhex) = @_;
+sub oidbin_exists {
+	my ($self, $oidbin) = @_;
 	if (wantarray) {
 		my $sth = $self->dbh->prepare_cached(<<'', undef, 1);
 SELECT docid FROM xref3 WHERE oidbin = ? ORDER BY docid ASC
 
-		$sth->bind_param(1, pack('H*', $oidhex), SQL_BLOB);
+		$sth->bind_param(1, $oidbin, SQL_BLOB);
 		$sth->execute;
 		my $tmp = $sth->fetchall_arrayref;
 		map { $_->[0] } @$tmp;
@@ -363,10 +363,12 @@ SELECT docid FROM xref3 WHERE oidbin = ? ORDER BY docid ASC
 		my $sth = $self->dbh->prepare_cached(<<'', undef, 1);
 SELECT COUNT(*) FROM xref3 WHERE oidbin = ?
 
-		$sth->bind_param(1, pack('H*', $oidhex), SQL_BLOB);
+		$sth->bind_param(1, $oidbin, SQL_BLOB);
 		$sth->execute;
 		$sth->fetchrow_array;
 	}
 }
+
+sub blob_exists { oidbin_exists($_[0], pack('H*', $_[1])) }
 
 1;

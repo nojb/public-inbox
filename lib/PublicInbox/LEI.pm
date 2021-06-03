@@ -421,7 +421,7 @@ my %CONFIG_KEYS = (
 	'leistore.dir' => 'top-level storage location',
 );
 
-my @WQ_KEYS = qw(lxs l2m wq1); # internal workers
+my @WQ_KEYS = qw(lxs l2m wq1 ikw); # internal workers
 
 sub _drop_wq {
 	my ($self) = @_;
