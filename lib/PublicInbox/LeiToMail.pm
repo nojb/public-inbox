@@ -9,7 +9,6 @@ use parent qw(PublicInbox::IPC);
 use PublicInbox::Eml;
 use PublicInbox::ProcessPipe;
 use PublicInbox::Spawn qw(spawn);
-use PublicInbox::PktOp qw(pkt_do);
 use Symbol qw(gensym);
 use IO::Handle; # ->autoflush
 use Fcntl qw(SEEK_SET SEEK_END O_CREAT O_EXCL O_WRONLY);
@@ -679,7 +678,7 @@ sub do_post_auth {
 	my ($self) = @_;
 	my $lei = $self->{lei};
 	# lei_xsearch can start as soon as all l2m workers get here
-	pkt_do($lei->{pkt_op_p}, 'incr_start_query') or
+	$lei->{pkt_op_p}->pkt_do('incr_start_query') or
 		die "incr_start_query: $!";
 	my $aug;
 	if (lock_free($self)) { # all workers do_augment
@@ -698,7 +697,7 @@ sub do_post_auth {
 		local $0 = 'do_augment';
 		eval { do_augment($self, $lei) };
 		$lei->fail($@) if $@;
-		pkt_do($lei->{pkt_op_p}, $aug) == 1 or
+		$lei->{pkt_op_p}->pkt_do($aug) == 1 or
 				die "do_post_augment trigger: $!";
 	}
 	# done augmenting, connect the compressor pipe for each worker
@@ -758,8 +757,7 @@ sub wq_atexit_child {
 	$lei->{ale}->git->async_wait_all;
 	my $nr = delete($lei->{-nr_write}) or return;
 	return if $lei->{early_mua} || !$lei->{-progress} || !$lei->{pkt_op_p};
-	require PublicInbox::PktOp;
-	PublicInbox::PktOp::pkt_do($lei->{pkt_op_p}, 'l2m_progress', $nr);
+	$lei->{pkt_op_p}->pkt_do('l2m_progress', $nr);
 }
 
 # called in top-level lei-daemon when LeiAuth is done

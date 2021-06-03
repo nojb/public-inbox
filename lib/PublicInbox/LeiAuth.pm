@@ -6,7 +6,6 @@
 package PublicInbox::LeiAuth;
 use strict;
 use v5.10.1;
-use PublicInbox::PktOp qw(pkt_do);
 
 sub do_auth_atfork { # used by IPC WQ workers
 	my ($self, $wq) = @_;
@@ -16,7 +15,7 @@ sub do_auth_atfork { # used by IPC WQ workers
 	eval {
 		my $mics = $net->imap_common_init($lei);
 		my $nn = $net->nntp_common_init($lei);
-		pkt_do($lei->{pkt_op_p}, 'net_merge_continue', $net) or
+		$lei->{pkt_op_p}->pkt_do('net_merge_continue', $net) or
 				die "pkt_do net_merge_continue: $!";
 		$net->{mics_cached} = $mics if $mics;
 		$net->{nn_cached} = $nn if $nn;
@@ -34,7 +33,7 @@ sub net_merge_all { # called in wq worker via wq_broadcast
 	my ($wq, $net_new) = @_;
 	my $net = $wq->{lei}->{net};
 	%$net = (%$net, %$net_new);
-	pkt_do($wq->{lei}->{pkt_op_p}, 'net_merge_done1') or
+	$wq->{lei}->{pkt_op_p}->pkt_do('net_merge_done1') or
 		die "pkt_op_do net_merge_done1: $!";
 }
 

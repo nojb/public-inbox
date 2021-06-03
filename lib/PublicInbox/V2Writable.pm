@@ -1435,7 +1435,8 @@ sub ipc_atfork_child {
 	my ($self) = @_;
 	if (my $lei = delete $self->{lei}) {
 		$lei->_lei_atfork_child;
-		close(delete $lei->{pkt_op_p});
+		my $pkt_op_p = delete $lei->{pkt_op_p};
+		close($pkt_op_p->{op_p});
 	}
 	$self->SUPER::ipc_atfork_child;
 }

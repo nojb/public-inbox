@@ -8,12 +8,11 @@
 package PublicInbox::PktOp;
 use strict;
 use v5.10.1;
-use parent qw(PublicInbox::DS Exporter);
+use parent qw(PublicInbox::DS);
 use Errno qw(EAGAIN EINTR);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
 use Socket qw(AF_UNIX MSG_EOR SOCK_SEQPACKET);
 use PublicInbox::IPC qw(ipc_freeze ipc_thaw);
-our @EXPORT_OK = qw(pkt_do);
 
 sub new {
 	my ($cls, $r) = @_;
@@ -22,17 +21,17 @@ sub new {
 	$self->SUPER::new($r, EPOLLIN|EPOLLET);
 }
 
-# returns a blessed object as the consumer, and a GLOB/IO for the producer
+# returns a blessed objects as the consumer and producer
 sub pair {
 	my ($cls) = @_;
 	my ($c, $p);
 	socketpair($c, $p, AF_UNIX, SOCK_SEQPACKET, 0) or die "socketpair: $!";
-	(new($cls, $c), $p);
+	(new($cls, $c), bless { op_p => $p }, $cls);
 }
 
 sub pkt_do { # for the producer to trigger event_step in consumer
-	my ($producer, $cmd, @args) = @_;
-	send($producer, @args ? "$cmd\0".ipc_freeze(\@args) : $cmd, MSG_EOR);
+	my ($self, $cmd, @args) = @_;
+	send($self->{op_p}, @args ? "$cmd\0".ipc_freeze(\@args) : $cmd, MSG_EOR)
 }
 
 sub event_step {

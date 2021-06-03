@@ -9,7 +9,6 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::LeiSearch PublicInbox::IPC);
 use PublicInbox::DS qw(now);
-use PublicInbox::PktOp qw(pkt_do);
 use File::Temp 0.19 (); # 0.19 for ->newdir
 use File::Spec ();
 use PublicInbox::Search qw(xap_terms);
@@ -142,7 +141,7 @@ sub mset_progress {
 	my $lei = shift;
 	return if $lei->{early_mua} || !$lei->{-progress};
 	if ($lei->{pkt_op_p}) {
-		pkt_do($lei->{pkt_op_p}, 'mset_progress', @_);
+		$lei->{pkt_op_p}->pkt_do('mset_progress', @_);
 	} else { # single lei-daemon consumer
 		my ($desc, $mset_size, $mset_total_est) = @_;
 		$lei->{-mset_total} += $mset_size if $mset_total_est ne '?';

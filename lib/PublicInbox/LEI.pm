@@ -441,8 +441,10 @@ sub x_it ($$) {
 	# make sure client sees stdout before exit
 	$self->{1}->autoflush(1) if $self->{1};
 	dump_and_clear_log();
-	if (my $s = $self->{pkt_op_p} // $self->{sock}) {
-		send($s, "x_it $code", MSG_EOR);
+	if ($self->{pkt_op_p}) { # to top lei-daemon
+		$self->{pkt_op_p}->pkt_do('x_it', $code);
+	} elsif ($self->{sock}) { # to lei(1) client
+		send($self->{sock}, "x_it $code", MSG_EOR);
 	} # else ignore if client disconnected
 }
 
@@ -480,7 +482,7 @@ sub fail ($$;$) {
 	my ($self, $buf, $exit_code) = @_;
 	err($self, $buf) if defined $buf;
 	# calls fail_handler:
-	send($self->{pkt_op_p}, '!', MSG_EOR) if $self->{pkt_op_p};
+	$self->{pkt_op_p}->pkt_do('!') if $self->{pkt_op_p};
 	x_it($self, ($exit_code // 1) << 8);
 	undef;
 }
@@ -499,18 +501,17 @@ sub puts ($;@) { out(shift, map { "$_\n" } @_) }
 sub child_error { # passes non-fatal curl exit codes to user
 	my ($self, $child_error, $msg) = @_; # child_error is $?
 	$self->err($msg) if $msg;
-	if (my $s = $self->{pkt_op_p} // $self->{sock}) {
-		# send to the parent lei-daemon or to lei(1) client
-		send($s, "child_error $child_error", MSG_EOR);
-	} elsif (!$PublicInbox::DS::in_loop) {
-		$self->{child_error} = $child_error;
+	if ($self->{pkt_op_p}) { # to top lei-daemon
+		$self->{pkt_op_p}->pkt_do('child_error', $child_error);
+	} elsif ($self->{sock}) { # to lei(1) client
+		send($self->{sock}, "child_error $child_error", MSG_EOR);
 	} # else noop if client disconnected
 }
 
 sub note_sigpipe { # triggers sigpipe_handler
 	my ($self, $fd) = @_;
 	close(delete($self->{$fd})); # explicit close silences Perl warning
-	send($self->{pkt_op_p}, '|', MSG_EOR) if $self->{pkt_op_p};
+	$self->{pkt_op_p}->pkt_do('|') if $self->{pkt_op_p};
 	x_it($self, 13);
 }
 
@@ -550,8 +551,8 @@ sub _delete_pkt_op { # OnDestroy callback to prevent leaks on die
 	if (my $op = delete $self->{pkt_op_c}) { # in case of die
 		$op->close; # PublicInbox::PktOp::close
 	}
-	my $unclosed_after_die = delete($self->{pkt_op_p}) or return;
-	close $unclosed_after_die;
+	my $pkt_op_p = delete($self->{pkt_op_p}) or return;
+	close $pkt_op_p->{op_p};
 }
 
 sub pkt_op_pair {
