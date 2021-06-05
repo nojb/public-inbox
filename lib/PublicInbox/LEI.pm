@@ -480,6 +480,7 @@ sub sigint_reap {
 
 sub fail ($$;$) {
 	my ($self, $buf, $exit_code) = @_;
+	$self->{failed}++;
 	err($self, $buf) if defined $buf;
 	# calls fail_handler:
 	$self->{pkt_op_p}->pkt_do('!') if $self->{pkt_op_p};
@@ -1043,7 +1044,7 @@ sub accept_dispatch { # Listener {post_accept} callback
 sub dclose {
 	my ($self) = @_;
 	delete $self->{-progress};
-	_drop_wq($self);
+	_drop_wq($self) if $self->{failed};
 	close(delete $self->{1}) if $self->{1}; # may reap_compress
 	$self->close if $self->{-event_init_done}; # PublicInbox::DS::close
 }
