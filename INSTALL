@@ -174,9 +174,10 @@ Other installation notes
 Debian 8.x (jessie) users, use Debian 8.5 or later if using Xapian:
         https://bugs.debian.org/808610
 
-public-inbox will never store unregeneratable data in Xapian
-or any other search database we might use; Xapian corruption
-will not destroy critical data.
+public-inbox-* commands will never store unregeneratable data in
+Xapian nor any other search database we might use; Xapian
+corruption will not destroy critical data.  Note: `lei' DOES store
+unregeneratable data in Xapian and SQLite.
 
 See the public-inbox-overview(7) man page for the next steps once
 the installation is complete.
