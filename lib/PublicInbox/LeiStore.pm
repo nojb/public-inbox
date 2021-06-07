@@ -419,6 +419,9 @@ sub checkpoint {
 	if (my $im = $self->{im}) {
 		$wait ? $im->barrier : $im->checkpoint;
 	}
+	if (my $lms = delete $self->{lms}) {
+		$lms->lms_commit;
+	}
 	$self->{priv_eidx}->checkpoint($wait);
 }
 
