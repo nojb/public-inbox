@@ -580,6 +580,8 @@ sub workers_start {
 	$wq->wq_workers_start($ident, $jobs, $lei->oldset, { lei => $lei });
 	delete $lei->{pkt_op_p};
 	my $op_c = delete $lei->{pkt_op_c};
+	# {-lei_sock} persists script/lei process until ops->{''} EOF callback
+	$op_c->{-lei_sock} = $lei->{sock};
 	@$end = ();
 	$lei->event_step_init;
 	($op_c, $ops);
