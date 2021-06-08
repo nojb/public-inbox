@@ -91,9 +91,8 @@ sub do_import_index ($$@) {
 	(my $op_c, $ops) = $lei->workers_start($self, $j, $ops);
 	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';
-	$ikw->wq_close(1) if $ikw;
 	net_merge_all_done($self) unless $lei->{auth};
-	$op_c->op_wait_event($ops);
+	$lei->wait_wq_events($op_c, $ops);
 }
 
 sub lei_import { # the main "lei import" method

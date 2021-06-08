@@ -587,6 +587,15 @@ sub workers_start {
 	($op_c, $ops);
 }
 
+# call this when we're ready to wait on events and yield to other clients
+sub wait_wq_events {
+	my ($lei, $op_c, $ops) = @_;
+	for my $wq (grep(defined, @$lei{qw(ikw)})) { # auxiliary WQs
+		$wq->wq_close(1);
+	}
+	$op_c->{ops} = $ops;
+}
+
 sub _help {
 	require PublicInbox::LeiHelp;
 	PublicInbox::LeiHelp::call($_[0], $_[1], \%CMD, \%OPTDESC);

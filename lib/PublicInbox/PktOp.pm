@@ -63,10 +63,4 @@ sub event_step {
 	}
 }
 
-# call this when we're ready to wait on events
-sub op_wait_event {
-	my ($self, $ops) = @_;
-	$self->{ops} = $ops;
-}
-
 1;

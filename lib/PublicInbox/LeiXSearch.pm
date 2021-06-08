@@ -532,7 +532,7 @@ sub do_query {
 		start_query($self);
 	}
 	$lei->event_step_init; # wait for shutdowns
-	$op_c->op_wait_event($ops);
+	$lei->wait_wq_events($op_c, $ops);
 }
 
 sub add_uri {

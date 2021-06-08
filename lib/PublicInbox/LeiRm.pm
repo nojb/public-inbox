@@ -38,7 +38,7 @@ sub lei_rm {
 	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';
 	net_merge_all_done($self) unless $lei->{auth};
-	$op_c->op_wait_event($ops);
+	$lei->wait_wq_events($op_c, $ops);
 }
 
 no warnings 'once';

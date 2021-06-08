@@ -282,11 +282,11 @@ sub start {
 	require PublicInbox::Inbox;
 	require PublicInbox::Admin;
 	require PublicInbox::InboxWritable;
-	my ($op, $ops) = $lei->workers_start($self, 1);
+	my ($op_c, $ops) = $lei->workers_start($self, 1);
 	$lei->{wq1} = $self;
 	$self->wq_io_do('do_mirror', []);
 	$self->wq_close(1);
-	$op->op_wait_event($ops);
+	$lei->wait_wq_events($op_c, $ops);
 }
 
 sub ipc_atfork_child {

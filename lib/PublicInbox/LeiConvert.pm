@@ -59,7 +59,7 @@ sub lei_convert { # the main "lei convert" method
 	$lei->{wq1} = $self;
 	$self->wq_io_do('process_inputs', []);
 	$self->wq_close(1);
-	$op_c->op_wait_event($ops);
+	$lei->wait_wq_events($op_c, $ops);
 }
 
 sub ipc_atfork_child {

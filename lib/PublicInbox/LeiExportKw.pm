@@ -160,7 +160,7 @@ EOM
 	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';
 	net_merge_all_done($self) unless $lei->{auth};
-	$op_c->op_wait_event($ops); # calls net_merge_all_done if $lei->{auth}
+	$lei->wait_wq_events($op_c, $ops); # net_merge_all_done if !{auth}
 }
 
 sub _complete_export_kw {

@@ -169,7 +169,7 @@ sub lei_blob {
 	$lei->{wq1} = $self;
 	$self->wq_io_do('do_solve_blob', []);
 	$self->wq_close(1);
-	$op_c->op_wait_event($ops);
+	$lei->wait_wq_events($op_c, $ops);
 }
 
 sub ipc_atfork_child {

@@ -227,7 +227,7 @@ sub lei_rediff {
 	my ($op_c, $ops) = $lei->workers_start($self, 1);
 	$lei->{wq1} = $self;
 	net_merge_all_done($self) unless $lei->{auth};
-	$op_c->op_wait_event($ops);
+	$lei->wait_wq_events($op_c, $ops);
 }
 
 sub ipc_atfork_child {

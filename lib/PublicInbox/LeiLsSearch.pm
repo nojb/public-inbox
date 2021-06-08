@@ -76,7 +76,7 @@ sub bg_worker ($$$) {
 	$lei->{wq1} = $self;
 	$self->wq_io_do('do_ls_search_long', [], $pfx);
 	$self->wq_close(1);
-	$op_c->op_wait_event($ops);
+	$lei->wait_wq_events($op_c, $ops);
 }
 
 sub lei_ls_search {
