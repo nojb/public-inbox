@@ -13,14 +13,14 @@ use parent qw(PublicInbox::IPC);
 sub new {
 	my ($cls, $lei, $ipt) = @_;
 	my $self = bless { -wq_ident => 'lei Maildir worker' }, $cls;
-	my $jobs = $lei->{opt}->{jobs};
+	my $jobs = $lei->{opt}->{jobs} // '';
 	$jobs =~ /\A[0-9]+,([0-9]+)\z/ and $jobs = $1;
-	my $nproc = $jobs // do {
-		# untested with >=4 CPUs, though I suspect I/O latency
+	my $nproc = $jobs || do {
+		# barely tested with >=4 CPUs, though I suspect I/O latency
 		# of SATA SSD storage will make >=4 processes unnecessary,
 		# here.  NVMe users may wish to use '-j'
 		my $n = $self->detect_nproc;
-		$n = 4 if $n > 4;
+		$n = $n > 4 ? 4 : $n;
 	};
 	my ($op_c, $ops) = $lei->workers_start($self, $nproc,
 		undef, { ipt => $ipt }); # LeiInput subclass
