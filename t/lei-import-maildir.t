@@ -28,7 +28,7 @@ test_lei(sub {
 	is(scalar(keys %v), 1, 'inspect handles relative and absolute paths');
 	my $inspect = json_utf8->decode([ keys %v ]->[0]);
 	is_deeply($inspect, {"maildir:$md" => { 'name.count' => 1 }},
-		'inspect maildir: path had expected output');
+		'inspect maildir: path had expected output') or xbail($inspect);
 
 	lei_ok(qw(q s:boolean));
 	my $res = json_utf8->decode($lei_out);

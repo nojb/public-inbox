@@ -151,9 +151,16 @@ sub input_path_url {
 		return $lei->fail(<<EOM) if $ifmt && $ifmt ne 'maildir';
 $input appears to be a maildir, not $ifmt
 EOM
-		PublicInbox::MdirReader->new->maildir_each_eml($input,
-					$self->can('input_maildir_cb'),
-					$self, @args);
+		my $mdr = PublicInbox::MdirReader->new;
+		if (my $pmd = $self->{pmd}) {
+			$mdr->maildir_each_file($input,
+						$pmd->can('each_mdir_fn'),
+						$pmd, @args);
+		} else {
+			$mdr->maildir_each_eml($input,
+						$self->can('input_maildir_cb'),
+						$self, @args);
+		}
 	} else {
 		$lei->fail("$input unsupported (TODO)");
 	}
@@ -215,7 +222,7 @@ sub prepare_inputs { # returns undef on error
 		push @{$sync->{no}}, '/dev/stdin' if $sync;
 	}
 	my $net = $lei->{net}; # NetWriter may be created by l2m
-	my (@f, @d);
+	my (@f, @md);
 	# e.g. Maildir:/home/user/Mail/ or imaps://example.com/INBOX
 	for my $input (@$inputs) {
 		my $input_path = $input;
@@ -247,11 +254,11 @@ sub prepare_inputs { # returns undef on error
 				PublicInbox::MboxReader->reads($ifmt) or return
 					$lei->fail("$ifmt not supported");
 			} elsif (-d $input_path) {
-				require PublicInbox::MdirReader;
 				$ifmt eq 'maildir' or return
 					$lei->fail("$ifmt not supported");
 				$sync and $input = 'maildir:'.
 						$lei->abs_path($input_path);
+				push @md, $input;
 			} else {
 				return $lei->fail("Unable to handle $input");
 			}
@@ -266,21 +273,18 @@ $input is `eml', not --in-format=$in_fmt
 			if ($devfd >= 0 || -f $input || -p _) {
 				push @{$sync->{no}}, $input if $sync;
 				push @f, $input;
-			} elsif (-d $input) {
+			} elsif (-d "$input/new" && -d "$input/cur") {
 				if ($sync) {
 					$input = $lei->abs_path($input);
 					push @{$sync->{ok}}, $input;
 				}
-				push @d, $input;
+				push @md, $input;
 			} else {
 				return $lei->fail("Unable to handle $input")
 			}
 		}
 	}
 	if (@f) { check_input_format($lei, \@f) or return }
-	if (@d) { # TODO: check for MH vs Maildir, here
-		require PublicInbox::MdirReader;
-	}
 	if ($sync && $sync->{no}) {
 		return $lei->fail(<<"") if !$sync->{ok};
 --mail-sync specified but no inputs support it
@@ -298,6 +302,13 @@ $input is `eml', not --in-format=$in_fmt
 		require PublicInbox::LeiAuth;
 		$lei->{auth} //= PublicInbox::LeiAuth->new;
 		$lei->{net} //= $net;
+	}
+	if (scalar(@md)) {
+		require PublicInbox::MdirReader;
+		if ($self->can('pmdir_cb')) {
+			require PublicInbox::LeiPmdir;
+			$self->{pmd} = PublicInbox::LeiPmdir->new($lei, $self);
+		}
 	}
 	$self->{inputs} = $inputs;
 }

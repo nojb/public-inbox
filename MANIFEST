@@ -221,6 +221,7 @@ lib/PublicInbox/LeiMailSync.pm
 lib/PublicInbox/LeiMirror.pm
 lib/PublicInbox/LeiOverview.pm
 lib/PublicInbox/LeiP2q.pm
+lib/PublicInbox/LeiPmdir.pm
 lib/PublicInbox/LeiQuery.pm
 lib/PublicInbox/LeiRediff.pm
 lib/PublicInbox/LeiRemote.pm

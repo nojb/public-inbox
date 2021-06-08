@@ -66,6 +66,10 @@ CREATE TABLE IF NOT EXISTS blob2name (
 	UNIQUE (oidbin, fid, name)
 )
 
+	# speeds up LeiImport->pmdir_cb (for "lei import") by ~6x:
+	$dbh->do(<<'');
+CREATE INDEX IF NOT EXISTS idx_fid_name ON blob2name(fid,name)
+
 }
 
 sub fid_for {
@@ -372,6 +376,16 @@ sub imap_oidbin ($$$) {
 SELECT oidbin FROM blob2num WHERE fid = ? AND uid = ?
 EOM
 	$sth->execute($fid, $uid);
+	$sth->fetchrow_array;
+}
+
+sub name_oidbin ($$$) {
+	my ($self, $mdir, $nm) = @_;
+	my $fid = $self->{fmap}->{$mdir} //= fid_for($self, $mdir) // return;
+	my $sth = $self->{dbh}->prepare_cached(<<EOM, undef, 1);
+SELECT oidbin FROM blob2name WHERE fid = ? AND name = ?
+EOM
+	$sth->execute($fid, $nm);
 	$sth->fetchrow_array;
 }
 

@@ -240,7 +240,7 @@ our %CMD = ( # sorted in order of importance/use:
 	 @c_opt ],
 'import' => [ 'LOCATION...|--stdin',
 	'one-time import/update from URL or filesystem',
-	qw(stdin| offset=i recursive|r exclude=s include|I=s
+	qw(stdin| offset=i recursive|r exclude=s include|I=s jobs=s
 	lock=s@ in-format|F=s kw! verbose|v+ incremental! mail-sync!),
 	qw(no-torsocks torsocks=s), PublicInbox::LeiQuery::curl_opt(), @c_opt ],
 'forget-mail-sync' => [ 'LOCATION...',
@@ -421,7 +421,7 @@ my %CONFIG_KEYS = (
 	'leistore.dir' => 'top-level storage location',
 );
 
-my @WQ_KEYS = qw(lxs l2m wq1 ikw); # internal workers
+my @WQ_KEYS = qw(lxs l2m ikw pmd wq1); # internal workers
 
 sub _drop_wq {
 	my ($self) = @_;
@@ -566,7 +566,7 @@ sub pkt_op_pair {
 }
 
 sub workers_start {
-	my ($lei, $wq, $jobs, $ops) = @_;
+	my ($lei, $wq, $jobs, $ops, $flds) = @_;
 	$ops = {
 		'!' => [ \&fail_handler, $lei ],
 		'|' => [ \&sigpipe_handler, $lei ],
@@ -577,7 +577,8 @@ sub workers_start {
 	$ops->{''} //= [ $wq->can('_lei_wq_eof') || \&wq_eof, $lei ];
 	my $end = $lei->pkt_op_pair;
 	my $ident = $wq->{-wq_ident} // "lei-$lei->{cmd} worker";
-	$wq->wq_workers_start($ident, $jobs, $lei->oldset, { lei => $lei });
+	$flds->{lei} = $lei;
+	$wq->wq_workers_start($ident, $jobs, $lei->oldset, $flds);
 	delete $lei->{pkt_op_p};
 	my $op_c = delete $lei->{pkt_op_c};
 	# {-lei_sock} persists script/lei process until ops->{''} EOF callback
@@ -590,7 +591,7 @@ sub workers_start {
 # call this when we're ready to wait on events and yield to other clients
 sub wait_wq_events {
 	my ($lei, $op_c, $ops) = @_;
-	for my $wq (grep(defined, @$lei{qw(ikw)})) { # auxiliary WQs
+	for my $wq (grep(defined, @$lei{qw(ikw pmd)})) { # auxiliary WQs
 		$wq->wq_close(1);
 	}
 	$op_c->{ops} = $ops;
