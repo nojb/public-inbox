@@ -94,36 +94,8 @@ EOM
 lei mail_sync uninitialized, see lei-import(1)
 EOM
 	my $opt = $lei->{opt};
-	my $all = $opt->{all};
-	if (defined $all) { # --all=<local|remote>
-		my %x = map { $_ => $_ } split(/,/, $all);
-		my @ok = grep(defined, delete(@x{qw(local remote), ''}));
-		my @no = keys %x;
-		if (@no) {
-			@no = (join(',', @no));
-			return $lei->fail(<<EOM);
---all=@no not accepted (must be `local' and/or `remote')
-EOM
-		}
-		my (%seen, @inc);
-		my @all = $lms->folders;
-		for my $ok (@ok) {
-			if ($ok eq 'local') {
-				@inc = grep(!m!\A[a-z0-9\+]+://!i, @all);
-			} elsif ($ok eq 'remote') {
-				@inc = grep(m!\A[a-z0-9\+]+://!i, @all);
-			} elsif ($ok ne '') {
-				return $lei->fail("--all=$all not understood");
-			} else {
-				@inc = @all;
-			}
-			for (@inc) {
-				push(@folders, $_) unless $seen{$_}++;
-			}
-		}
-		return $lei->fail(<<EOM) if !@folders;
-no --mail-sync folders known to lei
-EOM
+	if (defined(my $all = $opt->{all})) { # --all=<local|remote>
+		$lms->group2folders($lei, $all, \@folders) or return;
 	} else {
 		my $err = $lms->arg2folder($lei, \@folders);
 		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};

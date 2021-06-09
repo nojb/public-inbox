@@ -315,6 +315,42 @@ sub match_imap_url {
 			"E: `$url' is ambiguous:\n\t".join("\n\t", @match)."\n";
 }
 
+# returns undef on failure, number on success
+sub group2folders {
+	my ($self, $lei, $all, $folders) = @_;
+	return $lei->fail(<<EOM) if @$folders;
+--all= not compatible with @$folders on command-line
+EOM
+	my %x = map { $_ => $_ } split(/,/, $all);
+	my @ok = grep(defined, delete(@x{qw(local remote), ''}));
+	my @no = keys %x;
+	if (@no) {
+		@no = (join(',', @no));
+		return $lei->fail(<<EOM);
+--all=@no not accepted (must be `local' and/or `remote')
+EOM
+	}
+	my (%seen, @inc);
+	my @all = $self->folders;
+	for my $ok (@ok) {
+		if ($ok eq 'local') {
+			@inc = grep(!m!\A[a-z0-9\+]+://!i, @all);
+		} elsif ($ok eq 'remote') {
+			@inc = grep(m!\A[a-z0-9\+]+://!i, @all);
+		} elsif ($ok ne '') {
+			return $lei->fail("--all=$all not understood");
+		} else {
+			@inc = @all;
+		}
+		for (@inc) {
+			push(@$folders, $_) unless $seen{$_}++;
+		}
+	}
+	scalar(@$folders) || $lei->fail(<<EOM);
+no --mail-sync folders known to lei
+EOM
+}
+
 # map CLI args to folder table entries, returns undef on failure
 sub arg2folder {
 	my ($self, $lei, $folders) = @_;
