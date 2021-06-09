@@ -195,5 +195,8 @@ test_lei(sub {
 			glob("$v2s/git/0.git/objects/*/*")));
 	ok($shared < $orig, 'fewer bytes stored with --shared') or
 		diag "shared=$shared orig=$orig";
+
+	lei_ok([qw(edit-search), $v2s], { VISUAL => 'cat', EDITOR => 'cat' });
+	like($lei_out, qr/^\[lei/sm, 'edit-search can cat');
 });
 done_testing;

@@ -19,7 +19,7 @@ sub lei_edit_search {
 	my ($op_c, $op_p) = PublicInbox::PktOp->pair;
 	# $op_p will EOF when $EDITOR is done
 	$op_c->{ops} = { '' => [$lss->can('edit_done'), $lss, $lei] };
-	$lei->send_exec_cmd([ @$lei{qw(0 1 2)}, $op_p ], \@cmd, {});
+	$lei->send_exec_cmd([ @$lei{qw(0 1 2)}, $op_p->{op_p} ], \@cmd, {});
 }
 
 *_complete_edit_search = \&PublicInbox::LeiUp::_complete_up;
