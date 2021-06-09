@@ -30,15 +30,9 @@ sub new {
 
 sub ipc_atfork_child {
 	my ($self) = @_;
-	my $lei = $self->{lei};
-	$lei->_lei_atfork_child;
 	my $ipt = $self->{ipt} // die 'BUG: no self->{ipt}';
-	$ipt->{lei} = $lei;
-	$ipt->{sto} = $lei->{sto} // die 'BUG: no lei->{sto}';
-	$ipt->{lse} = $ipt->{sto}->search;
-	$ipt->{over} = $ipt->{lse}->over;
-	$ipt->{-lms_ro} //= $ipt->{lse}->lms; # may be undef or '0'
-	$self->SUPER::ipc_atfork_child;
+	$ipt->{lei} = $self->{lei};
+	$ipt->ipc_atfork_child;
 }
 
 sub each_mdir_fn { # maildir_each_file callback

@@ -35,13 +35,13 @@ sub pmdir_cb { # called via wq_io_do from LeiPmdir->each_mdir_fn
 		die "BUG: $f was not from a Maildir?\n";
 	my $kw = PublicInbox::MdirReader::flags2kw($fl);
 	substr($folder, 0, 0) = 'maildir:'; # add prefix
-	my $lms = $self->{-lms_ro};
+	my $lse = $self->{lse} //= $self->{lei}->{sto}->search;
+	my $lms = $self->{-lms_ro} //= $lse->lms; # may be 0 or undef
 	my $oidbin = $lms ? $lms->name_oidbin($folder, $bn) : undef;
-	my @docids = defined($oidbin) ?
-			$self->{over}->oidbin_exists($oidbin) : ();
+	my @docids = defined($oidbin) ? $lse->over->oidbin_exists($oidbin) : ();
 	my $vmd = $self->{-import_kw} ? { kw => $kw } : undef;
 	if (scalar @docids) {
-		$self->{lse}->kw_changed(undef, $kw, \@docids) or return;
+		$lse->kw_changed(undef, $kw, \@docids) or return;
 	}
 	if (my $eml = eml_from_path($f)) {
 		$vmd->{sync_info} = [ $folder, \$bn ] if $self->{-mail_sync};

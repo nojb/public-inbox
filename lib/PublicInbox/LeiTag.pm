@@ -6,6 +6,7 @@ package PublicInbox::LeiTag;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::IPC PublicInbox::LeiInput);
+use PublicInbox::InboxWritable qw(eml_from_path);
 
 sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 	my ($self, $eml) = @_;
@@ -24,8 +25,9 @@ sub input_mbox_cb {
 	input_eml_cb($self, $eml);
 }
 
-sub input_maildir_cb { # maildir_each_eml cb
-	my ($f, $kw, $eml, $self) = @_;
+sub pmdir_cb { # called via wq_io_do from LeiPmdir->each_mdir_fn
+	my ($self, $f) = @_;
+	my $eml = eml_from_path($f) or return;
 	input_eml_cb($self, $eml);
 }
 
@@ -42,12 +44,12 @@ sub lei_tag { # the "lei tag" method
 	$lei->ale; # refresh and prepare
 	my $vmd_mod = $self->vmd_mod_extract(\@argv);
 	return $lei->fail(join("\n", @{$vmd_mod->{err}})) if $vmd_mod->{err};
+	$self->{vmd_mod} = $vmd_mod; # before LeiPmdir->new in prepare_inputs
 	$self->prepare_inputs($lei, \@argv) or return;
 	grep(defined, @$vmd_mod{qw(+kw +L -L -kw)}) or
 		return $lei->fail('no keywords or labels specified');
 	my $ops = {};
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
-	$self->{vmd_mod} = $vmd_mod;
 	my $j = $self->{-wq_nr_workers} = 1; # locked for now
 	(my $op_c, $ops) = $lei->workers_start($self, $j, $ops);
 	$lei->{wq1} = $self;
