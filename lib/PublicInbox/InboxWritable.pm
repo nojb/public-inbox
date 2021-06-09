@@ -131,13 +131,9 @@ sub eml_from_path ($) {
 	}
 }
 
-sub _each_maildir_fn {
-	my ($fn, $im, $self) = @_;
-	if ($fn =~ /:2,([A-Za-z]*)\z/) {
-		my $fl = $1;
-		return if $fl =~ /[DT]/; # no Drafts or Trash for public
-	}
-	my $eml = eml_from_path($fn) or return;
+sub _each_maildir_eml {
+	my ($fn, $kw, $eml, $im, $self) = @_;
+	return if grep(/\Adraft\z/, @$kw);
 	if ($self && (my $filter = $self->filter($im))) {
 		my $ret = $filter->scrub($eml) or return;
 		return if $ret == REJECT();
@@ -146,6 +142,7 @@ sub _each_maildir_fn {
 	$im->add($eml);
 }
 
+# XXX does anybody use this?
 sub import_maildir {
 	my ($self, $dir) = @_;
 	foreach my $sub (qw(cur new tmp)) {
@@ -154,8 +151,8 @@ sub import_maildir {
 	my $im = $self->importer(1);
 	my @self = $self->filter($im) ? ($self) : ();
 	require PublicInbox::MdirReader;
-	PublicInbox::MdirReader->new->maildir_each_file(\&_each_maildir_fn,
-							$im, @self);
+	PublicInbox::MdirReader->new->maildir_each_eml($dir,
+					\&_each_maildir_eml, $im, @self);
 	$im->done;
 }
 
