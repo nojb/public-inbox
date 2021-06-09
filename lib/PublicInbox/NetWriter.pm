@@ -26,26 +26,9 @@ sub imap_append {
 		die "APPEND $folder: $@";
 }
 
-# updates $uri with UIDVALIDITY
-sub mic_for_folder {
-	my ($self, $uri) = @_;
-	my $mic = $self->mic_get($uri) or die "E: not connected: $@";
-	$mic->select($uri->mailbox) or return;
-	my $uidval;
-	for ($mic->Results) {
-		/^\* OK \[UIDVALIDITY ([0-9]+)\].*/ or next;
-		$uidval = $1;
-		last;
-	}
-	$uidval //= $mic->uidvalidity($uri->mailbox) or
-		die "E: failed to get uidvalidity from <$uri>: $@";
-	$uri->uidvalidity($uidval);
-	$mic;
-}
-
 sub imap_delete_all {
 	my ($self, $uri) = @_;
-	my $mic = mic_for_folder($self, $uri) or return;
+	my $mic = $self->mic_for_folder($uri) or return;
 	my $sec = $self->can('uri_section')->($uri);
 	local $0 = $uri->mailbox." $sec";
 	if ($mic->delete_message('1:*')) {
@@ -55,7 +38,7 @@ sub imap_delete_all {
 
 sub imap_delete_1 {
 	my ($self, $uri, $uid, $delete_mic) = @_;
-	$$delete_mic //= mic_for_folder($self, $uri) or return;
+	$$delete_mic //= $self->mic_for_folder($uri) or return;
 	$$delete_mic->delete_message($uid);
 }
 

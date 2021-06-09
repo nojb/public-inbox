@@ -245,6 +245,8 @@ our %CMD = ( # sorted in order of importance/use:
 	qw(no-torsocks torsocks=s), PublicInbox::LeiQuery::curl_opt(), @c_opt ],
 'forget-mail-sync' => [ 'LOCATION...',
 	'forget sync information for a mail folder', @c_opt ],
+'prune-mail-sync' => [ 'LOCATION...|--all',
+	'prune dangling sync data for a mail folder', 'all:s', @c_opt ],
 'export-kw' => [ 'LOCATION...|--all',
 	'one-time export of keywords of sync sources',
 	qw(all:s mode=s), @c_opt ],

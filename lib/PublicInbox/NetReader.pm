@@ -747,4 +747,23 @@ sub nntp_each {
 
 sub new { bless {}, shift };
 
+# updates $uri with UIDVALIDITY
+sub mic_for_folder {
+	my ($self, $uri) = @_;
+	my $mic = $self->mic_get($uri) or die "E: not connected: $@";
+	my $m = $self->isa('PublicInbox::NetWriter') ? 'select' : 'examine';
+	$mic->$m($uri->mailbox) or return;
+	my $uidval;
+	for ($mic->Results) {
+		/^\* OK \[UIDVALIDITY ([0-9]+)\].*/ or next;
+		$uidval = $1;
+		last;
+	}
+	$uidval //= $mic->uidvalidity($uri->mailbox) or
+		die "E: failed to get uidvalidity from <$uri>: $@";
+	$uri->uidvalidity($uidval);
+	$mic;
+}
+
+
 1;
