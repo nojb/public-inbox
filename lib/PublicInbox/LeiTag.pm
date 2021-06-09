@@ -15,7 +15,7 @@ sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 		$self->{lei}->{sto}->ipc_do('update_xvmd', $xoids, $eml,
 						$self->{vmd_mod});
 	} else {
-		++$self->{missing};
+		++$self->{unimported};
 	}
 }
 
@@ -40,7 +40,7 @@ sub lei_tag { # the "lei tag" method
 	my ($lei, @argv) = @_;
 	my $sto = $lei->_lei_store(1);
 	$sto->write_prepare($lei);
-	my $self = bless { missing => 0 }, __PACKAGE__;
+	my $self = bless {}, __PACKAGE__;
 	$lei->ale; # refresh and prepare
 	my $vmd_mod = $self->vmd_mod_extract(\@argv);
 	return $lei->fail(join("\n", @{$vmd_mod->{err}})) if $vmd_mod->{err};
@@ -58,10 +58,10 @@ sub lei_tag { # the "lei tag" method
 	$lei->wait_wq_events($op_c, $ops);
 }
 
-sub note_missing {
+sub note_unimported {
 	my ($self) = @_;
-	my $n = $self->{missing} or return;
-	$self->{lei}->child_error(1 << 8, "$n missed messages");
+	my $n = $self->{unimported} or return;
+	$self->{lei}->{pkt_op_p}->pkt_do('incr', 'unimported', $n);
 }
 
 sub ipc_atfork_child {
@@ -69,7 +69,7 @@ sub ipc_atfork_child {
 	PublicInbox::LeiInput::input_only_atfork_child($self);
 	$self->{lse} = $self->{lei}->{sto}->search;
 	# this goes out-of-scope at worker process exit:
-	PublicInbox::OnDestroy->new($$, \&note_missing, $self);
+	PublicInbox::OnDestroy->new($$, \&note_unimported, $self);
 }
 
 # Workaround bash word-splitting s to ['kw', ':', 'keyword' ...]

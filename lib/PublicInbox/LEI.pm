@@ -567,6 +567,11 @@ sub pkt_op_pair {
 	$end;
 }
 
+sub incr {
+	my ($self, $field, $nr) = @_;
+	$self->{counters}->{$field} += $nr;
+}
+
 sub workers_start {
 	my ($lei, $wq, $jobs, $ops, $flds) = @_;
 	$ops = {
@@ -574,6 +579,7 @@ sub workers_start {
 		'|' => [ \&sigpipe_handler, $lei ],
 		'x_it' => [ \&x_it, $lei ],
 		'child_error' => [ \&child_error, $lei ],
+		'incr' => [ \&incr, $lei ],
 		($ops ? %$ops : ()),
 	};
 	$ops->{''} //= [ $wq->can('_lei_wq_eof') || \&wq_eof, $lei ];
@@ -583,8 +589,6 @@ sub workers_start {
 	$wq->wq_workers_start($ident, $jobs, $lei->oldset, $flds);
 	delete $lei->{pkt_op_p};
 	my $op_c = delete $lei->{pkt_op_c};
-	# {-lei_sock} persists script/lei process until ops->{''} EOF callback
-	$op_c->{-lei_sock} = $lei->{sock};
 	@$end = ();
 	$lei->event_step_init;
 	($op_c, $ops);
@@ -1092,10 +1096,11 @@ sub event_step {
 
 sub event_step_init {
 	my ($self) = @_;
-	return if $self->{-event_init_done}++;
-	if (my $sock = $self->{sock}) { # using DS->EventLoop
+	my $sock = $self->{sock} or return;
+	$self->{-event_init_done} //= do { # persist til $ops done
 		$self->SUPER::new($sock, EPOLLIN|EPOLLET);
-	}
+		$sock;
+	};
 }
 
 sub noop {}
@@ -1246,6 +1251,12 @@ sub busy { 1 } # prevent daemon-shutdown if client is connected
 # can immediately reread it
 sub DESTROY {
 	my ($self) = @_;
+	if (my $counters = delete $self->{counters}) {
+		for my $k (sort keys %$counters) {
+			my $nr = $counters->{$k};
+			$self->child_error(1 << 8, "$nr $k messages");
+		}
+	}
 	$self->{1}->autoflush(1) if $self->{1};
 	stop_pager($self);
 	# preserve $? for ->fail or ->x_it code
