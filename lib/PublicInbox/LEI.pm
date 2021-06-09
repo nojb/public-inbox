@@ -240,7 +240,7 @@ our %CMD = ( # sorted in order of importance/use:
 	 @c_opt ],
 'import' => [ 'LOCATION...|--stdin',
 	'one-time import/update from URL or filesystem',
-	qw(stdin| offset=i recursive|r exclude=s include|I=s jobs=s
+	qw(stdin| offset=i recursive|r exclude=s include|I=s jobs=s new-only
 	lock=s@ in-format|F=s kw! verbose|v+ incremental! mail-sync!),
 	qw(no-torsocks torsocks=s), PublicInbox::LeiQuery::curl_opt(), @c_opt ],
 'forget-mail-sync' => [ 'LOCATION...',

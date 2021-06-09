@@ -78,12 +78,14 @@ sub do_import_index ($$@) {
 	$j =~ /\A([0-9]+),[0-9]+\z/ and $j = $1 + 0;
 	$j ||= scalar(@{$self->{inputs}}) || 1;
 	my $ikw;
-	if (my $net = $lei->{net}) {
+	my $net = $lei->{net};
+	if ($net) {
 		# $j = $net->net_concurrency($j); TODO
 		if ($lei->{opt}->{incremental} // 1) {
 			$net->{incremental} = 1;
 			$net->{-lms_ro} = $sto->search->lms // 0;
 			if ($self->{-import_kw} && $net->{-lms_ro} &&
+					!$lei->{opt}->{'new-only'} &&
 					$net->{imap_order}) {
 				require PublicInbox::LeiImportKw;
 				$ikw = PublicInbox::LeiImportKw->new($lei);
@@ -93,6 +95,9 @@ sub do_import_index ($$@) {
 	} else {
 		my $nproc = $self->detect_nproc;
 		$j = $nproc if $j > $nproc;
+	}
+	if ($lei->{opt}->{'new-only'} && (!$net || !$net->{imap_order})) {
+		$lei->err('# --new-only is only for IMAP');
 	}
 	my $ops = {};
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
