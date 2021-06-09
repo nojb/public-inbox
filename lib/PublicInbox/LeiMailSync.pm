@@ -405,13 +405,12 @@ sub imap_oid {
 	$oidbin ? unpack('H*', $oidbin) : undef;
 }
 
-# FIXME: something with "lei <up|q>" is causing uncommitted transaction
-# warnings, not sure what...
+# FIXED? something with "lei <up|q>" is causing uncommitted transaction
+# TODO: remove soon
 sub DESTROY {
 	my ($self) = @_;
 	my $dbh = delete($self->{dbh}) or return;
 	return if $dbh->{ReadOnly};
-	use Carp;
 	undef $dbh;
 	warn "BUG $$ $0 $self {dbh} OPEN ppid=".getppid.' '.Carp::longmess();
 }

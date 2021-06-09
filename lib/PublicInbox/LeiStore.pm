@@ -195,6 +195,7 @@ sub remove_eml_vmd { # remove just the VMD
 
 sub _lms_rw ($) {
 	my ($self) = @_;
+	my ($eidx, $tl) = eidx_init($self);
 	$self->{lms} //= do {
 		require PublicInbox::LeiMailSync;
 		my $f = "$self->{priv_eidx}->{topdir}/mail_sync.sqlite3";
