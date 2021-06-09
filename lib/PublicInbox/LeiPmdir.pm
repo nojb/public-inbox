@@ -42,13 +42,13 @@ sub ipc_atfork_child {
 }
 
 sub each_mdir_fn { # maildir_each_file callback
-	my ($f, $self, @args) = @_;
-	$self->wq_io_do('mdir_iter', [], $f, @args);
+	my ($f, $fl, $self, @args) = @_;
+	$self->wq_io_do('mdir_iter', [], $f, $fl, @args);
 }
 
 sub mdir_iter { # via wq_io_do
-	my ($self, $f, @args) = @_;
-	$self->{ipt}->pmdir_cb($f, @args);
+	my ($self, $f, $fl, @args) = @_;
+	$self->{ipt}->pmdir_cb($f, $fl, @args);
 }
 
 sub pmd_done_wait {

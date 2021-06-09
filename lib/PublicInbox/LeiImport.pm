@@ -30,11 +30,9 @@ sub input_mbox_cb { # MboxReader callback
 }
 
 sub pmdir_cb { # called via wq_io_do from LeiPmdir->each_mdir_fn
-	my ($self, $f, @args) = @_;
+	my ($self, $f, $fl) = @_;
 	my ($folder, $bn) = ($f =~ m!\A(.+?)/(?:new|cur)/([^/]+)\z!) or
 		die "BUG: $f was not from a Maildir?\n";
-	my $fl = PublicInbox::MdirReader::maildir_basename_flags($bn);
-	return if index($fl, 'T') >= 0; # no Trashed messages
 	my $kw = PublicInbox::MdirReader::flags2kw($fl);
 	substr($folder, 0, 0) = 'maildir:'; # add prefix
 	my $lms = $self->{-lms_ro};

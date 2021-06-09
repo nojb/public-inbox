@@ -42,9 +42,10 @@ sub maildir_each_file {
 		my $pfx = $dir.$d;
 		opendir my $dh, $pfx or next;
 		while (defined(my $bn = readdir($dh))) {
-			maildir_basename_flags($bn) // next;
+			my $fl = maildir_basename_flags($bn) // next;
 			next if defined($mod) && !shard_ok($bn, $mod, $shard);
-			$cb->($pfx.$bn, @arg);
+			next if index($fl, 'T') >= 0; # no Trashed messages
+			$cb->($pfx.$bn, $fl, @arg);
 		}
 	}
 }
