@@ -17,6 +17,13 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	my $out = json_utf8->decode($lei_out);
 	is_deeply($out, [ undef ], 'nothing imported, yet');
 	my $url = "nntp://$host_port/t.v2";
+	lei_ok(qw(ls-mail-source), "nntp://$host_port/");
+	like($lei_out, qr/^t\.v2$/ms, 'shows newsgroup');
+	lei_ok(qw(ls-mail-source), $url);
+	is($lei_out, "t.v2\n", 'shows only newsgroup with filter');
+	lei_ok(qw(ls-mail-source -l), "nntp://$host_port/");
+	is(ref(json_utf8->decode($lei_out)), 'ARRAY', 'ls-mail-source JSON');
+
 	lei_ok('import', $url);
 	lei_ok(qw(q z:1..));
 	$out = json_utf8->decode($lei_out);

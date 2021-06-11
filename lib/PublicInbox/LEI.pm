@@ -196,6 +196,8 @@ our %CMD = ( # sorted in order of importance/use:
 'ls-label' => [ '', 'list labels', qw(z|0 stats:s), @c_opt ],
 'ls-mail-sync' => [ '[FILTER]', 'list mail sync folders',
 		qw(z|0 globoff|g invert-match|v local remote), @c_opt ],
+'ls-mail-source' => [ 'URL', 'list IMAP or NNTP mail source folders',
+		qw(z|0 ascii l), @c_opt ],
 'forget-external' => [ 'LOCATION...|--prune',
 	'exclude further results from a publicinbox|extindex',
 	qw(prune), @c_opt ],
@@ -381,6 +383,7 @@ my %OPTDESC = (
 'format|f=s	ls-search' => ['OUT|json|jsonl|concatjson',
 			'listing output format' ],
 'l	ls-search' => 'long listing format',
+'l	ls-mail-source' => 'long listing format',
 'format|f=s	ls-external' => $ls_format,
 
 'limit|n=i@' => ['NUM', 'limit on number of matches (default: 10000)' ],

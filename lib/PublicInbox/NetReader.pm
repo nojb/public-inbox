@@ -236,18 +236,19 @@ W: see https://rt.cpan.org/Ticket/Display.html?id=129967 for updates
 }
 
 sub imap_uri {
-	my ($url) = @_;
+	my ($url, $ls_ok) = @_;
 	require PublicInbox::URIimap;
 	my $uri = PublicInbox::URIimap->new($url);
-	$uri ? $uri->canonical : undef;
+	$uri && ($ls_ok || $uri->mailbox) ? $uri->canonical : undef;
 }
 
 my %IS_NNTP = (news => 1, snews => 1, nntp => 1, nntps => 1);
 sub nntp_uri {
-	my ($url) = @_;
+	my ($url, $ls_ok) = @_;
 	require PublicInbox::URInntps;
 	my $uri = PublicInbox::URInntps->new($url);
-	$uri && $IS_NNTP{$uri->scheme} && $uri->group ? $uri->canonical : undef;
+	$uri && $IS_NNTP{$uri->scheme} && ($ls_ok || $uri->group) ?
+		$uri->canonical : undef;
 }
 
 sub cfg_intvl ($$$) {
@@ -367,11 +368,11 @@ sub nntp_common_init ($;$) {
 }
 
 sub add_url {
-	my ($self, $arg) = @_;
+	my ($self, $arg, $ls_ok) = @_;
 	my $uri;
-	if ($uri = imap_uri($arg)) {
+	if ($uri = imap_uri($arg, $ls_ok)) {
 		push @{$self->{imap_order}}, $uri;
-	} elsif ($uri = nntp_uri($arg)) {
+	} elsif ($uri = nntp_uri($arg, $ls_ok)) {
 		push @{$self->{nntp_order}}, $uri;
 	} else {
 		push @{$self->{unsupported_url}}, $arg;

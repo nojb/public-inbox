@@ -215,6 +215,7 @@ lib/PublicInbox/LeiInput.pm
 lib/PublicInbox/LeiInspect.pm
 lib/PublicInbox/LeiLcat.pm
 lib/PublicInbox/LeiLsLabel.pm
+lib/PublicInbox/LeiLsMailSource.pm
 lib/PublicInbox/LeiLsMailSync.pm
 lib/PublicInbox/LeiLsSearch.pm
 lib/PublicInbox/LeiMailSync.pm

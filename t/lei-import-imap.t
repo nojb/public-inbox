@@ -14,6 +14,12 @@ undef $sock;
 test_lei({ tmpdir => $tmpdir }, sub {
 	my $url = "imap://$host_port/t.v2.0";
 	my $url_orig = $url;
+	lei_ok(qw(ls-mail-source), "imap://$host_port/");
+	like($lei_out, qr/^t\.v2\.0$/ms, 'shows mailbox');
+	lei_ok(qw(ls-mail-source), $url);
+	is($lei_out, "t.v2.0\n", 'shows only mailbox with filter');
+	lei_ok(qw(ls-mail-source -l), "imap://$host_port/");
+	is(ref(json_utf8->decode($lei_out)), 'ARRAY', 'ls-mail-source JSON');
 
 	lei_ok(qw(q z:1..));
 	my $out = json_utf8->decode($lei_out);

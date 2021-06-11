@@ -229,7 +229,7 @@ sub prepare_inputs { # returns undef on error
 		if ($input =~ m!\A(?:imaps?|nntps?|s?news)://!i) {
 			require PublicInbox::NetReader;
 			$net //= PublicInbox::NetReader->new;
-			$net->add_url($input);
+			$net->add_url($input, $self->{-ls_ok});
 			push @{$sync->{ok}}, $input if $sync;
 		} elsif ($input_path =~ m!\Ahttps?://!i) { # mboxrd.gz
 			# TODO: how would we detect r/w JMAP?
