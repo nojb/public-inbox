@@ -11,7 +11,7 @@ use parent qw(PublicInbox::Lock);
 use File::Temp qw(tempdir);
 use DBI ();
 use PublicInbox::Spawn;
-use File::Path qw(rmtree);
+use File::Path qw(rmtree make_path);
 
 sub dbh {
 	my ($self, $lock) = @_;
@@ -46,8 +46,8 @@ CREATE TABLE IF NOT EXISTS kv (
 sub new {
 	my ($cls, $dir, $base, $opt) = @_;
 	my $self = bless { opt => $opt }, $cls;
+	make_path($dir) if defined($dir) && !-d $dir;
 	$dir //= $self->{"tmp$$.$self"} = tempdir("skv.$$-XXXX", TMPDIR => 1);
-	-d $dir or mkdir($dir) or die "mkdir($dir): $!";
 	$base //= '';
 	my $f = $self->{filename} = "$dir/$base.sqlite3";
 	$self->{lock_path} = $opt->{lock_path} // "$dir/$base.flock";
@@ -81,6 +81,15 @@ SELECT k,v FROM kv
 
 	$sth->execute;
 	$sth
+}
+
+sub keys {
+	my ($self) = @_;
+	my $sth = $self->dbh->prepare_cached(<<'', undef, 1);
+SELECT k FROM kv
+
+	$sth->execute;
+	map { $_->[0] } @{$sth->fetchall_arrayref};
 }
 
 sub delete_by_val {

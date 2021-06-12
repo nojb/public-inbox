@@ -116,6 +116,12 @@ sub cache_dir ($) {
 		.'/lei');
 }
 
+sub url_folder_cache {
+	my ($self) = @_;
+	require PublicInbox::SharedKV; # URI => updated_at_sec_
+	PublicInbox::SharedKV->new(cache_dir($self).'/uri_folder');
+}
+
 sub ale {
 	my ($self) = @_;
 	$self->{ale} //= do {
@@ -197,7 +203,7 @@ our %CMD = ( # sorted in order of importance/use:
 'ls-mail-sync' => [ '[FILTER]', 'list mail sync folders',
 		qw(z|0 globoff|g invert-match|v local remote), @c_opt ],
 'ls-mail-source' => [ 'URL', 'list IMAP or NNTP mail source folders',
-		qw(z|0 ascii l), @c_opt ],
+		qw(z|0 ascii l url), @c_opt ],
 'forget-external' => [ 'LOCATION...|--prune',
 	'exclude further results from a publicinbox|extindex',
 	qw(prune), @c_opt ],
@@ -384,6 +390,7 @@ my %OPTDESC = (
 			'listing output format' ],
 'l	ls-search' => 'long listing format',
 'l	ls-mail-source' => 'long listing format',
+'url	ls-mail-source' => 'show full URL of newsgroup or IMAP folder',
 'format|f=s	ls-external' => $ls_format,
 
 'limit|n=i@' => ['NUM', 'limit on number of matches (default: 10000)' ],

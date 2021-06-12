@@ -21,19 +21,27 @@ sub input_path_url { # overrides LeiInput version
 	} elsif ($self->{lei}->{opt}->{z}) {
 		$ORS = "\0";
 	}
+	my @f;
 	if ($url =~ m!\Aimaps?://!i) {
 		my $uri = PublicInbox::URIimap->new($url);
+		my $sec = $lei->{net}->can('uri_section')->($uri);
 		my $mic = $lei->{net}->mic_get($uri);
 		my $l = $mic->folders_hash($uri->path); # server-side filter
+		@f = map { "$sec/$_->{name}" } @$l;
 		if ($json) {
+			$_->{url} = "$sec/$_->{name}" for @$l;
 			$lei->puts($json->encode($l));
 		} else {
+			if ($self->{lei}->{opt}->{url}) {
+				$_->{name} = "$sec/$_->{name}" for @$l;
+			}
 			$lei->out(join($ORS, (map { $_->{name} } @$l), ''));
 		}
 	} elsif ($url =~ m!\A(?:nntps?|s?news)://!i) {
 		my $uri = PublicInbox::URInntps->new($url);
 		my $nn = $lei->{net}->nn_get($uri);
 		my $l = $nn->newsgroups($uri->group); # name => description
+		my $sec = $lei->{net}->can('uri_section')->($uri);
 		if ($json) {
 			my $all = $nn->list;
 			my @x;
@@ -46,15 +54,30 @@ sub input_path_url { # overrides LeiInput version
 				$desc =~ s/\r\z//;
 
 				my ($hwm, $lwm, $status) = @{$all->{$ng}};
-				push @x, { name => $ng, lwm => $lwm + 0,
+				push @x, { name => $ng, url => "$sec/$ng",
+					lwm => $lwm + 0,
 					hwm => $hwm + 0, status => $status,
 					description => $desc };
 			}
+			@f = map { "$sec/$_" } keys %$all;
 			$lei->puts($json->encode(\@x));
 		} else {
-			$lei->out(join($ORS, sort(keys %$l), ''));
+			@f = map { "$sec/$_" } keys %$l;
+			if ($self->{lei}->{opt}->{url}) {
+				$lei->out(join($ORS, sort(@f), ''));
+			} else {
+				$lei->out(join($ORS, sort(keys %$l), ''));
+			}
 		}
 	} else { die "BUG: $url not supported" }
+	if (@f) {
+		my $fc = $lei->url_folder_cache;
+		my $lk = $fc->lock_for_scope;
+		$fc->dbh->begin_work;
+		my $now = time;
+		$fc->set($_, $now) for @f;
+		$fc->dbh->commit;
+	}
 }
 
 sub lei_ls_mail_source {
@@ -62,6 +85,7 @@ sub lei_ls_mail_source {
 	$url =~ m!\A(?:imaps?|nntps?|s?news)://!i or return
 		$lei->fail('only NNTP and IMAP URLs supported');
 	my $self = bless { pfx => $pfx, -ls_ok => 1 }, __PACKAGE__;
+	$self->{cfg} = $lei->_lei_cfg; # may be undef
 	$self->prepare_inputs($lei, [ $url ]) or return;
 	$lei->start_pager if -t $lei->{1};
 	my $ops = {};
@@ -72,6 +96,20 @@ sub lei_ls_mail_source {
 	$lei->{-err_type} = 'non-fatal';
 	net_merge_all_done($self) unless $lei->{auth};
 	$lei->wait_wq_events($op_c, $ops); # net_merge_all_done if !{auth}
+}
+
+sub _complete_ls_mail_source {
+	my ($lei, @argv) = @_;
+	my $match_cb = $lei->complete_url_prepare(\@argv);
+	my @m = map { $match_cb->($_) } $lei->url_folder_cache->keys;
+	my %f = map { $_ => 1 } @m;
+	my $sto = $lei->_lei_store;
+	if (my $lms = $sto ? $sto->search->lms : undef) {
+		@m = map { $match_cb->($_) } grep(
+			m!\A(?:imaps?|nntps?|s?news)://!, $lms->folders);
+		@f{@m} = @m;
+	}
+	keys %f;
 }
 
 no warnings 'once';
