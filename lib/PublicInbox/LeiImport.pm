@@ -118,10 +118,15 @@ sub lei_import { # the main "lei import" method
 
 sub _complete_import {
 	my ($lei, @argv) = @_;
-	my $sto = $lei->_lei_store or return;
-	my $lms = $sto->search->lms or return;
 	my $match_cb = $lei->complete_url_prepare(\@argv);
-	map { $match_cb->($_) } $lms->folders;
+	my @m = map { $match_cb->($_) } $lei->url_folder_cache->keys;
+	my %f = map { $_ => 1 } @m;
+	my $sto = $lei->_lei_store;
+	if (my $lms = $sto ? $sto->search->lms : undef) {
+		@m = map { $match_cb->($_) } $lms->folders;
+		@f{@m} = @m;
+	}
+	keys %f;
 }
 
 no warnings 'once';

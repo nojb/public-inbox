@@ -39,7 +39,7 @@ for my $m (qw(pmdir_cb input_net_cb)) {
 	*$m = PublicInbox::LeiImport->can($m);
 }
 
-*_complete_import = \&PublicInbox::LeiImport::_complete_import;
+*_complete_index = \&PublicInbox::LeiImport::_complete_import;
 *ipc_atfork_child = \&PublicInbox::LeiInput::input_only_atfork_child;
 *net_merge_all_done = \&PublicInbox::LeiInput::input_only_net_merge_all_done;
 
