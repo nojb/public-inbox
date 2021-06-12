@@ -42,7 +42,5 @@ test_lei({ tmpdir => $tmpdir }, sub {
 
 	ok(!lei(qw(import --mail-sync), "$url/x\@example.com/raw"),
 		'--mail-sync fails on HTTP');
-	diag $lei_err;
-
 });
 done_testing;
