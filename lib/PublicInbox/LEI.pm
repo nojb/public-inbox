@@ -446,6 +446,7 @@ sub x_it ($$) {
 	# make sure client sees stdout before exit
 	$self->{1}->autoflush(1) if $self->{1};
 	dump_and_clear_log();
+	stop_pager($self);
 	if ($self->{pkt_op_p}) { # to top lei-daemon
 		$self->{pkt_op_p}->pkt_do('x_it', $code);
 	} elsif ($self->{sock}) { # to lei(1) client
