@@ -371,8 +371,10 @@ sub add_url {
 	my ($self, $arg, $ls_ok) = @_;
 	my $uri;
 	if ($uri = imap_uri($arg, $ls_ok)) {
+		$_[1] = $$uri; # canonicalized
 		push @{$self->{imap_order}}, $uri;
 	} elsif ($uri = nntp_uri($arg, $ls_ok)) {
+		$_[1] = $$uri; # canonicalized
 		push @{$self->{nntp_order}}, $uri;
 	} else {
 		push @{$self->{unsupported_url}}, $arg;
