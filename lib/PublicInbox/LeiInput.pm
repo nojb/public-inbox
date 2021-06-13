@@ -7,6 +7,7 @@ use strict;
 use v5.10.1;
 use PublicInbox::DS;
 use PublicInbox::Spawn qw(which popen_rd);
+use PublicInbox::InboxWritable qw(eml_from_path);
 
 # JMAP RFC 8621 4.1.1
 # https://www.iana.org/assignments/imap-jmap-keywords/imap-jmap-keywords.xhtml
@@ -127,6 +128,16 @@ sub input_path_url {
 		$ifmt = lc($1);
 	} elsif ($input =~ /\.(?:patch|eml)\z/i) {
 		$ifmt = 'eml';
+	} elsif (-f $input && $input =~ m{\A(?:.+)/(?:new|cur)/([^/]+)\z}) {
+		my $bn = $1;
+		my $fl = PublicInbox::MdirReader::maildir_basename_flags($bn);
+		return if index($fl, 'T') >= 0;
+		return $self->pmdir_cb($input, $fl) if $self->can('pmdir_cb');
+		my $eml = eml_from_path($input) or return
+			$lei->qerr("# $input not readable");
+		my $kw = PublicInbox::MdirReader::flags2kw($fl);
+		$self->can('input_maildir_cb')->($input, $kw, $eml, $self);
+		return;
 	}
 	my $devfd = $lei->path_to_fd($input) // return;
 	if ($devfd >= 0) {
@@ -266,8 +277,22 @@ sub prepare_inputs { # returns undef on error
 			lc($in_fmt//'eml') eq 'eml' or return $lei->fail(<<"");
 $input is `eml', not --in-format=$in_fmt
 
-			require PublicInbox::Eml;
 			push @{$sync->{no}}, $input if $sync;
+		} elsif (-f $input && $input =~ m{\A(.+)/(new|cur)/([^/]+)\z}) {
+			# single file in a Maildir
+			my ($mdir, $nc, $bn) = ($1, $2, $3);
+			my $other = $mdir . ($nc eq 'new' ? '/cur' : '/new');
+			return $lei->fail(<<EOM) if !-d $other;
+No `$other' directory for `$input'
+EOM
+			lc($in_fmt//'eml') eq 'eml' or return $lei->fail(<<"");
+$input is `eml', not --in-format=$in_fmt
+
+			if ($sync) {
+				$input = $lei->abs_path($mdir) . "/$nc/$bn";
+				push @{$sync->{ok}}, $input;
+			}
+			require PublicInbox::MdirReader;
 		} else {
 			my $devfd = $lei->path_to_fd($input) // return;
 			if ($devfd >= 0 || -f $input || -p _) {

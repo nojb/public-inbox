@@ -20,6 +20,7 @@ my $imap_host_port = tcp_host_port($sock);
 undef $sock;
 for ('', qw(cur new)) {
 	mkdir "$tmpdir/md/$_" or xbail "mkdir: $!";
+	mkdir "$tmpdir/md1/$_" or xbail "mkdir: $!";
 }
 symlink(File::Spec->rel2abs('t/plack-qp.eml'), "$tmpdir/md/cur/x:2,");
 my $expect = do {
@@ -30,6 +31,9 @@ my $expect = do {
 
 # mbsync and offlineimap both put ":2," in "new/" files:
 symlink(File::Spec->rel2abs('t/utf8.eml'), "$tmpdir/md/new/u:2,") or
+	xbail "symlink $!";
+
+symlink(File::Spec->rel2abs('t/mda-mime.eml'), "$tmpdir/md1/cur/x:2,S") or
 	xbail "symlink $!";
 
 test_lei({ tmpdir => $tmpdir }, sub {
@@ -67,6 +71,11 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	lei_ok(qw(q z:0.. -o), "$tmpdir/all-results") for (1..2);
 	is_deeply([xqx($all_obj)], \@objs,
 		'no new objects after 2x q to trigger implicit import');
+
+	lei_ok 'index', "$tmpdir/md1/cur/x:2,S";
+	lei_ok qw(q m:multipart-html-sucks@11);
+	is_deeply(json_utf8->decode($lei_out)->[0]->{'kw'},
+		['seen'], 'keyword set');
 
 	lei_ok('index', "nntp://$nntp_host_port/t.v2");
 	lei_ok('index', "imap://$imap_host_port/t.v2.0");
