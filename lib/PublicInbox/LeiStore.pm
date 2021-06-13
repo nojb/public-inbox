@@ -151,7 +151,8 @@ sub _docids_for ($$) {
 			my $oid = $cur->{blob};
 			my $docid = $cur->{num};
 			my $bref = $im ? $im->cat_blob($oid) : undef;
-			$bref //= $eidx->git->cat_file($oid) // do {
+			$bref //= $eidx->git->cat_file($oid) //
+				_lms_rw($self)->local_blob($oid, 1) // do {
 				warn "W: $oid (#$docid) <$mid> not found\n";
 				next;
 			};

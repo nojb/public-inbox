@@ -420,7 +420,8 @@ sub _imap_do_msg ($$$$$) {
 	my ($self, $uri, $uid, $raw, $flags) = @_;
 	# our target audience expects LF-only, save storage
 	$$raw =~ s/\r\n/\n/sg;
-	my $kw = flags2kw($self, $uri, $uid, $flags) // return;
+	my $kw = defined($flags) ?
+		(flags2kw($self, $uri, $uid, $flags) // return) : undef;
 	my ($eml_cb, @args) = @{$self->{eml_each}};
 	$eml_cb->($uri, $uid, $kw, PublicInbox::Eml->new($raw), @args);
 }
@@ -537,8 +538,8 @@ E: $uri strangely, UIDVALIDLITY matches ($l_uidval)
 EOF
 	$mic->Uid(1); # the default, we hope
 	my $err;
-	if (!defined($single_uid) && $self->{each_old} &&
-				perm_fl_ok($perm_fl)) {
+	my $use_fl = perm_fl_ok($perm_fl);
+	if (!defined($single_uid) && $self->{each_old} && $use_fl) {
 		$err = each_old_flags($self, $mic, $uri, $l_uid);
 		return $err if $err;
 	}
@@ -593,8 +594,8 @@ EOF
 				# messages get deleted, so holes appear
 				my $per_uid = delete $r->{$uid} // next;
 				my $raw = delete($per_uid->{$key}) // next;
-				_imap_do_msg($self, $uri, $uid, \$raw,
-						$per_uid->{FLAGS});
+				my $fl = $use_fl ? $per_uid->{FLAGS} : undef;
+				_imap_do_msg($self, $uri, $uid, \$raw, $fl);
 				$last_uid = $uid;
 				last if $self->{quit};
 			}

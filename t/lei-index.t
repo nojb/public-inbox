@@ -80,6 +80,19 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	lei_ok('index', "nntp://$nntp_host_port/t.v2");
 	lei_ok('index', "imap://$imap_host_port/t.v2.0");
 	is_deeply([xqx($all_obj)], \@objs, 'no new objects from NNTP+IMAP');
+
+	lei_ok qw(q m:multipart-html-sucks@11);
+	$res_a = json_utf8->decode($lei_out)->[0];
+	is_deeply($res_a->{'kw'}, ['seen'],
+		'keywords still set after NNTP + IMAP import');
+
+	# ensure import works after lms->local_blob fallback in lei/store
+	lei_ok('import', 't/mda-mime.eml');
+	lei_ok qw(q m:multipart-html-sucks@11);
+	$res_b = json_utf8->decode($lei_out)->[0];
+	my $t = xqx(['git', "--git-dir=$store_path/ALL.git",
+			qw(cat-file -t), $res_b->{blob}]);
+	is($t, "blob\n", 'got blob');
 });
 
 done_testing;
