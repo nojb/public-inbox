@@ -226,6 +226,18 @@ sub _remove_if_local { # git->cat_async arg
 	$self->{im}->remove($bref) if $bref;
 }
 
+sub remove_docids ($;@) {
+	my ($self, @docids) = @_;
+	my $eidx = eidx_init($self);
+	for my $docid (@docids) {
+		$eidx->idx_shard($docid)->ipc_do('xdb_remove', $docid);
+		$self->{oidx}->delete_by_num($docid);
+		$self->{oidx}->{dbh}->do(<<EOF, undef, $docid);
+DELETE FROM xref3 WHERE docid = ?
+EOF
+	}
+}
+
 # remove the entire message from the index, does not touch mail_sync.sqlite3
 sub remove_eml {
 	my ($self, $eml) = @_;
@@ -241,11 +253,23 @@ sub remove_eml {
 			my $oidhex = unpack('H*', $oidbin);
 			$git->cat_async($oidhex, \&_remove_if_local, $self);
 		}
-		$eidx->idx_shard($docid)->ipc_do('xdb_remove', $docid);
-		$oidx->delete_by_num($docid);
 	}
 	$git->cat_async_wait;
+	remove_docids($self, @docids);
 	\@docids;
+}
+
+sub oid2docid ($$) {
+	my ($self, $oid) = @_;
+	my $eidx = eidx_init($self);
+	my ($docid, @cull) = $eidx->{oidx}->blob_exists($oid);
+	if (@cull) { # fixup old bugs...
+		warn <<EOF;
+W: $oid indexed as multiple docids: $docid @cull, culling to fixup old bugs
+EOF
+		remove_docids($self, @cull);
+	}
+	wantarray ? ($docid) : $docid;
 }
 
 sub add_eml {
@@ -268,7 +292,7 @@ sub add_eml {
 		if (scalar keys %$xoids) {
 			my %docids = map { $_ => 1 } @$vivify_xvmd;
 			for my $oid (keys %$xoids) {
-				my @id = $oidx->blob_exists($oid);
+				my @id = oid2docid($self, $oid);
 				@docids{@id} = @id;
 			}
 			@$vivify_xvmd = sort { $a <=> $b } keys(%docids);
@@ -356,15 +380,11 @@ sub update_xvmd {
 	my $oidx = $eidx->{oidx};
 	my %seen;
 	for my $oid (keys %$xoids) {
-		my @docids = $oidx->blob_exists($oid) or next;
-		scalar(@docids) > 1 and
-			warn "W: $oid indexed as multiple docids: @docids\n";
-		for my $docid (@docids) {
-			next if $seen{$docid}++;
-			my $idx = $eidx->idx_shard($docid);
-			$idx->ipc_do('update_vmd', $docid, $vmd_mod);
-		}
+		my $docid = oid2docid($self, $oid) // next;
 		delete $xoids->{$oid};
+		next if $seen{$docid}++;
+		my $idx = $eidx->idx_shard($docid);
+		$idx->ipc_do('update_vmd', $docid, $vmd_mod);
 	}
 	return unless scalar(keys(%$xoids));
 
@@ -395,15 +415,11 @@ sub set_xvmd {
 
 	# see if we can just update existing docs
 	for my $oid (keys %$xoids) {
-		my @docids = $oidx->blob_exists($oid) or next;
-		scalar(@docids) > 1 and
-			warn "W: $oid indexed as multiple docids: @docids\n";
-		for my $docid (@docids) {
-			next if $seen{$docid}++;
-			my $idx = $eidx->idx_shard($docid);
-			$idx->ipc_do('set_vmd', $docid, $vmd);
-		}
+		my $docid = oid2docid($self, $oid) // next;
 		delete $xoids->{$oid}; # all done with this oid
+		next if $seen{$docid}++;
+		my $idx = $eidx->idx_shard($docid);
+		$idx->ipc_do('set_vmd', $docid, $vmd);
 	}
 	return unless scalar(keys(%$xoids));
 

@@ -572,7 +572,7 @@ sub apply_vmd_mod ($$) {
 	my $updated = 0;
 	my @x = @VMD_MAP;
 	while (my ($field, $pfx) = splice(@x, 0, 2)) {
-		# field: "label" or "kw"
+		# field: "L" or "kw"
 		for my $val (@{$vmd_mod->{"-$field"} // []}) {
 			eval {
 				$doc->remove_term($pfx . $val);
