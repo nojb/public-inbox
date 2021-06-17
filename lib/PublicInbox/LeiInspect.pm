@@ -57,6 +57,75 @@ sub inspect_sync_folder ($$) {
 	$ent
 }
 
+sub inspect_docid ($$;$) {
+	my ($lei, $docid, $ent) = @_;
+	require PublicInbox::Search;
+	$ent //= {};
+	my $xdb;
+	if ($xdb = delete $ent->{xdb}) { # from inspect_num
+	} elsif (defined(my $dir = $lei->{opt}->{dir})) {
+		no warnings 'once';
+		$xdb = $PublicInbox::Search::X{Database}->new($dir);
+	} else {
+		$xdb = $lei->{lse}->xdb;
+	}
+	$xdb or return $lei->fail('no Xapian DB');
+	my $doc = $xdb->get_document($docid); # raises
+	my $data = $doc->get_data;
+	$ent->{docid} = $docid;
+	$ent->{data_length} = length($data);
+	$ent->{description} => $doc->get_description;
+	$ent->{$_} = $doc->$_ for (qw(termlist_count values_count));
+	my $cur = $doc->termlist_begin;
+	my $end = $doc->termlist_end;
+	for (; $cur != $end; $cur++) {
+		my $tn = $cur->get_termname;
+		$tn =~ s/\A([A-Z]+)// or warn "$tn no prefix! (???)";
+		my $term = ($1 // '');
+		push @{$ent->{terms}->{$term}}, $tn;
+	}
+	@$_ = sort(@$_) for values %{$ent->{terms} // {}};
+	$cur = $doc->values_begin;
+	$end = $doc->values_end;
+	for (; $cur != $end; $cur++) {
+		my $n = $cur->get_valueno;
+		my $v = $cur->get_value;
+		my $iv = PublicInbox::Search::sortable_unserialise($v);
+		$v = $iv + 0 if defined $iv;
+		# not using ->[$n] since we may have large gaps in $n
+		$ent->{'values'}->{$n} = $v;
+	}
+	$ent;
+}
+
+sub inspect_num ($$) {
+	my ($lei, $num) = @_;
+	my ($docid, $ibx);
+	my $ent = { num => $num };
+	if (defined(my $dir = $lei->{opt}->{dir})) {
+		my $num2docid = $lei->{lse}->can('num2docid');
+		if (-f "$dir/ei.lock") {
+			require PublicInbox::ExtSearch;
+			$ibx = PublicInbox::ExtSearch->new($dir);
+		} elsif (-f "$dir/inbox.lock" || -d "$dir/public-inbox") {
+			require PublicInbox::Inbox; # v2, v1
+			$ibx = bless { inboxdir => $dir }, 'PublicInbox::Inbox';
+		}
+		$ent->{xdb} = $ibx->xdb //
+			return $lei->fail("no Xapian DB for $dir");
+		$docid = $num2docid->($ibx, $num);
+	} else {
+		$ibx = $lei->{lse};
+		$lei->{lse}->xdb; # set {nshard} for num2docid
+		$docid = $lei->{lse}->num2docid($num);
+	}
+	if ($ibx && $ibx->over) {
+		my $smsg = $ibx->over->get_art($num);
+		$ent->{smsg} = { %$smsg } if $smsg;
+	}
+	inspect_docid($lei, $docid, $ent);
+}
+
 sub inspect1 ($$$) {
 	my ($lei, $item, $more) = @_;
 	my $ent;
@@ -72,6 +141,10 @@ sub inspect1 ($$$) {
 		}
 	} elsif ($item =~ m!\A(?:maildir|mh):!i || -d $item) {
 		$ent = inspect_sync_folder($lei, $item);
+	} elsif ($item =~ m!\Adocid:([0-9]+)\z!) {
+		$ent = inspect_docid($lei, $1 + 0);
+	} elsif ($item =~ m!\Anum:([0-9]+)\z!) {
+		$ent = inspect_num($lei, $1 + 0);
 	} else { # TODO: more things
 		return $lei->fail("$item not understood");
 	}
