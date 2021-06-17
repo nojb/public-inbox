@@ -300,7 +300,8 @@ $input is `eml', not --in-format=$in_fmt
 				push @f, $input;
 			} elsif (-d "$input/new" && -d "$input/cur") {
 				if ($sync) {
-					$input = $lei->abs_path($input);
+					$input = 'maildir:'.
+						$lei->abs_path($input);
 					push @{$sync->{ok}}, $input;
 				}
 				push @md, $input;
