@@ -269,7 +269,7 @@ W: $oid indexed as multiple docids: $docid @cull, culling to fixup old bugs
 EOF
 		remove_docids($self, @cull);
 	}
-	wantarray ? ($docid) : $docid;
+	$docid;
 }
 
 sub add_eml {
@@ -292,8 +292,8 @@ sub add_eml {
 		if (scalar keys %$xoids) {
 			my %docids = map { $_ => 1 } @$vivify_xvmd;
 			for my $oid (keys %$xoids) {
-				my @id = oid2docid($self, $oid);
-				@docids{@id} = @id;
+				my $docid = oid2docid($self, $oid);
+				$docids{$docid} = $docid if defined($docid);
 			}
 			@$vivify_xvmd = sort { $a <=> $b } keys(%docids);
 		}
