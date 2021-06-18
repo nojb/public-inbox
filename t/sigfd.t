@@ -47,7 +47,8 @@ SKIP: {
 		kill('HUP', $$) or die "kill $!";
 		PublicInbox::DS->SetPostLoopCallback(sub {}); # loop once
 		PublicInbox::DS->EventLoop;
-		is($hit->{HUP}->{sigfd}, 2, 'HUP sigfd fired in event loop');
+		is($hit->{HUP}->{sigfd}, 2, 'HUP sigfd fired in event loop') or
+			diag explain($hit); # sometimes fails on FreeBSD 11.x
 		kill('TERM', $$) or die "kill $!";
 		kill('HUP', $$) or die "kill $!";
 		PublicInbox::DS->EventLoop;
