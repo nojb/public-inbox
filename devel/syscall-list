@@ -1,0 +1,49 @@
+# Copyright 2021 all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <http://www.gnu.org/licenses/agpl-3.0.txt>
+# Dump syscall numbers under Linux and any other kernel which
+# promises stable syscall numbers.  This is to maintain
+# PublicInbox::Syscall
+# DO NOT USE this for *BSDs, none of the current BSD kernels
+# we know about promise stable syscall numbers, we'll use
+# Inline::C to support them.
+eval 'exec perl -S $0 ${1+"$@"}' # no shebang
+	if 0; # running under some shell
+use strict;
+use File::Temp 0.19;
+my $cc = $ENV{CC} // 'cc';
+my @cflags = split(/\s+/, $ENV{CFLAGS} // '-Wall');
+my $str = do { local $/; <DATA> };
+my $tmp = File::Temp->newdir('syscall-list-XXXX', TMPDIR => 1);
+my $f = "$tmp/sc.c";
+my $x = "$tmp/sc";
+open my $fh, '>', $f or die "open $f $!";
+print $fh $str or die "print $f $!";
+close $fh or die "close $f $!";
+system($cc, '-o', $x, $f, @cflags) == 0 or die "cc failed \$?=$?";
+exec($x);
+__DATA__
+#define _GNU_SOURCE
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <stdio.h>
+
+#define D(x) printf("$" #x " = %ld;\n", (long)x)
+
+int main(void)
+{
+#ifdef __linux__
+	D(SYS_epoll_create1);
+	D(SYS_epoll_ctl);
+#ifdef SYS_epoll_wait
+	D(SYS_epoll_wait);
+#endif
+	D(SYS_epoll_pwait);
+	D(SYS_signalfd4);
+	D(SYS_inotify_init1);
+	D(SYS_inotify_add_watch);
+	D(SYS_inotify_rm_watch);
+	D(SYS_prctl);
+#endif /* Linux, any other OSes with stable syscalls? */
+	printf("size_t=%zu off_t=%zu\n", sizeof(size_t), sizeof(off_t));
+	return 0;
+}

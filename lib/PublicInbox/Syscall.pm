@@ -197,6 +197,7 @@ if ($^O eq "linux") {
 }
 # use Inline::C for *BSD-only or general POSIX stuff.
 # Linux guarantees stable syscall numbering, BSDs only offer a stable libc
+# use scripts/syscall-list on Linux to detect new syscall numbers
 
 ############################################################################
 # epoll functions

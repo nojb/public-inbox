@@ -97,6 +97,8 @@ contrib/css/216light.css
 contrib/css/README
 contrib/selinux/el7/publicinbox.fc
 contrib/selinux/el7/publicinbox.te
+devel/README
+devel/syscall-list
 examples/README
 examples/README.unsubscribe
 examples/apache2_cgi.conf
