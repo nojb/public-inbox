@@ -22,6 +22,7 @@ use PublicInbox::ViewDiff qw(flush_diff);
 use PublicInbox::Eml;
 use Time::Local qw(timegm);
 use PublicInbox::Smsg qw(subject_normalized);
+use PublicInbox::ContentHash qw(content_hash);
 use constant COLS => 72;
 use constant INDENT => '  ';
 use constant TCHILD => '` ';
@@ -35,9 +36,11 @@ sub msg_page_i {
 		$ctx->{mhref} = ($ctx->{nr} || $ctx->{smsg}) ?
 				"../${\mid_href($smsg->{mid})}/" : '';
 		my $obuf = $ctx->{obuf} = _msg_page_prepare_obuf($eml, $ctx);
-		multipart_text_as_html($eml, $ctx);
+		if (length($$obuf)) {
+			multipart_text_as_html($eml, $ctx);
+			$$obuf .= '</pre><hr>';
+		}
 		delete $ctx->{obuf};
-		$$obuf .= '</pre><hr>';
 		$$obuf .= html_footer($ctx, $ctx->{first_hdr}) if !$ctx->{smsg};
 		$$obuf;
 	} else { # called by WwwStream::async_next or getline
@@ -53,9 +56,11 @@ sub no_over_html ($) {
 	$ctx->{mhref} = '';
 	PublicInbox::WwwStream::init($ctx);
 	my $obuf = $ctx->{obuf} = _msg_page_prepare_obuf($eml, $ctx);
-	multipart_text_as_html($eml, $ctx);
+	if (length($$obuf)) {
+		multipart_text_as_html($eml, $ctx);
+		$$obuf .= '</pre><hr>';
+	}
 	delete $ctx->{obuf};
-	$$obuf .= '</pre><hr>';
 	eval { $$obuf .= html_footer($ctx, $eml) };
 	html_oneshot($ctx, 200, $obuf);
 }
@@ -646,13 +651,16 @@ sub _msg_page_prepare_obuf {
 	my $mids = mids_for_index($eml);
 	my $nr = $ctx->{nr}++;
 	if ($nr) { # unlikely
+		if ($ctx->{chash} eq content_hash($eml)) {
+			warn "W: BUG? @$mids not deduplicated properly\n";
+			return \$rv;
+		}
+		$rv .=
+"<pre>WARNING: multiple messages have this Message-ID\n</pre>";
 		$rv .= '<pre>';
 	} else {
 		$ctx->{first_hdr} = $eml->header_obj;
-		if ($ctx->{smsg}) {
-			$rv .=
-"<pre>WARNING: multiple messages have this Message-ID\n</pre>";
-		}
+		$ctx->{chash} = content_hash($eml) if $ctx->{smsg}; # reused MID
 		$rv .= "<pre\nid=b>"; # anchor for body start
 	}
 	$ctx->{-upfx} = '../' if $over;
