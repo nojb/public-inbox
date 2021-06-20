@@ -353,6 +353,7 @@ my %OPTDESC = (
 	"or\xa0`-'\x{a0}for\x{a0}stdout)" ],
 'mua=s' => [ 'CMD',
 	"MUA to run on --output Maildir or mbox (e.g.\xa0`mutt\xa0-f\xa0%f')" ],
+'new-only	import' => 'only import new messages from IMAP source',
 
 'inbox-version=i' => [ 'NUM|1|2',
 		'force a public-inbox version with --mirror'],
