@@ -55,7 +55,7 @@ sub lei_sucks {
 	my $dig = Digest::SHA->new(1);
 	push @out, "public-inbox blob OIDs of loaded features:\n";
 	for my $m (grep(m{^PublicInbox/}, sort keys %INC)) {
-		my $f = $INC{$m};
+		my $f = $INC{$m} // next; # lazy require failed (missing dep)
 		$dig->add('blob '.(-s $f)."\0");
 		$dig->addfile($f);
 		push @out, '  '.$dig->hexdigest.' '.$m."\n";
