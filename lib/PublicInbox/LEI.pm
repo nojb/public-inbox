@@ -762,11 +762,7 @@ sub dispatch {
 				next if $d eq ''; # same as git(1)
 				chdir $d or return fail($self, "cd $d: $!");
 			}
-			if (delete $self->{3}) { # update cwd for rel2abs
-				opendir my $dh, '.' or
-					return fail($self, "opendir . $!");
-				$self->{3} = $dh;
-			}
+			open $self->{3}, '.' or return fail($self, "open . $!");
 		}
 		$cb->($self, @argv);
 	} elsif (grep(/\A-/, $cmd, @argv)) { # --help or -h only
