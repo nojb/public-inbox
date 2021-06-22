@@ -16,7 +16,7 @@ ok($hls, 'initialized OK');
 is($hls->_shebang2lang(\"#!/usr/bin/perl -w\n"), 'perl', 'perl shebang OK');
 is($hls->{-ext2lang}->{'pm'}, 'perl', '.pm suffix OK');
 is($hls->{-ext2lang}->{'pl'}, 'perl', '.pl suffix OK');
-is($hls->_path2lang('Makefile'), 'make', 'Makefile OK');
+like($hls->_path2lang('Makefile'), qr/\Amake/, 'Makefile OK');
 my $str = do { local $/; open(my $fh, __FILE__); <$fh> };
 my $orig = $str;
 
