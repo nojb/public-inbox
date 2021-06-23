@@ -50,10 +50,9 @@ sub call {
 	%{$ctx->{qp}} = map {
 		utf8::decode($_);
 		tr/+/ /;
-		my ($k, $v) = split('=', $_, 2);
-		$v = uri_unescape($v // '');
+		my ($k, $v) = split(/=/, $_, 2);
 		# none of the keys we care about will need escaping
-		$k => $v;
+		($k // '', uri_unescape($v // ''))
 	} split(/[&;]+/, $env->{QUERY_STRING});
 
 	my $path_info = path_info_raw($env);

@@ -88,6 +88,10 @@ test_psgi(sub { $www->call(@_) }, sub {
 	is($res->code, 200, 'successful search result');
 	is_deeply([], $warn, 'no warnings from non-numeric comparison');
 
+	$res = $cb->(GET('/test/?&q=s:test'));
+	is($res->code, 200, 'successful search result');
+	is_deeply([], $warn, 'no warnings from black parameter');
+
 	$res = $cb->(POST('/test/?q=s:bogus&x=m'));
 	is($res->code, 404, 'failed search result gives 404');
 	is_deeply([], $warn, 'no warnings');
