@@ -81,7 +81,7 @@ sub ibx_entry {
 	warn "E: $@" if $@;
 }
 
-sub hide_key { 'manifest' }
+sub hide_key { 'manifest' } # for WwwListing->list_match_i
 
 # overrides WwwListing->psgi_triple
 sub psgi_triple {

@@ -59,7 +59,7 @@ sub misc_enquire_once { # retry_reopen callback
 	$eq->set_query($qr);
         my $desc = !$opt->{asc};
 	my $rel = $opt->{relevance} // 0;
-	if ($rel == -1) { # ORDER BY docid/UID
+	if ($rel == -1) { # ORDER BY docid
 		$eq->set_docid_order($PublicInbox::Search::ENQ_ASCENDING);
 		$eq->set_weighting_scheme($PublicInbox::Search::X{BoolWeight}->new);
 	} elsif ($rel) {
@@ -132,6 +132,23 @@ sub ibx_data_once {
 	}
 }
 
+sub doc2ibx_cache_ent { # @_ == ($self, $doc) OR ($doc)
+	my ($doc) = $_[-1];
+	my $d;
+	my $data = $json->decode($doc->get_data);
+	for (values %$data) {
+		$d = $_->{description} // next;
+		$d =~ s/ \[epoch [0-9]+\]\z// or next;
+		last;
+	}
+	{
+		uidvalidity => int_val($doc, $UIDVALIDITY),
+		-modified => int_val($doc, $MODIFIED),
+		# extract description from manifest.js.gz epoch description
+		description => $d
+	};
+}
+
 sub inbox_data {
 	my ($self, $ibx) = @_;
 	retry_reopen($self, \&ibx_data_once, $ibx);
@@ -141,20 +158,7 @@ sub ibx_cache_load {
 	my ($doc, $cache) = @_;
 	my ($eidx_key) = xap_terms('Q', $doc);
 	return unless defined($eidx_key); # expired
-	my $ce = $cache->{$eidx_key} = {};
-	$ce->{uidvalidity} = int_val($doc, $UIDVALIDITY);
-	$ce->{-modified} = int_val($doc, $MODIFIED);
-	$ce->{description} = do {
-		# extract description from manifest.js.gz epoch description
-		my $d;
-		my $data = $json->decode($doc->get_data);
-		for (values %$data) {
-			$d = $_->{description} // next;
-			$d =~ s/ \[epoch [0-9]+\]\z// or next;
-			last;
-		}
-		$d;
-	}
+	$cache->{$eidx_key} = doc2ibx_cache_ent($doc);
 }
 
 sub _nntpd_cache_load { # retry_reopen callback

@@ -5,7 +5,7 @@
 # Used by PublicInbox::WWW
 package PublicInbox::WwwListing;
 use strict;
-use PublicInbox::Hval qw(prurl fmt_ts);
+use PublicInbox::Hval qw(prurl fmt_ts ascii_html);
 use PublicInbox::Linkify;
 use PublicInbox::GzipFilter qw(gzf_maybe);
 use PublicInbox::ConfigIter;
@@ -13,18 +13,19 @@ use PublicInbox::WwwStream;
 use bytes (); # bytes::length
 
 sub ibx_entry {
-	my ($ctx, $ibx) = @_;
-	my $mtime = $ibx->modified;
-	my $ts = fmt_ts($mtime);
+	my ($ctx, $ibx, $ce) = @_;
+	$ce->{description} //= $ibx->description;
+	my $ts = fmt_ts($ce->{-modified} //= $ibx->modified);
 	my $url = prurl($ctx->{env}, $ibx->{url});
 	my $tmp = <<"";
 * $ts - $url
-  ${\$ibx->description}
+  $ce->{description}
 
 	if (defined(my $info_url = $ibx->{infourl})) {
 		$tmp .= '  ' . prurl($ctx->{env}, $info_url) . "\n";
 	}
-	push @{$ctx->{-list}}, [ $mtime, $tmp ];
+	push(@{$ctx->{-list}}, (scalar(@_) == 3 ? # $misc in use, already sorted
+				$tmp : [ $ce->{-modified}, $tmp ] ));
 }
 
 sub list_match_i { # ConfigIter callback
@@ -41,7 +42,7 @@ sub list_match_i { # ConfigIter callback
 	}
 }
 
-sub url_regexp {
+sub url_filter {
 	my ($ctx, $key, $default) = @_;
 	$key //= 'publicInbox.wwwListing';
 	$default //= '404';
@@ -50,9 +51,9 @@ again:
 	if ($v eq 'match=domain') {
 		my $h = $ctx->{env}->{HTTP_HOST} // $ctx->{env}->{SERVER_NAME};
 		$h =~ s/:[0-9]+\z//;
-		qr!\A(?:https?:)?//\Q$h\E(?::[0-9]+)?/!i;
+		(qr!\A(?:https?:)?//\Q$h\E(?::[0-9]+)?/!i, "url:$h");
 	} elsif ($v eq 'all') {
-		qr/./;
+		(qr/./, undef);
 	} elsif ($v eq '404') {
 		undef;
 	} else {
@@ -67,20 +68,120 @@ EOF
 
 sub hide_key { 'www' }
 
+sub add_misc_ibx { # MiscSearch->retry_reopen callback
+	my ($misc, $ctx, $re, $qs) = @_;
+	require PublicInbox::SearchQuery;
+	my $q = $ctx->{-sq} = PublicInbox::SearchQuery->new($ctx->{qp});
+	my $o = $q->{o};
+	my ($asc, $min, $max);
+	if ($o < 0) {
+		$asc = 1;
+		$o = -($o + 1); # so [-1] is the last element, like Perl lists
+	}
+	my $r = $q->{r};
+	my $opt = {
+		offset => $o,
+		asc => $asc,
+		relevance => $r,
+		limit => $q->{l}
+	};
+	$qs .= ' type:inbox';
+	if (my $user_query = $q->{'q'}) {
+		$qs = "( $qs ) AND ( $user_query )";
+	}
+	my $mset = $misc->mset($qs, $opt); # sorts by $MODIFIED (mtime)
+	$ctx->{-list} = [];
+	my $pi_cfg = $ctx->{www}->{pi_cfg};
+	for my $mi ($mset->items) {
+		my $doc = $mi->get_document;
+		my ($eidx_key) = PublicInbox::Search::xap_terms('Q', $doc);
+		$eidx_key // next;
+		my $ibx = $pi_cfg->lookup_eidx_key($eidx_key) // next;
+		next if $ibx->{-hide}->{$ctx->hide_key};
+		grep(/$re/, @{$ibx->{url}}) or next;
+		$ctx->ibx_entry($ibx, $misc->doc2ibx_cache_ent($doc));
+		if ($r) { # for descriptions in search_nav_bot
+			my $pct = PublicInbox::Search::get_pct($mi);
+			# only when sorting by relevance, ->items is always
+			# ordered descending:
+			$max //= $pct;
+			$min = $pct;
+		}
+	}
+	if ($r) { # for descriptions in search_nav_bot
+		$q->{-min_pct} = $min;
+		$q->{-max_pct} = $max;
+	}
+	$ctx->{-mset} = $mset;
+	psgi_triple($ctx);
+}
+
 sub response {
 	my ($class, $ctx) = @_;
 	bless $ctx, $class;
-	if (my $ALL = $ctx->{www}->{pi_cfg}->ALL) {
-		$ALL->misc->reopen;
-	}
-	my $re = $ctx->url_regexp or return $ctx->psgi_triple;
-	my $iter = PublicInbox::ConfigIter->new($ctx->{www}->{pi_cfg},
+	my ($re, $qs) = $ctx->url_filter;
+	$re // return $ctx->psgi_triple;
+	if (my $ALL = $ctx->{www}->{pi_cfg}->ALL) { # fast path
+		$ALL->misc->reopen->retry_reopen(\&add_misc_ibx,
+						$ctx, $re, $qs);
+	} else { # slow path, no [extindex "all"] configured
+		my $iter = PublicInbox::ConfigIter->new($ctx->{www}->{pi_cfg},
 						\&list_match_i, $re, $ctx);
-	sub {
-		$ctx->{-wcb} = $_[0]; # HTTP server callback
-		$ctx->{env}->{'pi-httpd.async'} ?
-				$iter->event_step : $iter->each_section;
+		sub {
+			$ctx->{-wcb} = $_[0]; # HTTP server callback
+			$ctx->{env}->{'pi-httpd.async'} ?
+					$iter->event_step : $iter->each_section;
+		}
 	}
+}
+
+sub mset_footer ($$) {
+	my ($ctx, $mset) = @_;
+	# no footer if too few matches
+	return '' if $mset->get_matches_estimated == $mset->size;
+	require PublicInbox::SearchView;
+	PublicInbox::SearchView::search_nav_bot($mset, $ctx->{-sq});
+}
+
+sub mset_nav_top {
+	my ($ctx, $mset) = @_;
+	my $q = $ctx->{-sq};
+	my $qh = $q->{'q'} // '';
+	utf8::decode($qh);
+	$qh = ascii_html($qh);
+	$qh = qq[\nvalue="$qh"] if $qh ne '';
+	my $rv = <<EOM;
+<form
+action="./"><pre><input
+name=q
+type=text$qh /><input
+type=submit
+value="locate inbox" /></pre></form><pre>
+EOM
+	chomp $rv;
+	if (defined($q->{'q'})) {
+		my $initial_q = $ctx->{-uxs_retried};
+		if (defined $initial_q) {
+			my $rewritten = $q->{'q'};
+			utf8::decode($initial_q);
+			utf8::decode($rewritten);
+			$initial_q = ascii_html($initial_q);
+			$rewritten = ascii_html($rewritten);
+			$rv .= " Warning: Initial query:\n <b>$initial_q</b>\n";
+			$rv .= " returned no results, used:\n";
+			$rv .= " <b>$rewritten</b>\n instead\n\n";
+		}
+		$rv .= 'Search results ordered by [';
+		if ($q->{r}) {
+			my $d = $q->qs_html(r => 0);
+			$rv .= qq{<a\nhref="?$d">updated</a>|<b>relevance</b>};
+		} else {
+			my $d = $q->qs_html(r => 1);
+			$rv .= qq{<b>updated</b>|<a\nhref="?$d">relevance</a>};
+		}
+		$rv .= ']';
+	}
+	$rv .= qq{</pre>};
 }
 
 sub psgi_triple {
@@ -90,17 +191,23 @@ sub psgi_triple {
 	my $gzf = gzf_maybe($h, $ctx->{env});
 	$gzf->zmore('<html><head><title>' .
 				'public-inbox listing</title>' .
-				'</head><body><pre>');
+				'</head><body>');
 	my $code = 404;
-	if (my $list = $ctx->{-list}) {
+	if (my $list = delete $ctx->{-list}) {
+		my $mset = delete $ctx->{-mset};
 		$code = 200;
-		# sort by ->modified
-		@$list = map { $_->[1] } sort { $b->[0] <=> $a->[0] } @$list;
+		if ($mset) { # already sorted, so search bar:
+			$gzf->zmore(mset_nav_top($ctx, $mset));
+		} else { # sort config dump by ->modified
+			@$list = map { $_->[1] }
+				sort { $b->[0] <=> $a->[0] } @$list;
+		}
 		$list = join("\n", @$list);
 		my $l = PublicInbox::Linkify->new;
-		$gzf->zmore($l->to_html($list));
+		$gzf->zmore('<pre>'.$l->to_html($list));
+		$gzf->zmore(mset_footer($ctx, $mset)) if $mset;
 	} else {
-		$gzf->zmore('no inboxes, yet');
+		$gzf->zmore('<pre>no inboxes, yet');
 	}
 	my $out = $gzf->zflush('</pre><hr><pre>'.
 			PublicInbox::WwwStream::code_footer($ctx->{env}) .

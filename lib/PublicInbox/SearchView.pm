@@ -219,7 +219,7 @@ sub search_nav_top {
 	$rv .= qq{</pre></form><pre>};
 }
 
-sub search_nav_bot {
+sub search_nav_bot { # also used by WwwListing for searching extindex miscidx
 	my ($mset, $q) = @_;
 	my $total = $mset->get_matches_estimated;
 	my $l = $q->{l};

@@ -1,7 +1,7 @@
 # Copyright (C) 2015-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
-# used by PublicInbox::SearchView
+# used by PublicInbox::SearchView and PublicInbox::WwwListing
 package PublicInbox::SearchQuery;
 use strict;
 use v5.10.1;
@@ -32,11 +32,12 @@ sub qs_html {
 	if (scalar(keys(%override))) {
 		$self = bless { (%$self, %override) }, ref($self);
 	}
-
-	my $q = uri_escape($self->{'q'}, MID_ESC);
-	$q =~ s/%20/+/g; # improve URL readability
-	my $qs = "q=$q";
-
+	my $qs = '';
+	if (defined(my $q = $self->{'q'})) {
+		$q = uri_escape($q, MID_ESC);
+		$q =~ s/%20/+/g; # improve URL readability
+		$qs .= "q=$q";
+	}
 	if (my $o = $self->{o}) { # ignore o == 0
 		$qs .= "&amp;o=$o";
 	}

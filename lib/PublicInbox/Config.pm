@@ -97,6 +97,11 @@ sub lookup_ei {
 	$self->{-ei_by_name}->{$name} //= _fill_ei($self, $name);
 }
 
+sub lookup_eidx_key {
+	my ($self, $eidx_key) = @_;
+	_lookup_fill($self, '-by_eidx_key', $eidx_key);
+}
+
 # special case for [extindex "all"]
 sub ALL { lookup_ei($_[0], 'all') }
 
