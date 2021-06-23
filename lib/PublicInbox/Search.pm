@@ -557,19 +557,15 @@ sub get_pct ($) { # mset item
 sub xap_terms ($$;@) {
 	my ($pfx, $xdb_or_doc, @docid) = @_; # @docid may be empty ()
 	my %ret;
-	eval {
-		my $end = $xdb_or_doc->termlist_end(@docid);
-		my $cur = $xdb_or_doc->termlist_begin(@docid);
-		for (; $cur != $end; $cur++) {
-			$cur->skip_to($pfx);
-			last if $cur == $end;
-			my $tn = $cur->get_termname;
-			if (index($tn, $pfx) == 0) {
-				$ret{substr($tn, length($pfx))} = undef;
-			}
-		}
-	};
-	\%ret;
+	my $end = $xdb_or_doc->termlist_end(@docid);
+	my $cur = $xdb_or_doc->termlist_begin(@docid);
+	for (; $cur != $end; $cur++) {
+		$cur->skip_to($pfx);
+		last if $cur == $end;
+		my $tn = $cur->get_termname;
+		$ret{substr($tn, length($pfx))} = undef if !index($tn, $pfx);
+	}
+	wantarray ? sort(keys(%ret)) : \%ret;
 }
 
 1;

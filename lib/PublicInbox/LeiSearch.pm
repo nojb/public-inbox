@@ -19,16 +19,13 @@ sub num2docid ($$) {
 }
 
 sub _msg_kw { # retry_reopen callback
-	my ($self, $num) = @_; # num_or_mitem
-	my $xdb = $self->xdb; # set {nshard};
-	my $docid = ref($num) ? $num->get_docid : num2docid($self, $num);
-	my $kw = xap_terms('K', $xdb, $docid);
-	warn "E: #$docid ($num): $@\n" if $@;
-	wantarray ? sort(keys(%$kw)) : $kw;
+	my ($self, $num) = @_;
+	my $xdb = $self->xdb; # set {nshard} for num2docid;
+	xap_terms('K', $xdb, num2docid($self, $num));
 }
 
-sub msg_keywords {
-	my ($self, $num) = @_; # num_or_mitem
+sub msg_keywords { # array or hashref
+	my ($self, $num) = @_;
 	$self->retry_reopen(\&_msg_kw, $num);
 }
 
@@ -138,7 +135,8 @@ sub kw_changed {
 		$docids //= [];
 		@$docids = sort { $a <=> $b } values %$xoids;
 	}
-	my $cur_kw = msg_keywords($self, $docids->[0]);
+	my $cur_kw = eval { msg_keywords($self, $docids->[0]) };
+	die "E: #$docids->[0] keyword lookup failure: $@\n" if $@;
 
 	# RFC 5550 sec 5.9 on the $Forwarded keyword states:
 	# "Once set, the flag SHOULD NOT be cleared"

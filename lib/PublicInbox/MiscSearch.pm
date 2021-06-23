@@ -5,7 +5,7 @@
 package PublicInbox::MiscSearch;
 use strict;
 use v5.10.1;
-use PublicInbox::Search qw(retry_reopen int_val);
+use PublicInbox::Search qw(retry_reopen int_val xap_terms);
 my $json;
 
 # Xapian value columns:
@@ -90,15 +90,10 @@ sub ibx_matches_once { # retry_reopen callback
 	while (1) {
 		my $mset = misc_enquire_once($self, $qr, $opt);
 		for my $mi ($mset->items) {
-			my $doc = $mi->get_document;
-			my $end = $doc->termlist_end;
-			my $cur = $doc->termlist_begin;
-			$cur->skip_to('Q');
-			if ($cur != $end) {
-				my $ng = $cur->get_termname; # eidx_key
-				$ng =~ s/\AQ// or warn "BUG: no `Q': $ng";
-				if (my $ibx = $by_newsgroup->{$ng}) {
-					$ret->{$ng} = $ibx;
+			my ($eidx_key) = xap_terms('Q', $mi->get_document);
+			if (defined($eidx_key)) {
+				if (my $ibx = $by_newsgroup->{$eidx_key}) {
+					$ret->{$eidx_key} = $ibx;
 				}
 			} else {
 				warn <<EOF;
@@ -144,12 +139,8 @@ sub inbox_data {
 
 sub ibx_cache_load {
 	my ($doc, $cache) = @_;
-	my $end = $doc->termlist_end;
-	my $cur = $doc->termlist_begin;
-	$cur->skip_to('Q');
-	return if $cur == $end;
-	my $eidx_key = $cur->get_termname;
-	$eidx_key =~ s/\AQ// or return; # expired
+	my ($eidx_key) = xap_terms('Q', $doc);
+	return unless defined($eidx_key); # expired
 	my $ce = $cache->{$eidx_key} = {};
 	$ce->{uidvalidity} = int_val($doc, $UIDVALIDITY);
 	$ce->{-modified} = int_val($doc, $MODIFIED);

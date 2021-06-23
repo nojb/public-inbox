@@ -71,11 +71,11 @@ sub _mitem_kw { # retry_reopen callback
 	my $doc = $mitem->get_document;
 	my $kw = xap_terms('K', $doc);
 	$kw->{flagged} = 1 if $flagged;
-	my $L = xap_terms('L', $doc);
+	my @L = xap_terms('L', $doc);
 	# we keep the empty {kw} array here to prevent expensive work in
 	# ->xsmsg_vmd, _unbless_smsg will clobber it iff it's empty
 	$smsg->{kw} = [ sort keys %$kw ];
-	$smsg->{L} = [ sort keys %$L ] if scalar(keys %$L);
+	$smsg->{L} = \@L if scalar(@L);
 }
 
 sub mitem_kw ($$$;$) {

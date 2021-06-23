@@ -31,7 +31,8 @@ $sto->done;
 	is($mset->size, 1, 'search works');
 	is_deeply($es->mset_to_artnums($mset), [ $msgs->[0]->{num} ],
 		'mset_to_artnums');
-	my @kw = $es->msg_keywords(($mset->items)[0]);
+	my $mi = ($mset->items)[0];
+	my @kw = PublicInbox::Search::xap_terms('K', $mi->get_document);
 	is_deeply(\@kw, [], 'no flags');
 }
 

@@ -435,8 +435,9 @@ sub add_xapian ($$$$) {
 	if (my $old = $merge_vmd ? _get_doc($self, $smsg->{num}) : undef) {
 		my @x = @VMD_MAP;
 		while (my ($field, $pfx) = splice(@x, 0, 2)) {
-			my $vals = xap_terms($pfx, $old);
-			$doc->add_boolean_term($pfx.$_) for keys %$vals;
+			for my $term (xap_terms($pfx, $old)) {
+				$doc->add_boolean_term($pfx.$term);
+			}
 		}
 	}
 	$self->{xdb}->replace_document($smsg->{num}, $doc);
