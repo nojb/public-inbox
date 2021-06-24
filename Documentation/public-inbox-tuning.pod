@@ -34,6 +34,10 @@ Performance on solid state drives
 
 Read-only daemons
 
+=item 7
+
+Other OS tuning knobs
+
 =back
 
 =head2 New inboxes: public-inbox-init -V2
@@ -147,6 +151,15 @@ accommodate many concurrent clients.
 Transport Layer Security (IMAPS, NNTPS, or via STARTTLS) significantly
 increases memory use of client sockets, sure to account for that in
 capacity planning.
+
+=head2 Other OS tuning knobs
+
+Linux users: the C<sys.vm.max_map_count> sysctl may need to be increased if
+handling thousands of inboxes (with L<public-inbox-extindex(1)>) to avoid
+out-of-memory errors from git.
+
+Other OSes may have similar tuning knobs (patches appreciated).
+
 
 =head1 CONTACT
 
