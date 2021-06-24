@@ -8,7 +8,7 @@ use strict;
 use parent qw(PublicInbox::DS Exporter);
 use POSIX qw(WNOHANG);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
-our @EXPORT = qw(git_async_cat git_async_prefetch);
+our @EXPORT = qw(ibx_async_cat ibx_async_prefetch);
 use PublicInbox::Git ();
 
 our $GCF2C; # singleton PublicInbox::Gcf2Client
@@ -45,12 +45,16 @@ sub event_step {
 	}
 }
 
-sub git_async_cat ($$$$) {
-	my ($git, $oid, $cb, $arg) = @_;
-	if ($GCF2C //= eval {
+sub ibx_async_cat ($$$$) {
+	my ($ibx, $oid, $cb, $arg) = @_;
+	my $git = $ibx->git;
+	# {topdir} means ExtSearch (likely [extindex "all"]) with potentially
+	# 100K alternates.  git(1) has a proposed patch for 100K alternates:
+	# <https://lore.kernel.org/git/20210624005806.12079-1-e@80x24.org/>
+	if (!defined($ibx->{topdir}) && ($GCF2C //= eval {
 		require PublicInbox::Gcf2Client;
 		PublicInbox::Gcf2Client::new();
-	} // 0) { # 0: do not retry if libgit2 or Inline::C are missing
+	} // 0)) { # 0: do not retry if libgit2 or Inline::C are missing
 		$GCF2C->gcf2_async(\"$oid $git->{git_dir}\n", $cb, $arg);
 		\undef;
 	} else { # read-only end of git-cat-file pipe
@@ -66,9 +70,10 @@ sub git_async_cat ($$$$) {
 
 # this is safe to call inside $cb, but not guaranteed to enqueue
 # returns true if successful, undef if not.
-sub git_async_prefetch {
-	my ($git, $oid, $cb, $arg) = @_;
-	if ($GCF2C) {
+sub ibx_async_prefetch {
+	my ($ibx, $oid, $cb, $arg) = @_;
+	my $git = $ibx->git;
+	if (!defined($ibx->{topdir}) && $GCF2C) {
 		if (!$GCF2C->{wbuf}) {
 			$oid .= " $git->{git_dir}\n";
 			return $GCF2C->gcf2_async(\$oid, $cb, $arg); # true

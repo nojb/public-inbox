@@ -64,7 +64,7 @@ Augmented features:
 * ->requeue support.  An optimization of the AddTimer(0, ...) idiom
   for immediately dispatching code at the next event loop iteration.
   public-inbox uses this for fairly generating large responses
-  iteratively (see PublicInbox::NNTP::long_response or git_async_cat
+  iteratively (see PublicInbox::NNTP::long_response or ibx_async_cat
   for blob retrievals).
 
 New features

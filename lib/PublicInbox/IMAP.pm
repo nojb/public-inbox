@@ -612,7 +612,7 @@ sub fetch_run_ops {
 	$self->msg_more(")\r\n");
 }
 
-sub fetch_blob_cb { # called by git->cat_async via git_async_cat
+sub fetch_blob_cb { # called by git->cat_async via ibx_async_cat
 	my ($bref, $oid, $type, $size, $fetch_arg) = @_;
 	my ($self, undef, $msgs, $range_info, $ops, $partial) = @$fetch_arg;
 	my $ibx = $self->{ibx} or return $self->close; # client disconnected
@@ -627,8 +627,8 @@ sub fetch_blob_cb { # called by git->cat_async via git_async_cat
 	}
 	my $pre;
 	if (!$self->{wbuf} && (my $nxt = $msgs->[0])) {
-		$pre = git_async_prefetch($ibx->git, $nxt->{blob},
-						\&fetch_blob_cb, $fetch_arg);
+		$pre = ibx_async_prefetch($ibx, $nxt->{blob},
+					\&fetch_blob_cb, $fetch_arg);
 	}
 	fetch_run_ops($self, $smsg, $bref, $ops, $partial);
 	$pre ? $self->zflush : requeue_once($self);
@@ -760,7 +760,7 @@ sub fetch_blob { # long_response
 		}
 	}
 	uo2m_extend($self, $msgs->[-1]->{num});
-	git_async_cat($self->{ibx}->git, $msgs->[0]->{blob},
+	ibx_async_cat($self->{ibx}, $msgs->[0]->{blob},
 			\&fetch_blob_cb, \@_);
 }
 
@@ -1228,7 +1228,7 @@ sub long_step {
 	} elsif ($more) { # $self->{wbuf}:
 		$self->update_idle_time;
 
-		# control passed to git_async_cat if $more == \undef
+		# control passed to ibx_async_cat if $more == \undef
 		requeue_once($self) if !ref($more);
 	} else { # all done!
 		delete $self->{long_cb};

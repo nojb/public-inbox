@@ -180,8 +180,7 @@ sub async_blob_cb { # git->cat_async callback
 
 sub smsg_blob {
 	my ($self, $smsg) = @_;
-	git_async_cat($self->{ibx}->git, $smsg->{blob},
-			\&async_blob_cb, $self);
+	ibx_async_cat($self->{ibx}, $smsg->{blob}, \&async_blob_cb, $self);
 }
 
 1;

@@ -593,8 +593,7 @@ sub resolve_patch ($$) {
 	if (my $msgs = $want->{try_smsgs}) {
 		my $smsg = shift @$msgs;
 		if ($self->{psgi_env}->{'pi-httpd.async'}) {
-			return git_async_cat($want->{cur_ibx}->git,
-						$smsg->{blob},
+			return ibx_async_cat($want->{cur_ibx}, $smsg->{blob},
 						\&extract_diff_async,
 						[$self, $want, $smsg]);
 		} else {

@@ -515,7 +515,7 @@ found:
 		$smsg->{nntp_code} = $code;
 		set_art($self, $art);
 		# this dereferences to `undef'
-		${git_async_cat($ibx->git, $smsg->{blob}, \&blob_cb, $smsg)};
+		${ibx_async_cat($ibx, $smsg->{blob}, \&blob_cb, $smsg)};
 	}
 }
 
@@ -549,7 +549,7 @@ sub msg_hdr_write ($$) {
 	$smsg->{nntp}->msg_more($$hdr);
 }
 
-sub blob_cb { # called by git->cat_async via git_async_cat
+sub blob_cb { # called by git->cat_async via ibx_async_cat
 	my ($bref, $oid, $type, $size, $smsg) = @_;
 	my $self = $smsg->{nntp};
 	my $code = $smsg->{nntp_code};

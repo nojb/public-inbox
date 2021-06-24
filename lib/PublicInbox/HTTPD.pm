@@ -37,7 +37,7 @@ sub new {
 		# XXX unstable API!, only GitHTTPBackend needs
 		# this to limit git-http-backend(1) parallelism.
 		# We also check for the truthiness of this to
-		# detect when to use git_async_cat for slow blobs
+		# detect when to use async paths for slow blobs
 		'pi-httpd.async' => \&pi_httpd_async
 	);
 	bless {
