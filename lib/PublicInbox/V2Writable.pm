@@ -13,7 +13,7 @@ use PublicInbox::Eml;
 use PublicInbox::Git;
 use PublicInbox::Import;
 use PublicInbox::MID qw(mids references);
-use PublicInbox::ContentHash qw(content_hash content_digest);
+use PublicInbox::ContentHash qw(content_hash content_digest git_sha);
 use PublicInbox::InboxWritable;
 use PublicInbox::OverIdx;
 use PublicInbox::Msgmap;
@@ -447,23 +447,6 @@ sub purge {
 	$rewritten->{rewrites}
 }
 
-# returns the git object_id of $fh, does not write the object to FS
-sub git_hash_raw ($$) {
-	my ($self, $raw) = @_;
-	# grab the expected OID we have to reindex:
-	pipe(my($in, $w)) or die "pipe: $!";
-	my $git_dir = $self->git->{git_dir};
-	my $cmd = ['git', "--git-dir=$git_dir", qw(hash-object --stdin)];
-	my $r = popen_rd($cmd, undef, { 0 => $in });
-	print $w $$raw or die "print \$w: $!";
-	close $w or die "close \$w: $!";
-	local $/ = "\n";
-	chomp(my $oid = <$r>);
-	close $r or die "git hash-object failed: $?";
-	$oid =~ /\A$OID\z/ or die "OID not expected: $oid";
-	$oid;
-}
-
 sub _check_mids_match ($$$) {
 	my ($old_list, $new_list, $hdrs) = @_;
 	my %old_mids = map { $_ => 1 } @$old_list;
@@ -498,7 +481,7 @@ sub replace ($$$) {
 	PublicInbox::Import::drop_unwanted_headers($new_mime);
 
 	my $raw = $new_mime->as_string;
-	my $expect_oid = git_hash_raw($self, \$raw);
+	my $expect_oid = git_sha(1, \$raw)->hexdigest;
 	my $rewritten = _replace($self, $old_mime, $new_mime, \$raw) or return;
 	my $need_reindex = $rewritten->{need_reindex};
 
