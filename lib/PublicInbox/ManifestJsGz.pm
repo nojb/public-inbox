@@ -13,12 +13,11 @@ use HTTP::Date qw(time2str);
 
 my $json = PublicInbox::Config::json();
 
-# called by WwwListing
 sub url_regexp {
 	my ($ctx) = @_;
 	# grokmirror uses relative paths, so it's domain-dependent
-	# SUPER calls PublicInbox::WwwListing::url_regexp
-	$ctx->SUPER::url_regexp('publicInbox.grokManifest', 'match=domain');
+	# SUPER calls PublicInbox::WwwListing::url_filter
+	($ctx->url_filter('publicInbox.grokManifest', 'match=domain'))[0];
 }
 
 sub inject_entry ($$$;$) {
@@ -29,7 +28,7 @@ sub inject_entry ($$$;$) {
 	$ctx->{manifest}->{$url_path} = $ent;
 }
 
-sub manifest_add ($$;$$) {
+sub manifest_add ($$;$$) { # slow path w/o extindex "all"
 	my ($ctx, $ibx, $epoch, $default_desc) = @_;
 	my $url_path = "/$ibx->{name}";
 	my $git;
@@ -70,20 +69,33 @@ sub eidx_manifest_add ($$$) {
 	}
 }
 
+sub response {
+	my ($class, $ctx) = @_;
+	bless $ctx, $class;
+	my ($re, undef) = $ctx->url_filter;
+	$re // return psgi_triple($ctx);
+	my $iter = PublicInbox::ConfigIter->new($ctx->{www}->{pi_cfg},
+					$ctx->can('list_match_i'), $re, $ctx);
+	sub {
+		$ctx->{-wcb} = $_[0]; # HTTP server callback
+		$ctx->{env}->{'pi-httpd.async'} ?
+				$iter->event_step : $iter->each_section;
+	}
+}
+
 sub ibx_entry {
 	my ($ctx, $ibx) = @_;
 	my $ALL = $ctx->{www}->{pi_cfg}->ALL;
-	if ($ALL) {
+	if ($ALL) { # FIXME: test this in t/
 		eidx_manifest_add($ctx, $ALL, $ibx);
 	} else {
 		slow_manifest_add($ctx, $ibx);
+		warn "E: $@" if $@;
 	}
-	warn "E: $@" if $@;
 }
 
 sub hide_key { 'manifest' } # for WwwListing->list_match_i
 
-# overrides WwwListing->psgi_triple
 sub psgi_triple {
 	my ($ctx) = @_;
 	my $abs2urlpath = delete($ctx->{-abs2urlpath}) // {};

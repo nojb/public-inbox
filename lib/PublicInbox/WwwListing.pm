@@ -90,7 +90,7 @@ sub add_misc_ibx { # MiscSearch->retry_reopen callback
 		$qs = "( $qs ) AND ( $user_query )";
 	}
 	my $mset = $misc->mset($qs, $opt); # sorts by $MODIFIED (mtime)
-	$ctx->{-list} = [];
+	delete $ctx->{-list}; # reset if retried
 	my $pi_cfg = $ctx->{www}->{pi_cfg};
 	for my $mi ($mset->items) {
 		my $doc = $mi->get_document;
@@ -122,6 +122,7 @@ sub response {
 	my ($re, $qs) = $ctx->url_filter;
 	$re // return $ctx->psgi_triple;
 	if (my $ALL = $ctx->{www}->{pi_cfg}->ALL) { # fast path
+		# FIXME: test this in t/
 		$ALL->misc->reopen->retry_reopen(\&add_misc_ibx,
 						$ctx, $re, $qs);
 	} else { # slow path, no [extindex "all"] configured
