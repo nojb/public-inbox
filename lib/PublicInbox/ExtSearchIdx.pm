@@ -20,6 +20,7 @@ use parent qw(PublicInbox::ExtSearch PublicInbox::Lock);
 use Carp qw(croak carp);
 use Sys::Hostname qw(hostname);
 use POSIX qw(strftime);
+use File::Glob qw(bsd_glob GLOB_NOSORT);
 use PublicInbox::Search;
 use PublicInbox::SearchIdx qw(prepare_stack is_ancestor is_bad_blob);
 use PublicInbox::OverIdx;
@@ -930,6 +931,31 @@ sub _idx_init { # with_umask callback
 	$self->{midx} = PublicInbox::MiscIdx->new($self);
 }
 
+sub symlink_packs ($$) {
+	my ($ibx, $pd) = @_;
+	my $ret = 0;
+	my $glob = "$ibx->{inboxdir}/git/*.git/objects/pack/*.idx";
+	for my $idx (bsd_glob($glob, GLOB_NOSORT)) {
+		my $src = substr($idx, 0, -length('.idx'));
+		my $dst = $pd . substr($src, rindex($src, '/'));
+		if (-f "$src.pack" and
+				symlink("$src.pack", "$dst.pack") and
+				symlink($idx, "$dst.idx") and
+				-f $idx) {
+			++$ret;
+			# .promisor and .keep are optional
+			# XXX should we symlink .keep here?
+			for my $s (qw(promisor)) {
+				symlink("$src.$s", "$dst.$s") if -f "$src.$s";
+			}
+		} elsif (!$!{EEXIST}) {
+			warn "W: ln -s $src.{pack,idx} => $dst.*: $!\n";
+			unlink "$dst.pack", "$dst.idx";
+		}
+	}
+	$ret;
+}
+
 sub idx_init { # similar to V2Writable
 	my ($self, $opt) = @_;
 	return if $self->{idx_shards};
@@ -985,7 +1011,24 @@ sub idx_init { # similar to V2Writable
 			}
 		}
 	}
+	# git-multi-pack-index(1) can speed up "git cat-file" startup slightly
+	my $dh;
+	my $git_midx = 0;
+	my $pd = "$ALL/objects/pack";
+	if (!mkdir($pd) && $!{EEXIST} && opendir($dh, $pd)) {
+		# drop stale symlinks
+		while (defined(my $dn = readdir($dh))) {
+			if ($dn =~ /\.(?:idx|pack|promisor)\z/) {
+				my $f = "$pd/$dn";
+				unlink($f) if -l $f && !-e $f;
+			}
+		}
+		undef $dh;
+	}
 	for my $ibx (@{$self->{ibx_list}}) {
+		# create symlinks for multi-pack-index
+		$git_midx += symlink_packs($ibx, $pd);
+		# add new lines to our alternates file
 		my $line = $ibx->git->{git_dir} . "/objects\n";
 		chomp(my $d = $line);
 		if (my @st = stat($d)) {
@@ -1001,6 +1044,12 @@ sub idx_init { # similar to V2Writable
 		my $o = \@old;
 		PublicInbox::V2Writable::write_alternates($info_dir, $mode, $o);
 	}
+	$git_midx and $self->with_umask(sub {
+		my @cmd = ('multi-pack-index');
+		push @cmd, '--no-progress' if ($opt->{quiet}//0) > 1;
+		system('git', "--git-dir=$ALL", @cmd, 'write');
+		# ignore errors, fairly new command, may not exist
+	});
 	$self->parallel_init($self->{indexlevel});
 	$self->with_umask(\&_idx_init, $self, $opt);
 	$self->{oidx}->begin_lazy;
