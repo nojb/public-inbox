@@ -55,7 +55,7 @@ again:
 	} elsif ($v eq 'all') {
 		(qr/./, undef);
 	} elsif ($v eq '404') {
-		undef;
+		(undef, undef);
 	} else {
 		warn <<EOF;
 `$v' is not a valid value for `$key'

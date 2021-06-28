@@ -1,14 +1,15 @@
+#!perl -w
 # Copyright (C) 2019-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 # manifest.js.gz generation and grok-pull integration test
 use strict;
-use warnings;
+use v5.10.1;
 use Test::More;
 use PublicInbox::Spawn qw(which);
 use PublicInbox::TestCommon;
 use PublicInbox::Import;
-require_mods(qw(json URI::Escape Plack::Builder Digest::SHA
-		IO::Compress::Gzip IO::Uncompress::Gunzip HTTP::Tiny));
+use IO::Uncompress::Gunzip qw(gunzip);
+require_mods(qw(json URI::Escape Plack::Builder Digest::SHA HTTP::Tiny));
 require PublicInbox::WwwListing;
 require PublicInbox::ManifestJsGz;
 use PublicInbox::Config;
@@ -32,21 +33,23 @@ like($bare->manifest_entry->{fingerprint}, qr/\A[a-f0-9]{40}\z/,
 	'got fingerprint with non-empty repo');
 
 sub tiny_test {
-	my ($json, $host, $port) = @_;
-	my $tmp;
+	my ($json, $host, $port, $html) = @_;
+	my ($tmp, $res);
 	my $http = HTTP::Tiny->new;
-	my $res = $http->get("http://$host:$port/");
-	is($res->{status}, 200, 'got HTML listing');
-	like($res->{content}, qr!</html>!si, 'listing looks like HTML');
+	if ($html) {
+		$res = $http->get("http://$host:$port/");
+		is($res->{status}, 200, 'got HTML listing');
+		like($res->{content}, qr!</html>!si, 'listing looks like HTML');
 
-	$res = $http->get("http://$host:$port/", {'Accept-Encoding'=>'gzip'});
-	is($res->{status}, 200, 'got gzipped HTML listing');
-	IO::Uncompress::Gunzip::gunzip(\(delete $res->{content}) => \$tmp);
-	like($tmp, qr!</html>!si, 'unzipped listing looks like HTML');
-
+		$res = $http->get("http://$host:$port/",
+				{'Accept-Encoding'=>'gzip'});
+		is($res->{status}, 200, 'got gzipped HTML listing');
+		gunzip(\(delete $res->{content}) => \$tmp);
+		like($tmp, qr!</html>!si, 'unzipped listing looks like HTML');
+	}
 	$res = $http->get("http://$host:$port/manifest.js.gz");
 	is($res->{status}, 200, 'got manifest');
-	IO::Uncompress::Gunzip::gunzip(\(delete $res->{content}) => \$tmp);
+	gunzip(\(delete $res->{content}) => \$tmp);
 	unlike($tmp, qr/"modified":\s*"/, 'modified is an integer');
 	my $manifest = $json->decode($tmp);
 	ok(my $clone = $manifest->{'/alt'}, '/alt in manifest');
@@ -95,10 +98,9 @@ SKIP: {
 		"lorelei \xc4\x80"), 0,
 		'set gitweb user');
 	ok(unlink("$bare->{git_dir}/description"), 'removed bare/description');
-	open $fh, '>', $cfgfile or die;
-	print $fh <<"" or die;
-[publicinbox]
-	wwwlisting = all
+	open $fh, '>', $cfgfile or xbail "open $cfgfile: $!";
+	$fh->autoflush(1);
+	print $fh <<"" or xbail "print $!";
 [publicinbox "bare"]
 	inboxdir = $bare->{git_dir}
 	url = http://$host/bare
@@ -112,13 +114,22 @@ SKIP: {
 	url = http://$host/v2
 	address = v2\@example.com
 
-	close $fh or die;
 	my $env = { PI_CONFIG => $cfgfile };
 	my $cmd = [ '-httpd', '-W0', "--stdout=$out", "--stderr=$err" ];
 	$td = start_script($cmd, $env, { 3 => $sock });
-	$sock = undef;
 
+	# default publicinboxGrokManifest match=domain default
 	tiny_test($json, $host, $port);
+	undef $td;
+
+	print $fh <<"" or xbail "print $!";
+[publicinbox]
+	wwwlisting = all
+
+	close $fh or xbail "close $!";
+	$td = start_script($cmd, $env, { 3 => $sock });
+	tiny_test($json, $host, $port, 1);
+	undef $sock;
 
 	my $grok_pull = which('grok-pull') or
 		skip('grok-pull not available', 12);

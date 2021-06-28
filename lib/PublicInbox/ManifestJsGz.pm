@@ -13,11 +13,11 @@ use HTTP::Date qw(time2str);
 
 my $json = PublicInbox::Config::json();
 
-sub url_regexp {
+sub url_filter {
 	my ($ctx) = @_;
 	# grokmirror uses relative paths, so it's domain-dependent
 	# SUPER calls PublicInbox::WwwListing::url_filter
-	($ctx->url_filter('publicInbox.grokManifest', 'match=domain'))[0];
+	$ctx->SUPER::url_filter('publicInbox.grokManifest', 'match=domain');
 }
 
 sub inject_entry ($$$;$) {
