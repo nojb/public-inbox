@@ -1047,6 +1047,7 @@ sub idx_init { # similar to V2Writable
 	$git_midx and $self->with_umask(sub {
 		my @cmd = ('multi-pack-index');
 		push @cmd, '--no-progress' if ($opt->{quiet}//0) > 1;
+		my $lk = $self->lock_for_scope;
 		system('git', "--git-dir=$ALL", @cmd, 'write');
 		# ignore errors, fairly new command, may not exist
 	});
