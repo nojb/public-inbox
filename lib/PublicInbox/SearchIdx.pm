@@ -24,12 +24,17 @@ use PublicInbox::Spawn qw(spawn nodatacow_dir);
 use PublicInbox::Git qw(git_unquote);
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 use PublicInbox::Address;
+use Config;
 our @EXPORT_OK = qw(log2stack is_ancestor check_size prepare_stack
 	index_text term_generator add_val is_bad_blob);
 my $X = \%PublicInbox::Search::X;
 our ($DB_CREATE_OR_OPEN, $DB_OPEN);
 our $DB_NO_SYNC = 0;
-our $BATCH_BYTES = $ENV{XAPIAN_FLUSH_THRESHOLD} ? 0x7fffffff : 1_000_000;
+our $BATCH_BYTES = $ENV{XAPIAN_FLUSH_THRESHOLD} ? 0x7fffffff :
+	# assume a typical 64-bit system has 8x more RAM than a
+	# typical 32-bit system:
+	(($Config{ptrsize} >= 8 ? 8192 : 1024) * 1024);
+
 use constant DEBUG => !!$ENV{DEBUG};
 
 my $xapianlevels = qr/\A(?:full|medium)\z/;
