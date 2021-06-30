@@ -943,9 +943,9 @@ sub symlink_packs ($$) {
 				symlink($idx, "$dst.idx") and
 				-f $idx) {
 			++$ret;
-			# .promisor and .keep are optional
+			# .promisor, .bitmap, .rev and .keep are optional
 			# XXX should we symlink .keep here?
-			for my $s (qw(promisor)) {
+			for my $s (qw(promisor bitmap rev)) {
 				symlink("$src.$s", "$dst.$s") if -f "$src.$s";
 			}
 		} elsif (!$!{EEXIST}) {
@@ -1018,7 +1018,7 @@ sub idx_init { # similar to V2Writable
 	if (!mkdir($pd) && $!{EEXIST} && opendir($dh, $pd)) {
 		# drop stale symlinks
 		while (defined(my $dn = readdir($dh))) {
-			if ($dn =~ /\.(?:idx|pack|promisor)\z/) {
+			if ($dn =~ /\.(?:idx|pack|promisor|bitmap|rev)\z/) {
 				my $f = "$pd/$dn";
 				unlink($f) if -l $f && !-e $f;
 			}
