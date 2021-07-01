@@ -155,9 +155,6 @@ sub inspect1 ($$$) {
 
 sub lei_inspect {
 	my ($lei, @argv) = @_;
-	$lei->{1}->autoflush(0);
-	my $multi = scalar(@argv) > 1;
-	$lei->out('[') if $multi;
 	$lei->{json} = ref(PublicInbox::Config::json())->new->utf8->canonical;
 	$lei->{lse} = ($lei->{opt}->{external} // 1) ? do {
 		my $sto = $lei->_lei_store;
@@ -166,6 +163,10 @@ sub lei_inspect {
 	if ($lei->{opt}->{pretty} || -t $lei->{1}) {
 		$lei->{json}->pretty(1)->indent(2);
 	}
+	$lei->start_pager if -t $lei->{1};
+	$lei->{1}->autoflush(0);
+	my $multi = scalar(@argv) > 1;
+	$lei->out('[') if $multi;
 	while (defined(my $x = shift @argv)) {
 		inspect1($lei, $x, scalar(@argv)) or return;
 	}
