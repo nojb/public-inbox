@@ -98,22 +98,29 @@ sub inspect_docid ($$;$) {
 	$ent;
 }
 
+sub dir2ibx ($$) {
+	my ($lei, $dir) = @_;
+	if (-f "$dir/ei.lock") {
+		require PublicInbox::ExtSearch;
+		PublicInbox::ExtSearch->new($dir);
+	} elsif (-f "$dir/inbox.lock" || -d "$dir/public-inbox") {
+		require PublicInbox::Inbox; # v2, v1
+		bless { inboxdir => $dir }, 'PublicInbox::Inbox';
+	} else {
+		$lei->fail("no (indexed) inbox or extindex at $dir");
+	}
+}
+
 sub inspect_num ($$) {
 	my ($lei, $num) = @_;
 	my ($docid, $ibx);
 	my $ent = { num => $num };
 	if (defined(my $dir = $lei->{opt}->{dir})) {
-		my $num2docid = $lei->{lse}->can('num2docid');
-		if (-f "$dir/ei.lock") {
-			require PublicInbox::ExtSearch;
-			$ibx = PublicInbox::ExtSearch->new($dir);
-		} elsif (-f "$dir/inbox.lock" || -d "$dir/public-inbox") {
-			require PublicInbox::Inbox; # v2, v1
-			$ibx = bless { inboxdir => $dir }, 'PublicInbox::Inbox';
+		$ibx = dir2ibx($lei, $dir) or return;
+		if ($ent->{xdb} = $ibx->xdb) {
+			my $num2docid = $lei->{lse}->can('num2docid');
+			$docid = $num2docid->($ibx, $num);
 		}
-		$ent->{xdb} = $ibx->xdb //
-			return $lei->fail("no Xapian DB for $dir");
-		$docid = $num2docid->($ibx, $num);
 	} else {
 		$ibx = $lei->{lse};
 		$lei->{lse}->xdb; # set {nshard} for num2docid
@@ -123,7 +130,29 @@ sub inspect_num ($$) {
 		my $smsg = $ibx->over->get_art($num);
 		$ent->{smsg} = { %$smsg } if $smsg;
 	}
-	inspect_docid($lei, $docid, $ent);
+	defined($docid) ? inspect_docid($lei, $docid, $ent) : $ent;
+}
+
+sub inspect_mid ($$) {
+	my ($lei, $mid) = @_;
+	my ($ibx, $over);
+	my $ent = { mid => $mid };
+	if (defined(my $dir = $lei->{opt}->{dir})) {
+		my $num2docid = $lei->{lse}->can('num mid => [ $mid ] 2docid');
+		$ibx = dir2ibx($lei, $dir) or return;
+		# $ent->{xdb} = $ibx->xdb //
+			# return $lei->fail("no Xapian DB for $dir");
+	} else {
+		$ibx = $lei->{lse};
+		$lei->{lse}->xdb; # set {nshard} for num2docid
+	}
+	if ($ibx && $ibx->over) {
+		my ($id, $prev);
+		while (my $smsg = $ibx->over->next_by_mid($mid, \$id, \$prev)) {
+			push @{$ent->{smsg}}, { %$smsg }
+		}
+	}
+	$ent;
 }
 
 sub inspect1 ($$$) {
@@ -145,6 +174,8 @@ sub inspect1 ($$$) {
 		$ent = inspect_docid($lei, $1 + 0);
 	} elsif ($item =~ m!\Anum:([0-9]+)\z!) {
 		$ent = inspect_num($lei, $1 + 0);
+	} elsif ($item =~ m!\A(?:mid|m):(.+)\z!) {
+		$ent = inspect_mid($lei, $1);
 	} else { # TODO: more things
 		return $lei->fail("$item not understood");
 	}
