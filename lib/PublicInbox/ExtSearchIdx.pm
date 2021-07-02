@@ -139,7 +139,7 @@ sub index_unseen ($) {
 
 sub do_finalize ($) {
 	my ($req) = @_;
-	if (my $indexed = $req->{indexed}) {
+	if (my $indexed = $req->{indexed}) { # duplicated messages
 		do_xpost($req, $_) for @$indexed;
 	} elsif (exists $req->{new_smsg}) { # totally unseen messsage
 		index_unseen($req);
@@ -164,11 +164,10 @@ sub do_step ($) { # main iterator for adding messages to the index
 							\&ck_existing, $req);
 				return; # ck_existing calls do_step
 			}
-			delete $req->{cur_smsg};
 			delete $req->{next_arg};
 		}
-		my $mid = shift(@{$req->{mids}});
-		last unless defined $mid;
+		die "BUG: {cur_smsg} still set" if $req->{cur_smsg};
+		my $mid = shift(@{$req->{mids}}) // last;
 		my ($id, $prev);
 		$req->{next_arg} = [ $mid, \$id, \$prev ];
 		# loop again
@@ -176,9 +175,8 @@ sub do_step ($) { # main iterator for adding messages to the index
 	do_finalize($req);
 }
 
-sub _blob_missing ($) { # called when req->{cur_smsg}->{blob} is bad
-	my ($req) = @_;
-	my $smsg = $req->{cur_smsg} or die 'BUG: {cur_smsg} missing';
+sub _blob_missing ($$) { # called when $smsg->{blob} is bad
+	my ($req, $smsg) = @_;
 	my $self = $req->{self};
 	my $xref3 = $self->{oidx}->get_xref3($smsg->{num});
 	my @keep = grep(!/:$smsg->{blob}\z/, @$xref3);
@@ -196,9 +194,9 @@ sub _blob_missing ($) { # called when req->{cur_smsg}->{blob} is bad
 
 sub ck_existing { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $req) = @_;
-	my $smsg = $req->{cur_smsg} or die 'BUG: {cur_smsg} missing';
+	my $smsg = delete $req->{cur_smsg} or die 'BUG: {cur_smsg} missing';
 	if ($type eq 'missing') {
-		_blob_missing($req);
+		_blob_missing($req, $smsg);
 	} elsif (!is_bad_blob($oid, $type, $size, $smsg->{blob})) {
 		my $self = $req->{self} // die 'BUG: {self} missing';
 		local $self->{current_info} = "$self->{current_info} $oid";
@@ -219,8 +217,7 @@ sub cur_ibx_xnum ($$) {
 	$req->{eml} = PublicInbox::Eml->new($bref);
 	$req->{chash} = content_hash($req->{eml});
 	$req->{mids} = mids($req->{eml});
-	my @q = @{$req->{mids}}; # copy
-	while (defined(my $mid = shift @q)) {
+	for my $mid (@{$req->{mids}}) {
 		my ($id, $prev);
 		while (my $x = $ibx->over->next_by_mid($mid, \$id, \$prev)) {
 			return $x->{num} if $x->{blob} eq $req->{oid};
