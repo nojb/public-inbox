@@ -323,6 +323,7 @@ my %OPTDESC = (
 'path-a|a=s' => 'pre-image pathname associated with OID',
 'path-b|b=s' => 'post-image pathname associated with OID',
 'git-dir=s@' => 'additional git repository to scan',
+'dir=s	inspect' => 'specify a inboxdir, extindex topdir or Xapian shard',
 'proxy=s' => [ 'PROTO://HOST[:PORT]', # shared with curl(1)
 	"proxy for (e.g. `socks5h://0:9050')" ],
 'torsocks=s' => ['VAL|auto|no|yes',
