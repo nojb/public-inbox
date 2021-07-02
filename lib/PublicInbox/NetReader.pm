@@ -462,8 +462,9 @@ sub each_old_flags ($$$$) {
 	my ($self, $mic, $uri, $l_uid) = @_;
 	$l_uid ||= 1;
 	my $sec = uri_section($uri);
-	my $bs = $self->{imap_opt}->{$sec}->{batch_size} // 10000;
+	my $bs = ($self->{imap_opt}->{$sec}->{batch_size} // 1) * 10000;
 	my ($eml_cb, @args) = @{$self->{eml_each}};
+	$self->{quiet} or warn "# $uri syncing flags 1:$l_uid\n";
 	for (my $n = 1; $n <= $l_uid; $n += $bs) {
 		my $end = $n + $bs;
 		$end = $l_uid if $end > $l_uid;
