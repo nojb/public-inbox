@@ -1095,6 +1095,7 @@ sub event_step {
 			}
 			die "unrecognized client signal: $buf";
 		}
+		_drop_wq($self); # EOF, client disconnected
 		dclose($self);
 	};
 	if (my $err = $@) {
