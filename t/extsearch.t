@@ -368,4 +368,15 @@ if ('remove v1test and test gc') {
 	is(scalar(@it), 1, 'only one inbox left');
 }
 
+if ('dedupe + dry-run') {
+	my @cmd = ('-extindex', "$home/extindex");
+	my $opt = { 2 => \(my $err = '') };
+	ok(run_script([@cmd, '--dedupe'], undef, $opt), '--dedupe');
+	ok(run_script([@cmd, qw(--dedupe --dry-run)], undef, $opt),
+		'--dry-run --dedupe');
+	is $err, '', 'no errors';
+	ok(!run_script([@cmd, qw(--dry-run)], undef, $opt),
+		'--dry-run alone fails');
+}
+
 done_testing;

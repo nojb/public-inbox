@@ -17,7 +17,9 @@ usage: public-inbox-extindex [options] [EXTINDEX_DIR] [INBOX_DIR...]
   --batch-size=BYTES  flush changes to OS after a given number of bytes
   --max-size=BYTES    do not index messages larger than the given size
   --gc                perform garbage collection instead of indexing
+  --dedupe            fix prior deduplication errors
   --verbose | -v      increase verbosity (may be repeated)
+  --dry-run | -n      dry-run on --dedupe
 
 BYTES may use `k', `m', and `g' suffixes (e.g. `10m' for 10 megabytes)
 See public-inbox-extindex(1) man page for full documentation.
@@ -27,7 +29,7 @@ GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i
 		fsync|sync!
 		indexlevel|index-level|L=s max_size|max-size=s
 		batch_size|batch-size=s
-		gc commit-interval=i watch scan!
+		dedupe gc commit-interval=i watch scan! dry-run|n
 		all help|h))
 	or die $help;
 if ($opt->{help}) { print $help; exit 0 };
@@ -50,11 +52,16 @@ unless (defined $eidx_dir) {
 my @ibxs;
 if ($opt->{gc}) {
 	die "E: inbox paths must not be specified with --gc\n" if @ARGV;
-	die "E: --all not compatible with --gc\n" if $opt->{all};
-	die "E: --watch is not compatible with --gc\n" if $opt->{watch};
+	for my $sw (qw(all watch dry-run dedupe)) {
+		die "E: --$sw is not compatible with --gc\n" if $opt->{$sw};
+	}
 } else {
 	@ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt, $cfg);
 }
+if ($opt->{'dry-run'} && !$opt->{dedupe}) {
+	die "E: --dry-run only affects --dedupe\n";
+}
+
 PublicInbox::Admin::require_or_die(qw(-search));
 PublicInbox::Config::json() or die "Cpanel::JSON::XS or similar missing\n";
 PublicInbox::Admin::progress_prepare($opt);

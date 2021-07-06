@@ -656,6 +656,26 @@ UPDATE over SET ddd = ? WHERE num = ?
 	$sth->execute;
 }
 
+sub merge_xref3 { # used for "-extindex --dedupe"
+	my ($self, $keep_docid, $drop_docid, $oidhex) = @_;
+	my $oidbin = pack('H*', $oidhex);
+	my $sth = $self->{dbh}->prepare_cached(<<'');
+UPDATE OR IGNORE xref3 SET docid = ? WHERE docid = ? AND oidbin = ?
+
+	$sth->bind_param(1, $keep_docid);
+	$sth->bind_param(2, $drop_docid);
+	$sth->bind_param(3, $oidbin, SQL_BLOB);
+	$sth->execute;
+
+	# drop anything that conflicted
+	$sth = $self->{dbh}->prepare_cached(<<'');
+DELETE FROM xref3 WHERE docid = ? AND oidbin = ?
+
+	$sth->bind_param(1, $drop_docid);
+	$sth->bind_param(2, $oidbin, SQL_BLOB);
+	$sth->execute;
+}
+
 sub eidxq_add {
 	my ($self, $docid) = @_;
 	$self->dbh->prepare_cached(<<'')->execute($docid);
