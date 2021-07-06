@@ -484,8 +484,8 @@ sub crlf { $_[0]->{crlf} // "\n" }
 sub warn_ignore {
 	my $s = "@_";
 	# Email::Address::XS warnings
-	$s =~ /^Argument contains empty address at /
-	|| $s =~ /^Element at index [0-9]+ contains /
+	$s =~ /^Argument contains empty /
+	|| $s =~ /^Element at index [0-9]+.*? contains /
 	# PublicInbox::MsgTime
 	|| $s =~ /^bogus TZ offset: .+?, ignoring and assuming \+0000/
 	|| $s =~ /^bad Date: .+? in /
