@@ -78,8 +78,9 @@ sub shard_close {
 sub shard_over_check {
 	my ($self, $over) = @_;
 	if ($self->{-ipc_req} && $over->{dbh}) {
-		# can't send DB handles over IPC
-		$over = ref($over)->new($over->{dbh}->sqlite_db_filename);
+		# can't send DB handles over IPC, and use read-only to avoid
+		# create_tables lock conflict:
+		$over = PublicInbox::Over->new($over->{dbh}->sqlite_db_filename)
 	}
 	$self->ipc_do('over_check', $over);
 }
