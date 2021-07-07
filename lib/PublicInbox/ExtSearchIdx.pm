@@ -891,10 +891,6 @@ SELECT DISTINCT(mid),id FROM msgid WHERE id IN
 ORDER BY id
 EOS
 	$iter->execute($min_id);
-	local $SIG{__WARN__} = sub {
-		return if PublicInbox::Eml::warn_ignore(@_);
-		warn @_;
-	};
 	while (my ($mid, $id) = $iter->fetchrow_array) {
 		last if $sync->{quit};
 		$self->{current_info} = "dedupe $mid";
@@ -942,6 +938,7 @@ sub eidx_sync { # main entry point
 	my $warn_cb = $SIG{__WARN__} || \&CORE::warn;
 	local $self->{current_info} = '';
 	local $SIG{__WARN__} = sub {
+		return if PublicInbox::Eml::warn_ignore(@_);
 		$warn_cb->($self->{current_info}, ': ', @_);
 	};
 	$self->idx_init($opt); # acquire lock via V2Writable::_idx_init
@@ -1238,7 +1235,10 @@ sub eidx_watch { # public-inbox-extindex --watch main loop
 	my $oldset = PublicInbox::DS::block_signals();
 	local $self->{current_info} = '';
 	my $cb = $SIG{__WARN__} || \&CORE::warn;
-	local $SIG{__WARN__} = sub { $cb->($self->{current_info}, ': ', @_) };
+	local $SIG{__WARN__} = sub {
+		return if PublicInbox::Eml::warn_ignore(@_);
+		$cb->($self->{current_info}, ': ', @_);
+	};
 	my $sig = {
 		HUP => sub { eidx_reload($self, $idler) },
 		USR1 => sub { eidx_resync_start($self) },
