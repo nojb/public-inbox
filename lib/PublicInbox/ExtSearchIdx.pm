@@ -884,19 +884,20 @@ sub eidx_dedupe ($$) {
 	my $iter;
 	my $min_id = 0;
 	local $sync->{-regen_fmt} = "dedupe %u/".$self->{oidx}->max."\n";
+
+	# note: we could write this query more intelligently,
+	# but that causes lock contention with read-only processes
 dedupe_restart:
 	$iter = $self->{oidx}->dbh->prepare(<<EOS);
-SELECT DISTINCT(mid),id FROM msgid WHERE id IN
-(SELECT id FROM id2num WHERE id > ? GROUP BY num HAVING COUNT(num) > 1)
-ORDER BY id
+SELECT mid,id FROM msgid WHERE id > ? ORDER BY id ASC
 EOS
 	$iter->execute($min_id);
 	while (my ($mid, $id) = $iter->fetchrow_array) {
 		last if $sync->{quit};
 		$self->{current_info} = "dedupe $mid";
 		${$sync->{nr}} = $min_id = $id;
-		my ($n, $prv, @smsg);
-		while (my $x = $self->{oidx}->next_by_mid($mid, \$n, \$prv)) {
+		my ($prv, @smsg);
+		while (my $x = $self->{oidx}->next_by_mid($mid, \$id, \$prv)) {
 			push @smsg, $x;
 		}
 		next if scalar(@smsg) < 2;
@@ -918,8 +919,7 @@ EOS
 		# need to wait on every single one
 		$self->git->async_wait_all;
 
-		# is checkpoint needed? $iter is a very expensive query to restart
-		if (0 && checkpoint_due($sync)) {
+		if (checkpoint_due($sync)) {
 			undef $iter;
 			reindex_checkpoint($self, $sync);
 			goto dedupe_restart;
