@@ -384,7 +384,7 @@ sub rel2abs_collapsed {
 	Cwd::abs_path($p);
 }
 
-sub _one_val {
+sub get_1 {
 	my ($self, $pfx, $k) = @_;
 	my $v = $self->{"$pfx.$k"} // return;
 	return $v if !ref($v);
@@ -430,7 +430,7 @@ sub _fill_ibx {
 	}
 	for my $k (qw(filter inboxdir newsgroup replyto httpbackendmax feedmax
 			indexlevel indexsequentialshard)) {
-		my $v = _one_val($self, $pfx, $k) // next;
+		my $v = get_1($self, $pfx, $k) // next;
 		$ibx->{$k} = $v;
 	}
 
@@ -522,7 +522,7 @@ sub _fill_ei ($$) {
 	}
 	my $es = PublicInbox::ExtSearch->new($d);
 	for my $k (qw(indexlevel indexsequentialshard)) {
-		my $v = _one_val($self, $pfx, $k) // next;
+		my $v = get_1($self, $pfx, $k) // next;
 		$es->{$k} = $v;
 	}
 	for my $k (qw(altid coderepo hide url infourl)) {
