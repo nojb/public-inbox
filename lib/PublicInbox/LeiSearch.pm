@@ -5,7 +5,7 @@
 package PublicInbox::LeiSearch;
 use strict;
 use v5.10.1;
-use parent qw(PublicInbox::ExtSearch);
+use parent qw(PublicInbox::ExtSearch); # PublicInbox::Search->reopen
 use PublicInbox::Search qw(xap_terms);
 use PublicInbox::ContentHash qw(content_digest content_hash);
 use PublicInbox::MID qw(mids mids_for_index);

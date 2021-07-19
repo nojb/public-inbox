@@ -53,6 +53,23 @@ sub new {
 	$self;
 }
 
+sub add_watches {
+	my ($self, $dirs, $gone) = @_;
+	my $fl = $MAIL_IN | ($gone ? $MAIL_GONE : 0);
+	for my $d (@$dirs) {
+		$self->{inot}->watch($d, $fl);
+	}
+	PublicInbox::FakeInotify::poll_once($self) if !$ino_cls;
+}
+
+sub rm_watches {
+	my ($self, $dir) = @_;
+	my $inot = $self->{inot};
+	if (my $cb = $inot->can('rm_watches')) { # TODO for fake watchers
+		$cb->($inot, $dir);
+	}
+}
+
 sub event_step {
 	my ($self) = @_;
 	my $cb = $self->{cb};

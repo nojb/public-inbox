@@ -372,6 +372,7 @@ sub input_only_net_merge_all_done {
 
 # like Getopt::Long, but for +kw:FOO and -kw:FOO to prepare
 # for update_xvmd -> update_vmd
+# returns something like { "+L" => [ @Labels ], ... }
 sub vmd_mod_extract {
 	my $argv = $_[-1];
 	my $vmd_mod = {};

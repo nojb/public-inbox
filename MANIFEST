@@ -198,6 +198,7 @@ lib/PublicInbox/Isearch.pm
 lib/PublicInbox/KQNotify.pm
 lib/PublicInbox/LEI.pm
 lib/PublicInbox/LeiALE.pm
+lib/PublicInbox/LeiAddWatch.pm
 lib/PublicInbox/LeiAuth.pm
 lib/PublicInbox/LeiBlob.pm
 lib/PublicInbox/LeiConvert.pm
@@ -220,8 +221,10 @@ lib/PublicInbox/LeiLsLabel.pm
 lib/PublicInbox/LeiLsMailSource.pm
 lib/PublicInbox/LeiLsMailSync.pm
 lib/PublicInbox/LeiLsSearch.pm
+lib/PublicInbox/LeiLsWatch.pm
 lib/PublicInbox/LeiMailSync.pm
 lib/PublicInbox/LeiMirror.pm
+lib/PublicInbox/LeiNoteEvent.pm
 lib/PublicInbox/LeiOverview.pm
 lib/PublicInbox/LeiP2q.pm
 lib/PublicInbox/LeiPmdir.pm
@@ -232,6 +235,7 @@ lib/PublicInbox/LeiRemote.pm
 lib/PublicInbox/LeiRm.pm
 lib/PublicInbox/LeiSavedSearch.pm
 lib/PublicInbox/LeiSearch.pm
+lib/PublicInbox/LeiSelfSocket.pm
 lib/PublicInbox/LeiStore.pm
 lib/PublicInbox/LeiStoreErr.pm
 lib/PublicInbox/LeiSucks.pm
@@ -239,6 +243,7 @@ lib/PublicInbox/LeiTag.pm
 lib/PublicInbox/LeiToMail.pm
 lib/PublicInbox/LeiUp.pm
 lib/PublicInbox/LeiViewText.pm
+lib/PublicInbox/LeiWatch.pm
 lib/PublicInbox/LeiXSearch.pm
 lib/PublicInbox/Linkify.pm
 lib/PublicInbox/Listener.pm
@@ -434,6 +439,7 @@ t/lei-q-save.t
 t/lei-q-thread.t
 t/lei-sigpipe.t
 t/lei-tag.t
+t/lei-watch.t
 t/lei.t
 t/lei_dedupe.t
 t/lei_external.t
