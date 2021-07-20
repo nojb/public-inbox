@@ -32,6 +32,10 @@ Date: Thu, 01 Jan 1970 06:06:06 +0000
 nntp
 EOF
 	};
+	my $i2 = create_inbox 'test-2', sub {
+		my ($im, $ibx) = @_;
+		$im->add(eml_load('t/plack-qp.eml')) or xbail '->add';
+	};
 	local $ENV{HOME} = $home;
 	my $cmd = [ '-init', $group, $inboxdir, 'http://example.com/', $addr ];
 	ok(run_script($cmd), 'init ran properly');
@@ -63,6 +67,27 @@ EOF
 	is(xsys(qw(git clone -q --mirror),
 			"$http_pfx/$group", "$tmpdir/dumb.git"),
 		0, 'clone successful');
+
+	# test config reload
+	my $cfg = "$home/.public-inbox/config";
+	open my $fh, '>>', $cfg or xbail "open: $!";
+	print $fh <<EOM or xbail "print $!";
+[publicinbox "test-2"]
+	inboxdir = $i2->{inboxdir}
+	address = test-2\@example.com
+	url = https://example.com/test-2
+EOM
+	close $fh or xbail "close $!";
+	$td->kill('HUP') or BAIL_OUT "failed to kill -httpd: $!";
+	tick; # wait for HUP to take effect
+	my $buf = do {
+		my $c2 = tcp_connect($sock);
+		$c2->write("GET /test-2/qp\@example.com/raw HTTP/1.0\r\n\r\n")
+					or xbail "c2 write: $!";
+		local $/;
+		<$c2>
+	};
+	like($buf, qr!\AHTTP/1\.0 200\b!s, 'got 200 after reload for test-2');
 
 	ok($td->kill, 'killed httpd');
 	$td->join;

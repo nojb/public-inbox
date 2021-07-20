@@ -5,13 +5,14 @@ public-inbox-daemon - common usage for public-inbox network daemons
 =head1 SYNOPSIS
 
 	public-inbox-httpd
+	public-inbox-imapd
 	public-inbox-nntpd
 
 =head1 DESCRIPTION
 
 This manual describes common options and behavior for
 public-inbox network daemons.  Network daemons for public-inbox
-provide read-only NNTP and HTTP access to public-inboxes.  Write
+provide read-only NNTP, IMAP and HTTP access to public-inboxes.  Write
 access to a public-inbox will never be required to run these.
 
 These daemons are implemented with a common core using
@@ -103,7 +104,7 @@ See L</UPGRADING> below.
 =item SIGHUP
 
 Reload config files associated with the process.
-(FIXME: not tested for -httpd, yet)
+(Note: broken for L<public-inbox-httpd(1)> only in E<lt>= 1.6)
 
 =item SIGTTIN
 
@@ -188,4 +189,5 @@ License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
 
 =head1 SEE ALSO
 
-L<public-inbox-httpd(1)>, L<public-inbox-nntpd(1)>
+L<public-inbox-httpd(1)>, L<public-inbox-imapd(1)>,
+L<public-inbox-nntpd(1)>

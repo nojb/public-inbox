@@ -4,6 +4,7 @@
 #
 # Standalone HTTP server for public-inbox.
 use strict;
+use v5.10.1;
 use PublicInbox::Daemon;
 BEGIN {
 	for (qw(Plack::Builder Plack::Util)) {
@@ -14,7 +15,7 @@ BEGIN {
 	require PublicInbox::HTTPD;
 }
 
-my %httpds;
+my %httpds; # per-listen-FD mapping for HTTPD->{env}->{SERVER_<NAME|PORT>}
 my $app;
 my $refresh = sub {
 	if (@ARGV) {
@@ -37,12 +38,13 @@ my $refresh = sub {
 			sub { $www->call(@_) };
 		};
 	}
+	%httpds = (); # invalidate cache
 };
 
 PublicInbox::Daemon::run('0.0.0.0:8080', $refresh,
 	sub ($$$) { # post_accept
 		my ($client, $addr, $srv) = @_;
 		my $fd = fileno($srv);
-		my $h = $httpds{$fd} ||= PublicInbox::HTTPD->new($srv, $app);
+		my $h = $httpds{$fd} //= PublicInbox::HTTPD->new($srv, $app);
 		PublicInbox::HTTP->new($client, $addr, $h),
 	});
