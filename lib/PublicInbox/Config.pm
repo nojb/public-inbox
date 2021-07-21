@@ -429,7 +429,7 @@ sub _fill_ibx {
 		$ibx->{$k} = $v if defined $v;
 	}
 	for my $k (qw(filter inboxdir newsgroup replyto httpbackendmax feedmax
-			indexlevel indexsequentialshard)) {
+			indexlevel indexsequentialshard boost)) {
 		my $v = get_1($self, $pfx, $k) // next;
 		$ibx->{$k} = $v;
 	}

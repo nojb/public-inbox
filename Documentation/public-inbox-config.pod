@@ -124,6 +124,14 @@ allow for searching for phrases using quoted text.
 
 Default: C<full>
 
+=item publicinbox.<name>.boost
+
+Control indexing order for L<public-inbox-extindex(1)>, with ties
+broken by config file order.  This only affects indexing and does
+not affect messages which are already indexed.
+
+Default: C<0>
+
 =item publicinbox.<name>.indexSequentialShard
 
 See L<public-inbox-index(1)/publicInbox.indexSequentialShard>

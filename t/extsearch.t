@@ -60,6 +60,38 @@ ok(run_script([qw(-extindex --all), "$home/extindex"]), 'extindex init');
 	ok($es->has_threadid, '->has_threadid');
 }
 
+if ('with boost') {
+	xsys([qw(git config publicinbox.v1test.boost), 10],
+		{ GIT_CONFIG => $cfg_path });
+	ok(run_script([qw(-extindex --all), "$home/extindex-b"]),
+		'extindex init with boost');
+	my $es = PublicInbox::ExtSearch->new("$home/extindex-b");
+	my $smsg = $es->over->get_art(1);
+	ok($smsg, 'got first article');
+	my $xref3 = $es->over->get_xref3($smsg->{num});
+	my @v1 = grep(/\Av1/, @$xref3);
+	my @v2 = grep(/\Av2/, @$xref3);
+	like($v1[0], qr/\Av1\.example.*?\b\Q$smsg->{blob}\E\b/,
+		'smsg->{blob} respected boost');
+	is(scalar(@$xref3), 2, 'only to entries');
+	undef $es;
+
+	xsys([qw(git config publicinbox.v2test.boost), 20],
+		{ GIT_CONFIG => $cfg_path });
+	ok(run_script([qw(-extindex --all --reindex), "$home/extindex-b"]),
+		'extindex --reindex with altered boost');
+
+	$es = PublicInbox::ExtSearch->new("$home/extindex-b");
+	$smsg = $es->over->get_art(1);
+	like($v2[0], qr/\Av2\.example.*?\b\Q$smsg->{blob}\E\b/,
+			'smsg->{blob} respects boost after reindex');
+
+	xsys([qw(git config --unset publicinbox.v1test.boost)],
+		{ GIT_CONFIG => $cfg_path });
+	xsys([qw(git config --unset publicinbox.v2test.boost)],
+		{ GIT_CONFIG => $cfg_path });
+}
+
 { # TODO: -extindex should write this to config
 	open $fh, '>>', $cfg_path or BAIL_OUT $!;
 	print $fh <<EOF or BAIL_OUT $!;

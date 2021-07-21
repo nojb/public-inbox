@@ -44,7 +44,7 @@ sub new {
 		topdir => $dir,
 		creat => $opt->{creat},
 		ibx_map => {}, # (newsgroup//inboxdir) => $ibx
-		ibx_list => [],
+		ibx_cfg => [], # by config section order
 		indexlevel => $l,
 		transact_bytes => 0,
 		total_bytes => 0,
@@ -62,7 +62,8 @@ sub new {
 sub attach_inbox {
 	my ($self, $ibx) = @_;
 	$self->{ibx_map}->{$ibx->eidx_key} //= do {
-		push @{$self->{ibx_list}}, $ibx;
+		delete $self->{-ibx_ary}; # invalidate cache
+		push @{$self->{ibx_cfg}}, $ibx;
 		$ibx;
 	}
 }
@@ -388,7 +389,7 @@ sub _ibx_for ($$$) {
 	my ($self, $sync, $smsg) = @_;
 	my $ibx_id = delete($smsg->{ibx_id}) // die '{ibx_id} unset';
 	my $pos = $sync->{id2pos}->{$ibx_id} // die "$ibx_id no pos";
-	$self->{ibx_list}->[$pos] // die "BUG: ibx for $smsg->{blob} not mapped"
+	$self->{-ibx_ary}->[$pos] // die "BUG: ibx for $smsg->{blob} not mapped"
 }
 
 sub _fd_constrained ($) {
@@ -402,7 +403,7 @@ sub _fd_constrained ($) {
 			chomp($soft = `sh -c 'ulimit -n'`);
 		}
 		if (defined($soft)) {
-			my $want = scalar(@{$self->{ibx_list}}) + 64; # estimate
+			my $want = scalar(@{$self->{-ibx_ary}}) + 64; # estimate
 			my $ret = $want > $soft;
 			if ($ret) {
 				warn <<EOF;
@@ -524,10 +525,10 @@ BUG? #$docid $smsg->{blob} is not referenced by inboxes during reindex
 		return;
 	}
 
-	# we sort {xr3r} in the reverse order of {ibx_list} so we can
+	# we sort {xr3r} in the reverse order of ibx_sorted so we can
 	# hit the common case in _reindex_finalize without rereading
 	# from git (or holding multiple messages in memory).
-	my $id2pos = $sync->{id2pos}; # index in {ibx_list}
+	my $id2pos = $sync->{id2pos}; # index in ibx_sorted
 	@$xr3 = sort {
 		$id2pos->{$b->[0]} <=> $id2pos->{$a->[0]}
 				||
@@ -621,6 +622,17 @@ EOF
 	undef;
 }
 
+sub ibx_sorted ($) {
+	my ($self) = @_;
+	$self->{-ibx_ary} //= do {
+		# highest boost first, stable for config-ordering tiebreaker
+		use sort 'stable';
+		[ sort {
+			($b->{boost} // 0) <=> ($a->{boost} // 0)
+		  } @{$self->{ibx_cfg}} ];
+	}
+}
+
 sub eidxq_process ($$) { # for reindexing
 	my ($self, $sync) = @_;
 
@@ -638,7 +650,7 @@ sub eidxq_process ($$) { # for reindexing
 	$sync->{id2pos} //= do {
 		my %id2pos;
 		my $pos = 0;
-		$id2pos{$_->{-ibx_id}} = $pos++ for @{$self->{ibx_list}};
+		$id2pos{$_->{-ibx_id}} = $pos++ for (@{ibx_sorted($self)});
 		\%id2pos;
 	};
 	my ($del, $iter);
@@ -829,7 +841,7 @@ sub eidx_reindex {
 		warn "E: aborting --reindex\n";
 		return;
 	}
-	for my $ibx (@{$self->{ibx_list}}) {
+	for my $ibx (@{ibx_sorted($self)}) {
 		_reindex_inbox($self, $sync, $ibx);
 		last if $sync->{quit};
 	}
@@ -959,7 +971,7 @@ sub eidx_sync { # main entry point
 	local $SIG{QUIT} = $quit;
 	local $SIG{INT} = $quit;
 	local $SIG{TERM} = $quit;
-	for my $ibx (@{$self->{ibx_list}}) {
+	for my $ibx (@{ibx_sorted($self)}) {
 		$ibx->{-ibx_id} //= $self->{oidx}->ibx_id($ibx->eidx_key);
 	}
 	if (delete($opt->{dedupe})) {
@@ -973,7 +985,7 @@ sub eidx_sync { # main entry point
 
 	# don't use $_ here, it'll get clobbered by reindex_checkpoint
 	if ($opt->{scan} // 1) {
-		for my $ibx (@{$self->{ibx_list}}) {
+		for my $ibx (@{ibx_sorted($self)}) {
 			last if $sync->{quit};
 			sync_inbox($self, $sync, $ibx);
 		}
@@ -1115,7 +1127,7 @@ sub idx_init { # similar to V2Writable
 		}
 		undef $dh;
 	}
-	for my $ibx (@{$self->{ibx_list}}) {
+	for my $ibx (@{ibx_sorted($self)}) {
 		# create symlinks for multi-pack-index
 		$git_midx += symlink_packs($ibx, $pd);
 		# add new lines to our alternates file
@@ -1180,7 +1192,8 @@ sub eidx_reload { # -extindex --watch SIGHUP handler
 		my $pr = $self->{-watch_sync}->{-opt}->{-progress};
 		$pr->('reloading ...') if $pr;
 		delete $self->{-resync_queue};
-		@{$self->{ibx_list}} = ();
+		delete $self->{-ibx_ary};
+		$self->{ibx_cfg} = [];
 		%{$self->{ibx_map}} = ();
 		delete $self->{-watch_sync}->{id2pos};
 		my $cfg = PublicInbox::Config->new;
@@ -1194,7 +1207,7 @@ sub eidx_reload { # -extindex --watch SIGHUP handler
 
 sub eidx_resync_start ($) { # -extindex --watch SIGUSR1 handler
 	my ($self) = @_;
-	$self->{-resync_queue} //= [ @{$self->{ibx_list}} ];
+	$self->{-resync_queue} //= [ @{ibx_sorted($self)} ];
 	PublicInbox::DS::requeue($self); # trigger our ->event_step
 }
 
@@ -1225,9 +1238,9 @@ sub eidx_watch { # public-inbox-extindex --watch main loop
 	require PublicInbox::Sigfd;
 	my $idler = PublicInbox::InboxIdle->new($self->{cfg});
 	if (!$self->{cfg}) {
-		$idler->watch_inbox($_) for @{$self->{ibx_list}};
+		$idler->watch_inbox($_) for (@{ibx_sorted($self)});
 	}
-	$_->subscribe_unlock(__PACKAGE__, $self) for @{$self->{ibx_list}};
+	$_->subscribe_unlock(__PACKAGE__, $self) for (@{ibx_sorted($self)});
 	my $pr = $opt->{-progress};
 	$pr->("performing initial scan ...\n") if $pr;
 	my $sync = eidx_sync($self, $opt); # initial sync
