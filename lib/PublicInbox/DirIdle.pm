@@ -56,10 +56,13 @@ sub new {
 sub add_watches {
 	my ($self, $dirs, $gone) = @_;
 	my $fl = $MAIL_IN | ($gone ? $MAIL_GONE : 0);
+	my @ret;
 	for my $d (@$dirs) {
-		$self->{inot}->watch($d, $fl);
+		my $w = $self->{inot}->watch($d, $fl) or next;
+		push @ret, $w;
 	}
 	PublicInbox::FakeInotify::poll_once($self) if !$ino_cls;
+	@ret
 }
 
 sub rm_watches {

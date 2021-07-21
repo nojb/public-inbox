@@ -14,7 +14,7 @@ sub flush_lei ($) {
 	my ($lei) = @_;
 	if (my $lne = delete $lei->{cfg}->{-lei_note_event}) {
 		$lne->wq_close(1, undef, $lei); # runs _lei_wq_eof;
-	} else { # lms_clear_src calls only:
+	} elsif ($lei->{sto}) { # lms_clear_src calls only:
 		my $wait = $lei->{sto}->ipc_do('done');
 	}
 }

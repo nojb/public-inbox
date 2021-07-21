@@ -13,9 +13,27 @@ $have_fast_inotify or
 my ($ro_home, $cfg_path) = setup_public_inboxes;
 test_lei(sub {
 	my $md = "$ENV{HOME}/md";
+	my $cfg_f = "$ENV{HOME}/.config/lei/config";
 	my $md2 = $md.'2';
 	lei_ok 'ls-watch';
 	is($lei_out, '', 'nothing in ls-watch, yet');
+
+	my ($ino_fdinfo, $ino_contents);
+	SKIP: {
+		$have_fast_inotify && $^O eq 'linux' or
+			skip 'Linux/inotify-only internals check', 1;
+		lei_ok 'daemon-pid'; chomp(my $pid = $lei_out);
+		skip 'missing /proc/$PID/fd', 1 if !-d "/proc/$pid/fd";
+		my @ino = grep {
+			readlink($_) =~ /\binotify\b/
+		} glob("/proc/$pid/fd/*");
+		is(scalar(@ino), 1, 'only one inotify FD');
+		my $ino_fd = (split('/', $ino[0]))[-1];
+		$ino_fdinfo = "/proc/$pid/fdinfo/$ino_fd";
+		open my $fh, '<', $ino_fdinfo or xbail "open $ino_fdinfo: $!";
+		$ino_contents = [ <$fh> ];
+	}
+
 	if (0) { # TODO
 		my $url = 'imaps://example.com/foo.bar.0';
 		lei_ok([qw(add-watch --state=pause), $url], undef, {});
@@ -44,6 +62,27 @@ test_lei(sub {
 	my $e2 = eml_load($f2[0]);
 	my $e1 = eml_load("$f[0]S");
 	is_deeply($e2, $e1, 'results match');
+
+	SKIP: {
+		$ino_fdinfo or skip 'Linux/inotify-only watch check', 1;
+		open my $fh, '<', $ino_fdinfo or xbail "open $ino_fdinfo: $!";
+		my $cmp = [ <$fh> ];
+		ok(scalar(@$cmp) > scalar(@$ino_contents),
+			'inotify has Maildir watches');
+	}
+
+	is(xsys(qw(git config -f), $cfg_f,
+			'--remove-section', "watch.maildir:$md"),
+		0, 'unset config state');
+	lei_ok 'ls-watch', \'refresh watches';
+	is($lei_out, '', 'no watches left');
+
+	SKIP: {
+		$ino_fdinfo or skip 'Linux/inotify-only removal removal', 1;
+		open my $fh, '<', $ino_fdinfo or xbail "open $ino_fdinfo: $!";
+		my $cmp = [ <$fh> ];
+		is_deeply($cmp, $ino_contents, 'inotify Maildir watches gone');
+	};
 });
 
 done_testing;

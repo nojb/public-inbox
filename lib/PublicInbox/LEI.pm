@@ -36,7 +36,7 @@ my $GLP_PASS = Getopt::Long::Parser->new;
 $GLP_PASS->configure(qw(gnu_getopt no_ignore_case auto_abbrev pass_through));
 
 our %PATH2CFG; # persistent for socket daemon
-our $MDIR2CFGPATH; # /path/to/maildir => { /path/to/config => undef }
+our $MDIR2CFGPATH; # /path/to/maildir => { /path/to/config => [ ino watches ] }
 
 # TBD: this is a documentation mechanism to show a subcommand
 # (may) pass options through to another command:
@@ -820,6 +820,8 @@ sub _lei_cfg ($;$) {
 		}
 	}
 	$self->{cfg} = $PATH2CFG{$f} = $cfg;
+	refresh_watches($self);
+	$cfg;
 }
 
 sub _lei_store ($;$) {
@@ -1353,35 +1355,61 @@ sub watch_state_ok ($) {
 	$state =~ /\Apause|(?:import|index|tag)-(?:ro|rw)\z/;
 }
 
+sub cancel_maildir_watch ($$) {
+	my ($d, $cfg_f) = @_;
+	my $w = delete $MDIR2CFGPATH->{$d}->{$cfg_f};
+	scalar(keys %{$MDIR2CFGPATH->{$d}}) or
+		delete $MDIR2CFGPATH->{$d};
+	for my $x (@{$w // []}) { $x->cancel }
+}
+
 sub refresh_watches {
 	my ($lei) = @_;
 	my $cfg = _lei_cfg($lei) or return;
-	$cfg->{-env} //= { %{$lei->{env}}, PWD => '/' }; # for cfg2lei
+	my $old = $cfg->{-watches};
 	my $watches = $cfg->{-watches} //= {};
-	require PublicInbox::LeiWatch;
+	my %seen;
+	my $cfg_f = $cfg->{'-f'};
 	for my $w (grep(/\Awatch\..+\.state\z/, keys %$cfg)) {
 		my $url = substr($w, length('watch.'), -length('.state'));
-		my $lw = $watches->{$w} //= PublicInbox::LeiWatch->new($url);
+		require PublicInbox::LeiWatch;
+		my $lw = $watches->{$url} //= PublicInbox::LeiWatch->new($url);
+		$seen{$url} = undef;
 		my $state = $cfg->get_1("watch.$url", 'state');
 		if (!watch_state_ok($state)) {
 			$lei->err("watch.$url.state=$state not supported");
 			next;
 		}
-		my $f = $cfg->{'-f'};
 		if ($url =~ /\Amaildir:(.+)/i) {
 			my $d = File::Spec->canonpath($1);
 			if ($state eq 'pause') {
-				delete $MDIR2CFGPATH->{$d}->{$f};
-				scalar(keys %{$MDIR2CFGPATH->{$d}}) or
-					delete $MDIR2CFGPATH->{$d};
-			} elsif (!exists($MDIR2CFGPATH->{$d}->{$f})) {
-				$dir_idle->add_watches(["$d/cur", "$d/new"], 1);
-				$MDIR2CFGPATH->{$d}->{$f} = undef;
+				cancel_maildir_watch($d, $cfg_f);
+			} elsif (!exists($MDIR2CFGPATH->{$d}->{$cfg_f})) {
+				my @w = $dir_idle->add_watches(
+						["$d/cur", "$d/new"], 1);
+				push @{$MDIR2CFGPATH->{$d}->{$cfg_f}}, @w if @w;
 			}
 		} else { # TODO: imap/nntp/jmap
 			$lei->child_error(1,
 				"E: watch $url not supported, yet");
 		}
+	}
+	if ($old) { # cull old non-existent entries
+		for my $url (keys %$old) {
+			next if exists $seen{$url};
+			delete $old->{$url};
+			if ($url =~ /\Amaildir:(.+)/i) {
+				my $d = File::Spec->canonpath($1);
+				cancel_maildir_watch($d, $cfg_f);
+			} else { # TODO: imap/nntp/jmap
+				$lei->child_error(1, "E: watch $url TODO");
+			}
+		}
+	}
+	if (scalar keys %$watches) {
+		$cfg->{-env} //= { %{$lei->{env}}, PWD => '/' }; # for cfg2lei
+	} else {
+		delete $cfg->{-watches};
 	}
 }
 
