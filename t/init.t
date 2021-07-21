@@ -48,6 +48,40 @@ sub quiet_fail {
 	is($? >> 8, 255, 'got expected exit code on lock failure');
 	ok(unlink("$cfgfile.lock"),
 		'-init did not unlink lock on failure');
+
+	my @init_args = ('i', "$tmpdir/i",
+		   qw(http://example.com/i i@example.com));
+	$cmd = [ qw(-init -c .bogus=val), @init_args ];
+	quiet_fail($cmd, 'invalid -c KEY=VALUE fails');
+	$cmd = [ qw(-init -c .bogus=val), @init_args ];
+	quiet_fail($cmd, '-c KEY-only fails');
+	$cmd = [ qw(-init -c address=clist@example.com), @init_args ];
+	quiet_fail($cmd, '-c address=CONFLICTING-VALUE fails');
+
+	$cmd = [ qw(-init -c no=problem -c no=problemo), @init_args ];
+	ok(run_script($cmd), '-c KEY=VALUE runs');
+	my $env = { GIT_CONFIG => "$ENV{PI_DIR}/config" };
+	chomp(my @v = xqx([qw(git config --get-all publicinbox.i.no)], $env));
+	is_deeply(\@v, [ qw(problem problemo) ]) or xbail(\@v);
+
+	ok(run_script($cmd), '-c KEY=VALUE runs idempotently');
+	chomp(my @v2 = xqx([qw(git config --get-all publicinbox.i.no)], $env));
+	is_deeply(\@v, \@v2, 'nothing repeated') or xbail(\@v2);
+
+	ok(run_script([@$cmd, '-c', 'no=more']), '-c KEY=VALUE addendum');
+	chomp(@v = xqx([qw(git config --get-all publicinbox.i.no)], $env));
+	is_deeply(\@v, [ qw(problem problemo more) ]) or xbail(\@v);
+
+
+	ok(run_script([@$cmd, '-c', 'no=problem']), '-c KEY=VALUE repeated');
+	chomp(@v = xqx([qw(git config --get-all publicinbox.i.no)], $env));
+	is_deeply(\@v, [ qw(problem problemo more) ]) or xbail(\@v);
+
+	ok(run_script([@$cmd, '-c', 'address=j@example.com']),
+		'-c KEY=VALUE address');
+	chomp(@v = xqx([qw(git config --get-all publicinbox.i.address)], $env));
+	is_deeply(\@v, [ qw(i@example.com j@example.com) ],
+		'extra address added via -c KEY=VALUE');
 }
 {
 	my $env = { PI_DIR => "$tmpdir/.public-inbox/" };

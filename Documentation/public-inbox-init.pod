@@ -60,6 +60,13 @@ Available in public-inbox 1.6.0+.
 
 Default: none.
 
+=item -c KEY=VALUE
+
+Allow setting arbitrary configs as C<publicinbox.$NAME.$KEY>.
+This is idempotent for the same C<VALUE>, but allows setting
+multiple values for keys such as C<publicinbox.$NAME.url> and
+C<publicinbox.$NAME.watch>.
+
 =item --skip-artnum
 
 This option allows archivists to publish incomplete archives

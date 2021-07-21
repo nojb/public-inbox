@@ -22,6 +22,7 @@ options:
   -V2                 use scalable public-inbox-v2-format(5)
   -L LEVEL            index level `basic', `medium', or `full' (default: full)
   --ng NEWSGROUP      set NNTP newsgroup name
+  -c KEY=VALUE        set additional config option(s)
   --skip-artnum=NUM   NNTP article numbers to skip
   --skip-epoch=NUM    epochs to skip (-V2 only)
   -j JOBS             number of indexing jobs (-V2 only), (default: 4)
@@ -35,6 +36,7 @@ PublicInbox::Admin::require_or_die('-base');
 my ($version, $indexlevel, $skip_epoch, $skip_artnum, $jobs, $show_help);
 my $skip_docdata;
 my $ng = '';
+my @c_extra;
 my %opts = (
 	'V|version=i' => \$version,
 	'L|index-level|indexlevel=s' => \$indexlevel,
@@ -44,6 +46,7 @@ my %opts = (
 	'ng|newsgroup=s' => \$ng,
 	'skip-docdata' => \$skip_docdata,
 	'help|h' => \$show_help,
+	'c=s@' => \@c_extra,
 );
 my $usage_cb = sub {
 	print STDERR $help;
@@ -51,12 +54,37 @@ my $usage_cb = sub {
 };
 GetOptions(%opts) or $usage_cb->();
 if ($show_help) { print $help; exit 0 };
-PublicInbox::Admin::indexlevel_ok_or_die($indexlevel) if defined $indexlevel;
 my $name = shift @ARGV or $usage_cb->();
 my $inboxdir = shift @ARGV or $usage_cb->();
 my $http_url = shift @ARGV or $usage_cb->();
 my (@address) = @ARGV;
 @address or $usage_cb->();
+
+@c_extra = map {
+	my ($k, $v) = split(/=/, $_, 2);
+	defined($v) or die "Usage: -c KEY=VALUE\n";
+	$k =~ /\A[a-z]+\z/i or die "$k contains invalid characters\n";
+	$k = lc($k);
+	if ($k eq 'newsgroup') {
+		die "newsgroup already set ($ng)\n" if $ng ne '';
+		$ng = $v;
+		();
+	} elsif ($k eq 'address') {
+		push @address, $v; # for conflict checking
+		();
+	} elsif ($k =~ /\A(?:inboxdir|mainrepo)\z/) {
+		die "$k not allowed via -c $_\n"
+	} elsif ($k eq 'indexlevel') {
+		defined($indexlevel) and
+			die "indexlevel already set ($indexlevel)\n";
+		$indexlevel = $v;
+		();
+	} else {
+		$_
+	}
+} @c_extra;
+
+PublicInbox::Admin::indexlevel_ok_or_die($indexlevel) if defined $indexlevel;
 
 $ng =~ m![^A-Za-z0-9/_\.\-\~\@\+\=:]! and
 	die "--newsgroup `$ng' is not valid\n";
@@ -200,6 +228,12 @@ if (defined($indexlevel)) {
 	run_die([@x, "$pfx.indexlevel", $indexlevel]);
 }
 run_die([@x, "$pfx.newsgroup", $ng]) if $ng ne '';
+
+for my $kv (@c_extra) {
+	my ($k, $v) = split(/=/, $kv, 2);
+	# --fixed-value for idempotent invocations
+	run_die([@x, qw(--replace-all --fixed-value), "$pfx.$k", $v, $v]);
+}
 
 # needed for git prior to v2.1.0
 if (defined $perm) {
