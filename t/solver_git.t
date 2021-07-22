@@ -84,7 +84,7 @@ index 15ac20eb..771486c4
 @@ -1,13 +1,12 @@
  #!perl -w
 EOM
-	ok(index($lei_out, $exp) >= 0,
+	like($lei_out, qr/\Q$exp\E/,
 		'preserve mode, regen header + context from -U0 patch');
 	my $e = { GIT_DIR => "$ENV{HOME}/.local/share/lei/store/ALL.git" };
 	my @x = xqx([qw(git cat-file --batch-all-objects --batch-check)], $e);
