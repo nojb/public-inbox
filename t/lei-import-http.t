@@ -17,6 +17,7 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	my $url = "http://$host_port/t2";
 	for my $p (qw(bogus@x/t.mbox.gz bogus@x/raw ?q=noresultever)) {
 		ok(!lei('import', "$url/$p"), "/$p fails properly");
+		like($lei_err, qr/curl.*404/, 'got curl 404');
 	}
 	for my $p (qw(/ /T/ /t/ /t.atom)) {
 		ok(!lei('import', "$url/m\@example$p"), "/$p fails");
@@ -42,5 +43,6 @@ test_lei({ tmpdir => $tmpdir }, sub {
 
 	ok(!lei(qw(import --mail-sync), "$url/x\@example.com/raw"),
 		'--mail-sync fails on HTTP');
+	like($lei_err, qr/--mail-sync/, 'error message notes --mail-sync');
 });
 done_testing;

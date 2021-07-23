@@ -27,6 +27,7 @@ test_lei({ tmpdir => $tmpdir }, sub {
 
 	ok(!lei('add-external', $t2, '--mirror', "$http/t2/"),
 		'--mirror fails if reused') or diag "$lei_err.$lei_out = $?";
+	like($lei_err, qr/\Q$t2\E' already exists/, 'destination in error');
 
 	ok(!lei('add-external', "$home/t2\nnewline", '--mirror', "$http/t2/"),
 		'--mirror fails on newline');
@@ -37,13 +38,16 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	unlike($lei_out, qr!\Qnewline\E!, 'newline entry not added');
 
 	ok(!lei('add-external', "$t2-fail", '-Lmedium'), '--mirror v2');
+	like($lei_err, qr/not a directory/, 'non-directory noted');
 	ok(!-d "$t2-fail", 'destination not created on failure');
 	lei_ok('ls-external');
 	unlike($lei_out, qr!\Q$t2-fail\E!, 'not added to ls-external');
 
 	my %phail = (
 		HTTPS => 'https://public-inbox.org/' . 'phail',
-		ONION => 'http://7fh6tueqddpjyxjmgtdiueylzoqt6pt7hec3pukyptlmohoowvhde4yd.onion/' . 'phail,'
+		ONION =>
+'http://7fh6tueqddpjyxjmgtdiueylzoqt6pt7hec3pukyptlmohoowvhde4yd.onion/' .
+'phail,'
 	);
 	for my $t (qw(HTTPS ONION)) {
 	SKIP: {
@@ -56,6 +60,7 @@ test_lei({ tmpdir => $tmpdir }, sub {
 		is($? >> 8, 22, 'curl 404');
 		ok(!-d $dir, 'directory not created');
 		unlike($lei_err, qr/# mirrored/, 'no success message');
+		like($lei_err, qr/curl.*404/, "curl 404 shown for $k");
 	} # SKIP
 	} # for
 });

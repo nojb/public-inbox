@@ -69,6 +69,7 @@ test_lei(sub {
 	ok(-s "$home/mbcl2" > $size, 'size increased after up');
 
 	ok(!lei(qw(up -q), $home), 'up fails w/o --save');
+	like($lei_err, qr/--save was not used/, 'error noted --save');
 
 	lei_ok qw(ls-search); my @d = split(/\n/, $lei_out);
 	lei_ok qw(ls-search -z); my @z = split(/\0/, $lei_out);
@@ -115,6 +116,8 @@ test_lei(sub {
 	lei_ok(qw(up --all=local));
 
 	ok(!lei(qw(forget-search), "$home/bogus"), 'bogus forget');
+	like($lei_err, qr/--save was not used/, 'error noted --save');
+
 	lei_ok qw(_complete lei forget-search);
 	like($lei_out, qr/mbrd-aug/, 'forget-search completion');
 	lei_ok(qw(forget-search -v), "$home/mbrd-aug");
@@ -124,6 +127,7 @@ test_lei(sub {
 	unlike($lei_out, qr/mbrd-aug/,
 		'forget-search completion cleared after forget');
 	ok(!lei('up', "$home/mbrd-aug"), 'lei up fails after forget');
+	like($lei_err, qr/--save was not used/, 'error noted --save');
 
 	# dedupe=mid
 	my $o = "$home/dd-mid";

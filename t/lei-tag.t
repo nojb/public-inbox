@@ -32,8 +32,14 @@ test_lei(sub {
 	lei_ok(qw(ls-label)); is($lei_out, "urgent\n", 'label found');
 	ok(!lei(qw(tag -F eml t/utf8.eml +kw:seeen)), 'bad kw rejected');
 	like($lei_err, qr/`seeen' is not one of/, 'got helpful error');
+
 	ok(!lei(qw(tag -F eml t/utf8.eml +k:seen)), 'bad prefix rejected');
+	like($lei_err, qr/Unable to handle.*\Q+k:seen\E/, 'bad prefix noted');
+
 	ok(!lei(qw(tag -F eml t/utf8.eml)), 'no keywords');
+	like($lei_err, qr/no keywords or labels specified/,
+		'lack of kw/L noted');
+
 	my $mb = "$ENV{HOME}/mb";
 	my $md = "$ENV{HOME}/md";
 	lei_ok(qw(q m:testmessage@example.com -o), "mboxrd:$mb");
@@ -78,7 +84,7 @@ test_lei(sub {
 	lei_ok(qw(ls-label));
 	is($lei_out, "nope\nqp\nurgent\n", 'ls-label shows qp');
 
-	lei_ok qw(tag -F eml t/utf8.eml +L:INBOX +L:x); diag $lei_err;
+	lei_ok qw(tag -F eml t/utf8.eml +L:INBOX +L:x);
 	lei_ok qw(q m:testmessage@example.com);
 	$check_kw->([qw(answered seen)], L => [qw(INBOX nope urgent x)]);
 	lei_ok(qw(ls-label));

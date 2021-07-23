@@ -48,6 +48,7 @@ SKIP: {
 	my $cat = popen_rd(['cat', $o]);
 	ok(!lei(qw(q --import-before bogus -o), "mboxrd:$o"),
 		'--import-before fails on non-seekable output');
+	like($lei_err, qr/not seekable/, 'unseekable noted in error');
 	is(do { local $/; <$cat> }, '', 'no output on FIFO');
 	close $cat;
 	$cat = popen_rd(['cat', $o]);

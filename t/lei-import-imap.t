@@ -43,6 +43,7 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	$url = $u;
 	$u =~ s/;UIDVALIDITY=(\d+)\s*/;UIDVALIDITY=9$1/s;
 	ok(!lei('import', $u), 'UIDVALIDITY mismatch in URL rejected');
+	like($lei_err, qr/UIDVALIDITY mismatch/, 'mismatch noted');
 
 	lei_ok('inspect', $url);
 	my $inspect = json_utf8->decode($lei_out);

@@ -43,6 +43,7 @@ test_lei({tmpdir => "$tmpdir/blob"}, sub {
 	is($lei_out, $patch2->as_string, 'blob matches');
 	ok(!lei('blob', '--mail', '69df7d5', '-I', $ibx->{inboxdir}),
 		"--mail won't run solver");
+	like($lei_err, qr/\b69df7d5\b/, 'OID in error by git(1)');
 
 	lei_ok('blob', '69df7d5', '-I', $ibx->{inboxdir});
 	is(git_sha(1, \$lei_out)->hexdigest, $expect, 'blob contents output');
@@ -51,6 +52,8 @@ test_lei({tmpdir => "$tmpdir/blob"}, sub {
 	is($lei_out, $prev, '--no-mail works');
 	ok(!lei(qw(blob -I), $ibx->{inboxdir}, $non_existent),
 			'non-existent blob fails');
+	my $abbrev = substr($non_existent, 0, 7);
+	like($lei_err, qr/could not find $abbrev/, 'failed abbreviation noted');
 	SKIP: {
 		skip '/.git exists', 1 if -e '/.git';
 		lei_ok(qw(-C / blob 69df7d5 -I), $ibx->{inboxdir},
@@ -59,9 +62,13 @@ test_lei({tmpdir => "$tmpdir/blob"}, sub {
 
 		ok(!lei(qw(-C / blob --no-cwd 69df7d5 -I), $ibx->{inboxdir}),
 			'--no-cwd works');
+		like($lei_err, qr/no --git-dir to try/,
+			'lack of --git-dir noted');
 
 		ok(!lei(qw(-C / blob -I), $ibx->{inboxdir}, $non_existent),
 			'non-existent blob fails');
+		like($lei_err, qr/no --git-dir to try/,
+			'lack of --git-dir noted');
 	}
 
 	# fallbacks

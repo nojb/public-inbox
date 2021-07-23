@@ -211,6 +211,8 @@ test_lei(sub {
 		like($lei_out, qr/use boolean prefix/, '--stdin on pipe');
 	}
 	ok(!lei(qw(q -q --stdin s:use)), "--stdin and argv don't mix");
+	like($lei_err, qr/no query allowed.*--stdin/,
+		'--stdin conflict error message');
 
 	for my $fmt (qw(ldjson ndjson jsonl)) {
 		lei_ok('q', '-f', $fmt, 's:use boolean prefix');
@@ -250,6 +252,8 @@ test_lei(sub {
 	}
 	ok(!lei('q', '-o', "$home/mbox", 's:nope'),
 			'fails if mbox format unspecified');
+	like($lei_err, qr/unable to determine mbox/, 'mbox-related message');
+
 	ok(!lei(qw(q --no-local s:see)), '--no-local');
 	is($? >> 8, 1, 'proper exit code');
 	like($lei_err, qr/no local or remote.+? to search/, 'no inbox');

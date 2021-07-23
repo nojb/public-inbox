@@ -54,6 +54,7 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	ok(-f $o && -s _, '--lock=none respected') or diag $lei_err;
 	unlink $o or xbail("unlink $o $! cwd=".Cwd::getcwd());
 	ok(!lei(@cmd, '--lock=dotlock,timeout=0.000001'), 'dotlock fails');
+	like($lei_err, qr/dotlock timeout/, 'timeout noted');
 	ok(-f $o && !-s _, 'nothing output on lock failure');
 	unlink "$o.lock" or BAIL_OUT $!;
 	lei_ok(@cmd, '--lock=dotlock,timeout=0.000001',
