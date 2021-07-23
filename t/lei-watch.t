@@ -2,7 +2,7 @@
 # Copyright all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict; use v5.10.1; use PublicInbox::TestCommon;
-use File::Path qw(make_path);
+use File::Path qw(make_path remove_tree);
 require_mods('lei');
 my $have_fast_inotify = eval { require Linux::Inotify2 } ||
 	eval { require IO::KQueue };
@@ -71,9 +71,19 @@ test_lei(sub {
 			'inotify has Maildir watches');
 	}
 
-	is(xsys(qw(git config -f), $cfg_f,
-			'--remove-section', "watch.maildir:$md"),
-		0, 'unset config state');
+	lei_ok 'rm-watch', $md;
+	lei_ok 'ls-watch', \'refresh watches';
+	is($lei_out, '', 'no watches left');
+
+	lei_ok 'add-watch', $md2;
+	remove_tree($md2);
+	lei_ok 'rm-watch', "maildir:".$md2, \'with maildir: prefix';
+	lei_ok 'ls-watch', \'refresh watches';
+	is($lei_out, '', 'no watches left');
+
+	lei_ok 'add-watch', $md;
+	remove_tree($md);
+	lei_ok 'rm-watch', $md, \'absolute path w/ missing dir';
 	lei_ok 'ls-watch', \'refresh watches';
 	is($lei_out, '', 'no watches left');
 

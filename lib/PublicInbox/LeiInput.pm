@@ -270,6 +270,10 @@ sub prepare_inputs { # returns undef on error
 				$sync and $input = 'maildir:'.
 						$lei->abs_path($input_path);
 				push @md, $input;
+			} elsif ($self->{missing_ok} && !-e _) {
+				# for "lei rm-watch" on missing Maildir
+				$sync and $input = 'maildir:'.
+						$lei->abs_path($input_path);
 			} else {
 				return $lei->fail("Unable to handle $input");
 			}
@@ -305,6 +309,10 @@ $input is `eml', not --in-format=$in_fmt
 					push @{$sync->{ok}}, $input;
 				}
 				push @md, $input;
+			} elsif ($self->{missing_ok} && !-e $input) {
+				# for lei rm-watch
+				$sync and $input = 'maildir:'.
+						$lei->abs_path($input);
 			} else {
 				return $lei->fail("Unable to handle $input")
 			}

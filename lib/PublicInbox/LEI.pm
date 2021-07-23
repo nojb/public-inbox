@@ -232,8 +232,10 @@ our %CMD = ( # sorted in order of importance/use:
 	'remove imported messages from IMAP, Maildirs, and MH',
 	qw(exact! all jobs:i indexed), @c_opt ],
 
-'add-watch' => [ 'LOCATION', 'watch for new messages and flag changes',
+'add-watch' => [ 'LOCATION...', 'watch for new messages and flag changes',
 	qw(poll-interval=s state=s recursive|r), @c_opt ],
+'rm-watch' => [ 'LOCATION...', 'remove specified watch(es)',
+	qw(recursive|r), @c_opt ],
 'ls-watch' => [ '[FILTER...]', 'list active watches with numbers and status',
 		qw(l z|0), @c_opt ],
 'pause-watch' => [ '[WATCH_NUMBER_OR_FILTER]', qw(all local remote), @c_opt ],
