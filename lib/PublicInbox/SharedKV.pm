@@ -154,6 +154,13 @@ SELECT COUNT(k) FROM kv
 	$sth->fetchrow_array;
 }
 
+# faster than ->count due to how SQLite works
+sub has_entries {
+	my ($self) = @_;
+	my @n = $self->{dbh}->selectrow_array('SELECT k FROM kv LIMIT 1');
+	scalar(@n) ? 1 : undef;
+}
+
 sub dbh_release {
 	my ($self, $lock) = @_;
 	my $dbh = delete $self->{dbh} or return;

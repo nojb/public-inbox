@@ -504,7 +504,7 @@ sub do_query {
 		my $F_SETPIPE_SZ = $^O eq 'linux' ? 1031 : undef;
 		if ($l2m->{-wq_nr_workers} > 1 &&
 				$l2m->{base_type} =~ /\A(?:maildir|mbox)\z/) {
-			# setup two barriers to coordinate dedupe_nr
+			# setup two barriers to coordinate ->has_entries
 			# between l2m workers
 			pipe(my ($a_r, $a_w)) or die "pipe: $!";
 			fcntl($a_r, $F_SETPIPE_SZ, 4096) if $F_SETPIPE_SZ;

@@ -315,11 +315,11 @@ E: rename($dir_old, $dir_new) error: $!
 EOM
 }
 
-# cf. LeiDedupe->dedupe_nr
-sub dedupe_nr {
+# cf. LeiDedupe->has_entries
+sub has_entries {
 	my $oidx = $_[0]->{oidx} // die 'BUG: no {oidx}';
-	my @n = $oidx->{dbh}->selectrow_array('SELECT COUNT(*) FROM over');
-	$n[0];
+	my @n = $oidx->{dbh}->selectrow_array('SELECT num FROM over LIMIT 1');
+	scalar(@n) ? 1 : undef;
 }
 
 no warnings 'once';

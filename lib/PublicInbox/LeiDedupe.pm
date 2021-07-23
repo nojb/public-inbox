@@ -127,10 +127,9 @@ sub pause_dedupe {
 	delete($skv->{dbh}) if $skv;
 }
 
-sub dedupe_nr {
+sub has_entries {
 	my $skv = $_[0]->[0] or return undef;
-	my @n = $skv->count;
-	$n[0];
+	$skv->has_entries;
 }
 
 1;

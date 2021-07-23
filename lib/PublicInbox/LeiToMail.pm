@@ -198,7 +198,7 @@ sub _mbox_write_cb ($$) {
 	my $dedupe = $lei->{dedupe};
 	$dedupe->prepare_dedupe;
 	my $lse = $lei->{lse}; # may be undef
-	my $set_recent = $dedupe->dedupe_nr;
+	my $set_recent = $dedupe->has_entries;
 	sub { # for git_to_mail
 		my ($buf, $smsg, $eml) = @_;
 		$eml //= PublicInbox::Eml->new($buf);
@@ -293,7 +293,7 @@ sub _maildir_write_cb ($$) {
 	# Favor cur/ and only write to new/ when augmenting.  This
 	# saves MUAs from having to do a mass rename when the initial
 	# search result set is huge.
-	my $dir = $dedupe && $dedupe->dedupe_nr ? 'new/' : 'cur/';
+	my $dir = $dedupe && $dedupe->has_entries ? 'new/' : 'cur/';
 	sub { # for git_to_mail
 		my ($bref, $smsg, $eml) = @_;
 		$dst // return $lei->fail; # dst may be undef-ed in last run
