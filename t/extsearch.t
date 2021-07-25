@@ -411,4 +411,15 @@ if ('dedupe + dry-run') {
 		'--dry-run alone fails');
 }
 
+for my $j (1, 3, 6) {
+	my $o = { 2 => \(my $err = '') };
+	my $d = "$home/extindex-j$j";
+	ok(run_script(['-extindex', "-j$j", '--all', $d], undef, $o),
+		"init with -j$j");
+	my $max = $j - 2;
+	$max = 0 if $max < 0;
+	my @dirs = glob("$d/ei*/?");
+	like($dirs[-1], qr!/ei[0-9]+/$max\z!, '-j works');
+}
+
 done_testing;

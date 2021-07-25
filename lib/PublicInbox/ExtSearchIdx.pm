@@ -52,7 +52,8 @@ sub new {
 		parallel => 1,
 		lock_path => "$dir/ei.lock",
 	}, __PACKAGE__;
-	$self->{shards} = $self->count_shards || nproc_shards($opt->{creat});
+	$self->{shards} = $self->count_shards ||
+		nproc_shards({ nproc => $opt->{jobs} });
 	my $oidx = PublicInbox::OverIdx->new("$self->{xpfx}/over.sqlite3");
 	$self->{-no_fsync} = $oidx->{-no_fsync} = 1 if !$opt->{fsync};
 	$self->{oidx} = $oidx;
