@@ -937,7 +937,9 @@ EOS
 			};
 			$self->git->cat_async($smsg->{blob}, \&dd_smsg, $dd);
 		}
-		# need to wait on every single one
+		# need to wait on every single one @smsg contents can get
+		# invalidated inside dd_smsg for messages with multiple
+		# Message-IDs.
 		$self->git->async_wait_all;
 
 		if (checkpoint_due($sync)) {
