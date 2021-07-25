@@ -14,10 +14,11 @@ sub inspect_blob ($$) {
 	my ($lei, $oidhex) = @_;
 	my $ent = {};
 	if (my $lse = $lei->{lse}) {
-		my @docids = $lse ? $lse->over->blob_exists($oidhex) : ();
+		my $oidbin = pack('H*', $oidhex);
+		my @docids = $lse ? $lse->over->oidbin_exists($oidbin) : ();
 		$ent->{'lei/store'} = \@docids if @docids;
 		my $lms = $lse->lms;
-		if (my $loc = $lms ? $lms->locations_for($oidhex) : undef) {
+		if (my $loc = $lms ? $lms->locations_for($oidbin) : undef) {
 			$ent->{'mail-sync'} = $loc;
 		}
 	}

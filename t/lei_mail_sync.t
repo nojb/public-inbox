@@ -24,7 +24,7 @@ is_deeply([$ro->folders($imap)], [$imap], 'IMAP folder with full GLOB');
 is_deeply([$ro->folders('imaps://bob@[::1]/INBOX')], [$imap],
 		'IMAP folder with partial GLOB');
 
-is_deeply($ro->locations_for('deadbeef'),
+is_deeply($ro->locations_for("\xde\xad\xbe\xef"),
 	{ $imap => [ 1 ] }, 'locations_for w/ imap');
 
 my $maildir = 'maildir:/home/user/md';
@@ -33,7 +33,7 @@ $lms->lms_begin;
 ok($lms->set_src('deadbeef', $maildir, \$fname), 'set Maildir once');
 ok($lms->set_src('deadbeef', $maildir, \$fname) == 0, 'set Maildir again');
 $lms->lms_commit;
-is_deeply($ro->locations_for('deadbeef'),
+is_deeply($ro->locations_for("\xde\xad\xbe\xef"),
 	{ $imap => [ 1 ], $maildir => [ $fname ] },
 	'locations_for w/ maildir + imap');
 

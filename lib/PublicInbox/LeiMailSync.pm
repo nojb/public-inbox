@@ -206,16 +206,16 @@ SELECT $op(uid) FROM blob2num WHERE fid = ?
 
 # returns a { location => [ list-of-ids-or-names ] } mapping
 sub locations_for {
-	my ($self, $oidhex) = @_;
+	my ($self, $oidbin) = @_;
 	my ($fid, $sth, $id, %fid2id);
 	my $dbh = $self->{dbh} //= dbh_new($self);
 	$sth = $dbh->prepare('SELECT fid,uid FROM blob2num WHERE oidbin = ?');
-	$sth->execute(pack('H*', $oidhex));
+	$sth->execute($oidbin);
 	while (my ($fid, $uid) = $sth->fetchrow_array) {
 		push @{$fid2id{$fid}}, $uid;
 	}
 	$sth = $dbh->prepare('SELECT fid,name FROM blob2name WHERE oidbin = ?');
-	$sth->execute(pack('H*', $oidhex));
+	$sth->execute($oidbin);
 	while (my ($fid, $name) = $sth->fetchrow_array) {
 		push @{$fid2id{$fid}}, $name;
 	}
@@ -225,6 +225,7 @@ sub locations_for {
 		$sth->execute($fid);
 		my ($loc) = $sth->fetchrow_array;
 		unless (defined $loc) {
+			my $oidhex = unpack('H*', $oidbin);
 			warn "E: fid=$fid for $oidhex unknown:\n", map {
 					'E: '.(ref() ? $$_ : "#$_")."\n";
 				} @$ids;
