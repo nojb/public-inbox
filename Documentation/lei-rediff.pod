@@ -24,7 +24,8 @@ supported.
 
 =item --stdin
 
-Read message from stdin.
+Read message from stdin.  This is implicit if no arguments are given
+and stdin is a pipe or regular file.
 
 =item --git-dir=DIR
 

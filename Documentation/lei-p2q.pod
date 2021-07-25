@@ -48,7 +48,8 @@ Default: C<dfpost7>
 
 =item --stdin
 
-Read patch from stdin.
+Read message from stdin.  This is implicit if no arguments are given
+and stdin is a pipe or regular file.
 
 =item --debug
 
