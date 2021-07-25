@@ -784,16 +784,16 @@ ORDER BY docid,xnum ASC LIMIT 10000
 
 			$fetching = $min = $docid;
 			my $smsg = $ibx->over->get_art($xnum);
-			my $oidhex = unpack('H*', $oidbin);
 			my $err;
 			if (!$smsg) {
 				$err = 'stale';
-			} elsif ($smsg->{blob} ne $oidhex) {
+			} elsif (pack('H*', $smsg->{blob}) ne $oidbin) {
 				$err = "mismatch (!= $smsg->{blob})";
 			} else {
 				next; # likely, all good
 			}
 			# current_info already has eidx_key
+			my $oidhex = unpack('H*', $oidbin);
 			warn "$xnum:$oidhex (#$docid): $err\n";
 			my $del = $self->{oidx}->dbh->prepare_cached(<<'');
 DELETE FROM xref3 WHERE ibx_id = ? AND xnum = ? AND oidbin = ?
