@@ -74,7 +74,7 @@ sub inspect_docid ($$;$) {
 	my $data = $doc->get_data;
 	$ent->{docid} = $docid;
 	$ent->{data_length} = length($data);
-	$ent->{description} => $doc->get_description;
+	$ent->{description} = $doc->get_description;
 	$ent->{$_} = $doc->$_ for (qw(termlist_count values_count));
 	my $cur = $doc->termlist_begin;
 	my $end = $doc->termlist_end;
