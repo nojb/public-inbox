@@ -42,9 +42,9 @@ sub _oid_kw { # retry_reopen callback
 }
 
 # returns undef if blob is unknown
-sub oid_keywords {
-	my ($self, $oidhex) = @_;
-	my @num = $self->over->blob_exists($oidhex) or return;
+sub oidbin_keywords {
+	my ($self, $oidbin) = @_;
+	my @num = $self->over->oidbin_exists($oidbin) or return;
 	$self->retry_reopen(\&_oid_kw, \@num);
 }
 

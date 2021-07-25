@@ -10,8 +10,7 @@ use Errno qw(EEXIST ENOENT);
 
 sub export_kw_md { # LeiMailSync->each_src callback
 	my ($oidbin, $id, $self, $mdir) = @_;
-	my $oidhex = unpack('H*', $oidbin);
-	my $sto_kw = $self->{lse}->oid_keywords($oidhex) or return;
+	my $sto_kw = $self->{lse}->oidbin_keywords($oidbin) or return;
 	my $bn = $$id;
 	my ($md_kw, $unknown, @try);
 	if ($bn =~ s/:2,([a-zA-Z]*)\z//) {
@@ -57,13 +56,13 @@ sub export_kw_md { # LeiMailSync->each_src callback
 	# both tries failed
 	my $e = $!;
 	my $orig = '['.join('|', @fail).']';
+	my $oidhex = unpack('H*', $oidbin);
 	$lei->child_error(1, "link($orig, $dst) ($oidhex): $e");
 }
 
 sub export_kw_imap { # LeiMailSync->each_src callback
 	my ($oidbin, $id, $self, $mic) = @_;
-	my $oidhex = unpack('H*', $oidbin);
-	my $sto_kw = $self->{lse}->oid_keywords($oidhex) or return;
+	my $sto_kw = $self->{lse}->oidbin_keywords($oidbin) or return;
 	$self->{imap_mod_kw}->($self->{nwr}, $mic, $id, [ keys %$sto_kw ]);
 }
 
