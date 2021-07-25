@@ -887,23 +887,32 @@ sub dd_smsg { # git->cat_async callback
 	}
 }
 
-sub eidx_dedupe ($$) {
-	my ($self, $sync) = @_;
+sub eidx_dedupe ($$$) {
+	my ($self, $sync, $msgids) = @_;
 	$sync->{dedupe_cull} = 0;
 	my $candidates = 0;
 	my $nr_mid = 0;
 	return unless eidxq_lock_acquire($self);
-	my $iter;
+	my ($iter, $cur_mid);
 	my $min_id = 0;
+	my $idx = 0;
 	local $sync->{-regen_fmt} = "dedupe %u/".$self->{oidx}->max."\n";
 
 	# note: we could write this query more intelligently,
 	# but that causes lock contention with read-only processes
 dedupe_restart:
-	$iter = $self->{oidx}->dbh->prepare(<<EOS);
+	$cur_mid = $msgids->[$idx];
+	if ($cur_mid eq '') { # all Message-IDs
+		$iter = $self->{oidx}->dbh->prepare(<<EOS);
 SELECT mid,id FROM msgid WHERE id > ? ORDER BY id ASC
 EOS
-	$iter->execute($min_id);
+		$iter->execute($min_id);
+	} else {
+		$iter = $self->{oidx}->dbh->prepare(<<EOS);
+SELECT mid,id FROM msgid WHERE mid = ? AND id > ? ORDER BY id ASC
+EOS
+		$iter->execute($cur_mid, $min_id);
+	}
 	while (my ($mid, $id) = $iter->fetchrow_array) {
 		last if $sync->{quit};
 		$self->{current_info} = "dedupe $mid";
@@ -937,6 +946,8 @@ EOS
 			goto dedupe_restart;
 		}
 	}
+	goto dedupe_restart if defined($msgids->[++$idx]);
+
 	my $n = delete $sync->{dedupe_cull};
 	if (my $pr = $sync->{-opt}->{-progress}) {
 		$pr->("culled $n/$candidates candidates ($nr_mid msgids)\n");
@@ -974,9 +985,9 @@ sub eidx_sync { # main entry point
 	for my $ibx (@{ibx_sorted($self)}) {
 		$ibx->{-ibx_id} //= $self->{oidx}->ibx_id($ibx->eidx_key);
 	}
-	if (delete($opt->{dedupe})) {
+	if (my $msgids = delete($opt->{dedupe})) {
 		local $sync->{checkpoint_unlocks} = 1;
-		eidx_dedupe($self, $sync);
+		eidx_dedupe($self, $sync, $msgids);
 	}
 	if (delete($opt->{reindex})) {
 		local $sync->{checkpoint_unlocks} = 1;
