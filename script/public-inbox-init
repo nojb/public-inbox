@@ -231,8 +231,11 @@ run_die([@x, "$pfx.newsgroup", $ng]) if $ng ne '';
 
 for my $kv (@c_extra) {
 	my ($k, $v) = split(/=/, $kv, 2);
-	# --fixed-value for idempotent invocations
-	run_die([@x, qw(--replace-all --fixed-value), "$pfx.$k", $v, $v]);
+	# git 2.30+ has --fixed-value for idempotent invocations,
+	# but that's too new to depend on in 2021.  Perl quotemeta
+	# seems compatible enough for POSIX ERE which git uses
+	my $re = '^'.quotemeta($v).'$';
+	run_die([@x, qw(--replace-all), "$pfx.$k", $v, $re]);
 }
 
 # needed for git prior to v2.1.0
