@@ -896,7 +896,10 @@ sub eidx_dedupe ($$$) {
 	my ($iter, $cur_mid);
 	my $min_id = 0;
 	my $idx = 0;
-	local $sync->{-regen_fmt} = "dedupe %u/".$self->{oidx}->max."\n";
+	my ($max_id) = $self->{oidx}->dbh->selectrow_array(<<EOS);
+SELECT MAX(id) FROM msgid
+EOS
+	local $sync->{-regen_fmt} = "dedupe %u/$max_id\n";
 
 	# note: we could write this query more intelligently,
 	# but that causes lock contention with read-only processes
