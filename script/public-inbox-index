@@ -40,7 +40,7 @@ GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i prune
 		fsync|sync! xapian_only|xapian-only
 		indexlevel|index-level|L=s max_size|max-size=s
 		batch_size|batch-size=s
-		sequential_shard|seq-shard|sequential-shard
+		sequential-shard|seq-shard
 		no-update-extindex update-extindex|E=s@
 		fast-noop|F skip-docdata all help|h))
 	or die $help;
@@ -129,12 +129,12 @@ for my $ibx (@ibxs) {
 		defined(my $v = $cfg->git_bool($s)) or die <<EOL;
 publicInbox.$ibx->{name}.indexSequentialShard not boolean
 EOL
-		$ibx_opt = { %$opt, sequential_shard => $v };
+		$ibx_opt = { %$opt, 'sequential-shard' => $v };
 	}
 	my $nidx = PublicInbox::Admin::index_inbox($ibx, undef, $ibx_opt);
 	last if $ibx_opt->{quit};
 	if (my $copt = $opt->{compact_opt}) {
-		local $copt->{jobs} = 0 if $ibx_opt->{sequential_shard};
+		local $copt->{jobs} = 0 if $ibx_opt->{'sequential-shard'};
 		PublicInbox::Xapcmd::run($ibx, 'compact', $copt);
 	}
 	last if $ibx_opt->{quit};

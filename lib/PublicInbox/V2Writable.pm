@@ -1279,7 +1279,7 @@ sub index_todo ($$$) {
 
 sub xapian_only {
 	my ($self, $opt, $sync, $art_beg) = @_;
-	my $seq = $opt->{sequential_shard};
+	my $seq = $opt->{'sequential-shard'};
 	$art_beg //= 0;
 	local $self->{parallel} = 0 if $seq;
 	$self->idx_init($opt); # acquire lock
@@ -1329,7 +1329,7 @@ sub index_sync {
 	}
 
 	my $pr = $opt->{-progress};
-	my $seq = $opt->{sequential_shard};
+	my $seq = $opt->{'sequential-shard'};
 	my $art_beg; # the NNTP article number we start xapian_only at
 	my $idxlevel = $self->{ibx}->{indexlevel};
 	local $self->{ibx}->{indexlevel} = 'basic' if $seq;

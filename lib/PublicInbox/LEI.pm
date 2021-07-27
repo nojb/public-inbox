@@ -134,7 +134,7 @@ sub ale {
 sub index_opt {
 	# TODO: drop underscore variants everywhere, they're undocumented
 	qw(fsync|sync! jobs|j=i indexlevel|L=s compact
-	max_size|max-size=s sequential_shard|sequential-shard
+	max_size|max-size=s sequential-shard
 	batch_size|batch-size=s skip-docdata)
 }
 
@@ -371,7 +371,7 @@ my %OPTDESC = (
 	'do not index messages larger than SIZE (default: infinity)' ],
 'batch_size|batch-size=s' => [ 'SIZE',
 	'flush changes to OS after given number of bytes (default: 1m)' ],
-'sequential_shard|sequential-shard' =>
+'sequential-shard' =>
 	'index Xapian shards sequentially for slow storage',
 'skip-docdata' =>
 	'drop compatibility w/ public-inbox <1.6 to save ~1.5% space',

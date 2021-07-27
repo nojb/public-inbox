@@ -30,7 +30,7 @@ my $opt = { quiet => -1, compact => 0, fsync => 1 };
 GetOptions($opt, qw(
 	fsync|sync! compact|c reshard|R=i
 	max_size|max-size=s batch_size|batch-size=s
-	sequential_shard|seq-shard|sequential-shard
+	sequential-shard|seq-shard
 	jobs|j=i quiet|q verbose|v
 	blocksize|b=s no-full|n fuller|F
 	all help|h)) or die $help;
@@ -49,7 +49,7 @@ my $idx_env = PublicInbox::Admin::index_prepare($opt, $cfg);
 # know sizes, only doccounts
 $opt->{-idx_env} = $idx_env;
 
-if ($opt->{sequential_shard} && ($opt->{jobs} // 1) > 1) {
+if ($opt->{'sequential-shard'} && ($opt->{jobs} // 1) > 1) {
 	warn "W: --jobs=$opt->{jobs} ignored with --sequential-shard\n";
 	$opt->{jobs} = 0;
 }

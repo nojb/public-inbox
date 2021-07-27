@@ -38,7 +38,7 @@ GetOptions($opt, qw(jobs|j=i index! help|h),
 		qw(verbose|v+ rethread compact|c+ fsync|sync!
 		indexlevel|index-level|L=s max_size|max-size=s
 		batch_size|batch-size=s
-		sequential_shard|sequential-shard|seq-shard
+		sequential-shard|seq-shard
 		)) or die $help;
 if ($opt->{help}) { print $help; exit 0 };
 my $old_dir = shift(@ARGV) // '';

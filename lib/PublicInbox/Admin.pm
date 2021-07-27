@@ -327,9 +327,9 @@ sub index_prepare ($$) {
 	$opt->{batch_size} and
 		$env = { XAPIAN_FLUSH_THRESHOLD => '4294967295' };
 
-	for my $k (qw(sequential_shard)) {
+	for my $k (qw(sequential-shard)) {
 		my $git_key = "publicInbox.index".ucfirst($k);
-		$git_key =~ s/_([a-z])/\U$1/g;
+		$git_key =~ s/-([a-z])/\U$1/g;
 		defined(my $s = $opt->{$k} // $cfg->{lc($git_key)}) or next;
 		defined(my $v = $cfg->git_bool($s))
 					or die "`$git_key=$s' not boolean\n";
