@@ -20,7 +20,7 @@ sub new ($$$) {
 	my ($class, $s, $cb) = @_;
 	setsockopt($s, SOL_SOCKET, SO_KEEPALIVE, 1);
 	setsockopt($s, IPPROTO_TCP, TCP_NODELAY, 1); # ignore errors on non-TCP
-	listen($s, 1024);
+	listen($s, 2**31 - 1); # kernel will clamp
 	my $self = bless { post_accept => $cb }, $class;
 	$self->SUPER::new($s, EPOLLIN|EPOLLET|EPOLLEXCLUSIVE);
 }

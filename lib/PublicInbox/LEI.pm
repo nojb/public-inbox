@@ -1205,7 +1205,6 @@ sub lazy_start {
 	}
 	umask(077) // die("umask(077): $!");
 	bind($listener, $addr) or die "bind($path): $!";
-	listen($listener, 1024) or die "listen: $!";
 	$lk->lock_release;
 	undef $lk;
 	my @st = stat($path) or die "stat($path): $!";
