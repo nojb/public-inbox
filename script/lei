@@ -115,7 +115,6 @@ while (1) {
 	my (@fds) = $recv_cmd->($sock, my $buf, 4096 * 33);
 	if (scalar(@fds) == 1 && !defined($fds[0])) {
 		next if $!{EINTR};
-		last if $!{ECONNRESET};
 		die "recvmsg: $!";
 	}
 	last if $buf eq '';
