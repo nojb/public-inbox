@@ -556,7 +556,7 @@ sub _lei_atfork_child {
 	}
 	close $listener if $listener;
 	undef $listener;
-	undef $dir_idle;
+	$dir_idle->force_close if $dir_idle;
 	%PATH2CFG = ();
 	$MDIR2CFGPATH = {};
 	eval 'no warnings; undef $PublicInbox::LeiNoteEvent::to_flush';

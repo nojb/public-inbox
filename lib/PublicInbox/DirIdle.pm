@@ -84,4 +84,15 @@ sub event_step {
 	warn "$self->{inot}->read err: $@\n" if $@;
 }
 
+sub force_close {
+	my ($self) = @_;
+	my $inot = delete $self->{inot} // return;
+	if ($inot->can('fh')) { # Linux::Inotify2 2.3+
+		close($inot->fh) or warn "CLOSE ERROR: $!";
+	} elsif ($inot->isa('Linux::Inotify2')) {
+		require PublicInbox::LI2Wrap;
+		PublicInbox::LI2Wrap::wrapclose($inot);
+	}
+}
+
 1;
