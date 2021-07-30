@@ -247,7 +247,7 @@ sub index_inbox {
 		return if PublicInbox::Eml::warn_ignore(@_);
 		warn($idx->{current_info}, ': ', @_);
 	};
-	if (ref($ibx) && $ibx->version == 2) {
+	if ($ibx->version == 2) {
 		eval { require PublicInbox::V2Writable };
 		die "v2 requirements not met: $@\n" if $@;
 		$ibx->{-creat_opt}->{nproc} = $jobs;
