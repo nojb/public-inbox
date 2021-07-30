@@ -54,14 +54,14 @@ sub nproc_shards ($) {
 
 sub count_shards ($) {
 	my ($self) = @_;
+	# always load existing shards in case core count changes:
+	# Also, shard count may change while -watch is running
 	if (my $ibx = $self->{ibx}) {
-		# always load existing shards in case core count changes:
-		# Also, shard count may change while -watch is running
 		my $srch = $ibx->search or return 0;
 		delete $ibx->{search};
 		$srch->{nshard} // 0
 	} else { # ExtSearchIdx
-		$self->{nshard} ||= scalar($self->xdb_shards_flat);
+		$self->{nshard} = scalar($self->xdb_shards_flat);
 	}
 }
 

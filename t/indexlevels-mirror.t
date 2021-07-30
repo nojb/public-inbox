@@ -158,7 +158,8 @@ my $import_index_incremental = sub {
 	SKIP: {
 		skip 'xapian-compact missing', 1 if !have_xapian_compact;
 		my $cmd = [ qw(-compact), $mirror ];
-		ok(run_script($cmd, undef, { 2 => \$err}), "compact $level");
+		ok(run_script($cmd, undef, { 2 => \$err}), "compact $level")
+			or diag $err;
 	}
 };
 

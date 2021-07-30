@@ -5,7 +5,7 @@ use strict;
 use v5.10.1;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 my $help = <<EOF; # the following should fit w/o scrolling in 80x24 term:
-usage: public-inbox-xcpdb [options] INBOX_DIR
+usage: public-inbox-xcpdb [options] <INBOX_DIR|EXTINDEX_DIR>
 
   upgrade or reshard Xapian DB(s) used by public-inbox
 
@@ -26,7 +26,7 @@ index options (see public-inbox-index(1) man page for full description):
 
 See public-inbox-xcpdb(1) man page for full documentation.
 EOF
-my $opt = { quiet => -1, compact => 0, fsync => 1 };
+my $opt = { quiet => -1, compact => 0, fsync => 1, -eidx_ok => 1 };
 GetOptions($opt, qw(
 	fsync|sync! compact|c reshard|R=i
 	max_size|max-size=s batch_size|batch-size=s
@@ -41,8 +41,8 @@ PublicInbox::Admin::require_or_die('-search');
 
 require PublicInbox::Config;
 my $cfg = PublicInbox::Config->new;
-my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt, $cfg) or
-	die $help;
+my ($ibxs, $eidxs) = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt, $cfg);
+unless ($ibxs) { print STDERR $help; exit 1 }
 my $idx_env = PublicInbox::Admin::index_prepare($opt, $cfg);
 
 # we only set XAPIAN_FLUSH_THRESHOLD for index, since cpdb doesn't
@@ -56,8 +56,12 @@ if ($opt->{'sequential-shard'} && ($opt->{jobs} // 1) > 1) {
 
 require PublicInbox::InboxWritable;
 require PublicInbox::Xapcmd;
-foreach (@ibxs) {
-	my $ibx = PublicInbox::InboxWritable->new($_);
-	# we rely on --no-renumber to keep docids synched for NNTP
+# we rely on --no-renumber to keep docids synched for NNTP(artnum) + IMAP(UID)
+for my $ibx (@$ibxs) {
+	$ibx = PublicInbox::InboxWritable->new($ibx);
 	PublicInbox::Xapcmd::run($ibx, 'cpdb', $opt);
+}
+
+for my $eidx (@$eidxs) {
+	PublicInbox::Xapcmd::run($eidx, 'cpdb', $opt);
 }

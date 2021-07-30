@@ -422,4 +422,36 @@ for my $j (1, 3, 6) {
 	like($dirs[-1], qr!/ei[0-9]+/$max\z!, '-j works');
 }
 
+SKIP: {
+	my $d = "$home/extindex-j1";
+	my $o = { 2 => \(my $err = '') };
+	ok(run_script([qw(-xcpdb -R4), $d]), 'xcpdb R4');
+	my @dirs = glob("$d/ei*/?");
+	for my $i (0..3) {
+		is(grep(m!/ei[0-9]+/$i\z!, @dirs), 1, "shard [$i] created");
+	}
+	for my $i (4..5) {
+		is(grep(m!/ei[0-9]+/$i\z!, @dirs), 0, "no shard [$i]");
+	}
+
+	ok(run_script([qw(-xcpdb -R2), $d]), 'xcpdb -R2');
+	@dirs = glob("$d/ei*/?");
+	for my $i (0..1) {
+		is(grep(m!/ei[0-9]+/$i\z!, @dirs), 1, "shard [$i] kept");
+	}
+	for my $i (2..3) {
+		is(grep(m!/ei[0-9]+/$i\z!, @dirs), 0, "no shard [$i]");
+	}
+	skip 'xapian-compact missing', 4 unless have_xapian_compact;
+	ok(run_script([qw(-compact), $d], undef, $o), 'compact');
+	# n.b. stderr contains xapian-compact output
+
+	my @d2 = glob("$d/ei*/?");
+	is_deeply(\@d2, \@dirs, 'dirs consistent after compact');
+	ok(run_script([qw(-extindex --dedupe --all), $d]),
+		'--dedupe works after compact');
+	ok(run_script([qw(-extindex --gc), $d], undef, $o),
+		'--gc works after compact');
+}
+
 done_testing;

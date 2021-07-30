@@ -28,6 +28,27 @@ sub setup_signals {
 	};
 }
 
+sub resolve_eidxdir {
+	my ($cd) = @_;
+	my $try = $cd // '.';
+	my $root_dev_ino;
+	while (1) { # favor v2, first
+		if (-f "$try/ei.lock") {
+			return rel2abs_collapsed($try);
+		} elsif (-d $try) {
+			my @try = stat _;
+			$root_dev_ino //= do {
+				my @root = stat('/') or die "stat /: $!\n";
+				"$root[0]\0$root[1]";
+			};
+			return undef if "$try[0]\0$try[1]" eq $root_dev_ino;
+			$try .= '/..'; # continue, cd up
+		} else {
+			die "`$try' is not a directory\n";
+		}
+	}
+}
+
 sub resolve_inboxdir {
 	my ($cd, $ver) = @_;
 	my $try = $cd // '.';
@@ -107,11 +128,24 @@ sub resolve_inboxes ($;$$) {
 		$cfg or die "--all specified, but $cfgfile not readable\n";
 		@$argv and die "--all specified, but directories specified\n";
 	}
-
+	my (@old, @ibxs, @eidx);
+	if ($opt->{-eidx_ok}) {
+		require PublicInbox::ExtSearchIdx;
+		my $i = -1;
+		@$argv = grep {
+			$i++;
+			if (defined(my $ei = resolve_eidxdir($_))) {
+				$ei = PublicInbox::ExtSearchIdx->new($ei, $opt);
+				push @eidx, $ei;
+				undef;
+			} else {
+				1;
+			}
+		} @$argv;
+	}
 	my $min_ver = $opt->{-min_inbox_version} || 0;
 	# lookup inboxes by st_dev + st_ino instead of {inboxdir} pathnames,
 	# pathnames are not unique due to symlinks and bind mounts
-	my (@old, @ibxs);
 	if ($opt->{all}) {
 		$cfg->each_inbox(sub {
 			my ($ibx) = @_;
@@ -161,7 +195,7 @@ sub resolve_inboxes ($;$$) {
 		die "-V$min_ver inboxes not supported by $0\n\t",
 		    join("\n\t", @old), "\n";
 	}
-	@ibxs;
+	$opt->{-eidx_ok} ? (\@ibxs, \@eidx) : @ibxs;
 }
 
 # TODO: make Devel::Peek optional, only used for daemon

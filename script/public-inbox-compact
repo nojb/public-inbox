@@ -4,9 +4,9 @@
 use strict;
 use v5.10.1;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
-my $opt = { compact => 1, -coarse_lock => 1 };
+my $opt = { compact => 1, -coarse_lock => 1, -eidx_ok => 1 };
 my $help = <<EOF; # the following should fit w/o scrolling in 80x24 term:
-usage: public-inbox-compact INBOX_DIR
+usage: public-inbox-compact <INBOX_DIR|EXTINDEX_DIR>
 
   Compact Xapian DBs in an inbox
 
@@ -29,9 +29,13 @@ PublicInbox::Admin::progress_prepare($opt);
 
 require PublicInbox::InboxWritable;
 require PublicInbox::Xapcmd;
-my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt);
-unless (@ibxs) { print STDERR $help; exit 1 }
-foreach (@ibxs) {
-	my $ibx = PublicInbox::InboxWritable->new($_);
+my $cfg = PublicInbox::Config->new;
+my ($ibxs, $eidxs) = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt, $cfg);
+unless ($ibxs) { print STDERR $help; exit 1 }
+for my $ibx (@$ibxs) {
+	$ibx = PublicInbox::InboxWritable->new($ibx);
 	PublicInbox::Xapcmd::run($ibx, 'compact', $opt);
+}
+for my $eidx (@$eidxs) {
+	PublicInbox::Xapcmd::run($eidx, 'compact', $opt);
 }
