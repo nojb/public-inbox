@@ -103,7 +103,6 @@ sub do_xpost ($$) {
 		my $xnum = $req->{xnum};
 		$self->{oidx}->add_xref3($docid, $xnum, $oid, $eidx_key);
 		$idx->ipc_do('add_eidx_info', $docid, $eidx_key, $eml);
-		check_batch_limit($req);
 	} else { # 'd'
 		my $rm_eidx_info;
 		my $nr = $self->{oidx}->remove_xref3($docid, $oid, $eidx_key,
