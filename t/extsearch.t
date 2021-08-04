@@ -86,6 +86,18 @@ if ('with boost') {
 	like($v2[0], qr/\Av2\.example.*?\b\Q$smsg->{blob}\E\b/,
 			'smsg->{blob} respects boost after reindex');
 
+	# high boost added later
+	my $b2 = "$home/extindex-bb";
+	ok(run_script([qw(-extindex), $b2, "$home/v1test"]),
+		'extindex with low boost inbox only');
+	ok(run_script([qw(-extindex), $b2, "$home/v2test"]),
+		'extindex with high boost inbox only');
+	$es = PublicInbox::ExtSearch->new($b2);
+	$smsg = $es->over->get_art(1);
+	$xref3 = $es->over->get_xref3($smsg->{num});
+	like($v2[0], qr/\Av2\.example.*?\b\Q$smsg->{blob}\E\b/,
+		'smsg->{blob} respected boost across 2 index runs');
+
 	xsys([qw(git config --unset publicinbox.v1test.boost)],
 		{ GIT_CONFIG => $cfg_path });
 	xsys([qw(git config --unset publicinbox.v2test.boost)],

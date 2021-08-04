@@ -76,7 +76,7 @@ if ($opt->{gc}) {
 	if ($opt->{all}) {
 		$eidx->attach_config($cfg);
 	} else {
-		$eidx->attach_inbox($_) for @ibxs;
+		$eidx->attach_config($cfg, \@ibxs);
 	}
 	if ($opt->{watch}) {
 		$cfg = undef; # save memory only after SIGHUP
