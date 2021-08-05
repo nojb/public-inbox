@@ -158,7 +158,13 @@ sub mv_src {
 	my $sth = $self->{dbh}->prepare_cached(<<'');
 UPDATE blob2name SET name = ? WHERE fid = ? AND oidbin = ? AND name = ?
 
-	$sth->execute($newbn, $fid, $oidbin, $$id);
+	my $nr = $sth->execute($newbn, $fid, $oidbin, $$id);
+	if ($nr == 0) { # may race with a clear_src, ensure new value exists
+		$sth = $self->{dbh}->prepare_cached(<<'');
+INSERT OR IGNORE INTO blob2name (oidbin, fid, name) VALUES (?, ?, ?)
+
+		$sth->execute($oidbin, $fid, $newbn);
+	}
 }
 
 # read-only, iterates every oidbin + UID or name for a given folder
