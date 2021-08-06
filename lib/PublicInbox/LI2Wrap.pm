@@ -12,6 +12,7 @@ sub wrapclose {
 	my ($inot) = @_;
 	my $fd = $inot->fileno;
 	open my $fh, '<&=', $fd or die "open <&= $fd $!";
+	bless $inot, __PACKAGE__;
 }
 
 sub DESTROY {} # no-op
