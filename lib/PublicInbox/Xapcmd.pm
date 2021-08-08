@@ -406,7 +406,7 @@ sub cpdb ($$) { # cb_spawn callback
 	my $new = $newdir->dirname;
 	my ($src, $cur_shard);
 	my $reshard;
-	PublicInbox::SearchIdx::load_xapian_writable() or die;
+	PublicInbox::SearchIdx::load_xapian_writable();
 	my $XapianDatabase = $PublicInbox::Search::X{Database};
 	if (ref($old) eq 'ARRAY') {
 		($cur_shard) = ($new =~ m!(?:xap|ei)[0-9]+/([0-9]+)\b!);

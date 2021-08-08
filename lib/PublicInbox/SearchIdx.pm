@@ -94,7 +94,7 @@ sub need_xapian ($) { $_[0]->{indexlevel} =~ $xapianlevels }
 sub idx_release {
 	my ($self, $wake) = @_;
 	if (need_xapian($self)) {
-		my $xdb = delete $self->{xdb} or croak 'not acquired';
+		my $xdb = delete $self->{xdb} or croak '{xdb} not acquired';
 		$xdb->close;
 	}
 	$self->lock_release($wake) if $self->{creat};
@@ -103,7 +103,7 @@ sub idx_release {
 
 sub load_xapian_writable () {
 	return 1 if $X->{WritableDatabase};
-	PublicInbox::Search::load_xapian() or return;
+	PublicInbox::Search::load_xapian() or die "failed to load Xapian: $@\n";
 	my $xap = $PublicInbox::Search::Xap;
 	for (qw(Document TermGenerator WritableDatabase)) {
 		$X->{$_} = $xap.'::'.$_;
@@ -783,7 +783,7 @@ sub v1_checkpoint ($$;$) {
 	${$sync->{max}} = $self->{batch_bytes};
 
 	$self->{mm}->{dbh}->commit;
-	my $xdb = need_xapian($self) ? $self->{xdb} : undef;
+	my $xdb = $self->{xdb};
 	if ($newest && $xdb) {
 		my $cur = $xdb->get_metadata('last_commit');
 		if (need_update($self, $cur, $newest)) {
