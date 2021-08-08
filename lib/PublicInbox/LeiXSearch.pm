@@ -32,7 +32,7 @@ sub attach_external {
 	my ($self, $ibxish) = @_; # ibxish = ExtSearch or Inbox
 	my $desc = $ibxish->{inboxdir} // $ibxish->{topdir};
 	my $srch = $ibxish->search or
-		return warn("$desc not indexed for Xapian\n");
+		return warn("$desc not indexed for Xapian ($@ $!)\n");
 	my @shards = $srch->xdb_shards_flat or
 		return warn("$desc has no Xapian shards\n");
 
