@@ -111,8 +111,10 @@ my $app = sub {
 	} elsif ($path eq '/pid') {
 		$code = 200;
 		push @$body, "$$\n";
+	} elsif ($path eq '/url_scheme') {
+		$code = 200;
+		push @$body, $env->{'psgi.url_scheme'}
 	}
-
 	[ $code, $h, $body ]
 };
 

@@ -13,7 +13,7 @@ use PublicInbox::Daemon;
 sub pi_httpd_async { PublicInbox::HTTPD::Async->new(@_) }
 
 sub new {
-	my ($class, $sock, $app) = @_;
+	my ($class, $sock, $app, $client) = @_;
 	my $n = getsockname($sock) or die "not a socket: $sock $!\n";
 	my ($host, $port) = PublicInbox::Daemon::host_with_port($n);
 
@@ -23,7 +23,8 @@ sub new {
 		SCRIPT_NAME => '',
 		'psgi.version' => [ 1, 1 ],
 		'psgi.errors' => \*STDERR,
-		'psgi.url_scheme' => 'http',
+		'psgi.url_scheme' => $client->can('accept_SSL') ?
+					'https' : 'http',
 		'psgi.nonblocking' => Plack::Util::TRUE,
 		'psgi.streaming' => Plack::Util::TRUE,
 		'psgi.run_once'	 => Plack::Util::FALSE,

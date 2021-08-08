@@ -42,9 +42,10 @@ my $refresh = sub {
 };
 
 PublicInbox::Daemon::run('0.0.0.0:8080', $refresh,
-	sub ($$$) { # post_accept
-		my ($client, $addr, $srv) = @_;
+	sub ($$$) { # Listener->{post_accept}
+		my ($client, $addr, $srv, $tls_wrap) = @_;
 		my $fd = fileno($srv);
-		my $h = $httpds{$fd} //= PublicInbox::HTTPD->new($srv, $app);
+		my $h = $httpds{$fd} //=
+			PublicInbox::HTTPD->new($srv, $app, $client);
 		PublicInbox::HTTP->new($client, $addr, $h),
 	});

@@ -53,11 +53,12 @@ for my $args (
 	# normal HTTPS
 	my $c = tcp_connect($https);
 	IO::Socket::SSL->start_SSL($c, %o);
-	ok($c->print("GET /empty HTTP/1.1\r\n\r\nHost: example.com\r\n\r\n"),
-		'wrote HTTP request');
+	$c->print("GET /url_scheme HTTP/1.1\r\n\r\nHost: example.com\r\n\r\n")
+		or xbail "failed to write HTTP request: $!";
 	my $buf = '';
-	sysread($c, $buf, 2007, length($buf)) until $buf =~ /\r\n\r\n/;
+	sysread($c, $buf, 2007, length($buf)) until $buf =~ /\r\n\r\nhttps?/;
 	like($buf, qr!\AHTTP/1\.1 200!, 'read HTTP response');
+	like($buf, qr!\r\nhttps\z!, "psgi.url_scheme is 'https'");
 
 	# HTTPS with bad hostname
 	$c = tcp_connect($https);
