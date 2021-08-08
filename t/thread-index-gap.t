@@ -31,9 +31,9 @@ EOF
 my ($home, $for_destroy) = tmpdir();
 for my $msgs (['orig', reverse @msgs], ['shuffle', shuffle(@msgs)]) {
 	my $desc = shift @$msgs;
-	my $n = "index-cap-$desc";
+	my $n = "index-cap-$desc-basic";
 	# yes, the shuffle case gets memoized by create_inbox, oh well
-	my $ibx = create_inbox $desc, version => 2, indexlevel => 'full',
+	my $ibx = create_inbox $desc, version => 2, indexlevel => 'basic',
 				tmpdir => "$home/$desc", sub {
 		my ($im) = @_;
 		for my $m (@$msgs) {

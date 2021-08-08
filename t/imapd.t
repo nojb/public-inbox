@@ -39,7 +39,8 @@ print $cfgfh <<EOM or BAIL_OUT;
 EOM
 my $eml;
 for my $V (@V) {
-	my $ibx = create_inbox("i$V", tmpdir => "$tmpdir/i$V", version => $V,
+	my $ibx = create_inbox("i$V-$level",
+				tmpdir => "$tmpdir/i$V", version => $V,
 				indexlevel => $level, sub {
 		my ($im) = @_;
 		$im->add($eml //= eml_load('t/utf8.eml')) or BAIL_OUT;
@@ -52,6 +53,7 @@ for my $V (@V) {
 	address = $ibx->{-primary_address};
 	newsgroup = inbox.i$V
 	url = http://example.com/i$V
+	indexlevel = $level
 EOF
 }
 close $cfgfh or BAIL_OUT;
@@ -444,7 +446,7 @@ SKIP: {
 	mkdir "$home/.public-inbox" or BAIL_OUT $!;
 	local $ENV{HOME} = $home;
 	my $name = 'watchimap';
-	my $addr = "i1\@example.com";
+	my $addr = "i1-$level\@example.com";
 	my $url = "http://example.com/i1";
 	my $inboxdir = "$tmpdir/watchimap";
 	my $cmd = ['-init', '-V2', '-Lbasic', $name, $inboxdir, $url, $addr];
@@ -472,7 +474,8 @@ SKIP: {
 	open my $fh, '<', 't/iso-2202-jp.eml' or BAIL_OUT $!;
 	$old_env->{ORIGINAL_RECIPIENT} = $addr;
 	ok(run_script([qw(-mda --no-precheck)], $old_env, { 0 => $fh }),
-		'delivered a message for IDLE to kick -watch');
+		'delivered a message for IDLE to kick -watch') or
+		diag "mda error \$?=$?";
 	diag 'waiting for IMAP IDLE wakeup';
 	PublicInbox::DS->SetPostLoopCallback(undef);
 	PublicInbox::DS->EventLoop;
