@@ -93,8 +93,7 @@ $ng =~ m![^A-Za-z0-9/_\.\-\~\@\+\=:]! and
 
 require PublicInbox::Config;
 my $pi_config = PublicInbox::Config->default_file;
-require File::Basename;
-my $dir = File::Basename::dirname($pi_config);
+my ($dir) = ($pi_config =~ m!(.*?/)[^/]+\z!);
 require File::Path;
 File::Path::mkpath($dir); # will croak on fatal errors
 

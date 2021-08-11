@@ -8,7 +8,6 @@ use PublicInbox::Over;
 use PublicInbox::SearchIdx;
 use File::Temp 0.19 (); # ->newdir
 use File::Path qw(remove_tree);
-use File::Basename qw(dirname);
 use POSIX qw(WNOHANG _exit);
 
 # support testing with dev versions of Xapian which installs
@@ -199,7 +198,7 @@ sub prepare_run {
 			warn
 "--reshard=$reshard ignored for v1 $ibx->{inboxdir}\n";
 		}
-		my $dir = dirname($old);
+		my ($dir) = ($old =~ m!(.*?/)[^/]+/*\z!);
 		same_fs_or_die($dir, $old);
 		my $v = PublicInbox::Search::SCHEMA_VERSION();
 		my $wip = File::Temp->newdir("xapian$v-XXXX", DIR => $dir);
@@ -431,7 +430,7 @@ sub cpdb ($$) { # cb_spawn callback
 	my ($tmp, $ft);
 	local %SIG = %SIG;
 	if ($opt->{compact}) {
-		my $dir = dirname($new);
+		my ($dir) = ($new =~ m!(.*?/)[^/]+/*\z!);
 		same_fs_or_die($dir, $new);
 		$ft = File::Temp->newdir("$new.compact-XXXX", DIR => $dir);
 		setup_signals();

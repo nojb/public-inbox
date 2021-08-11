@@ -75,9 +75,9 @@ sub new {
 	}
 	if (!-f $dbname) {
 		require File::Path;
-		require File::Basename;
 		require PublicInbox::Spawn;
-		File::Path::mkpath(File::Basename::dirname($dbname));
+		my ($dir) = ($dbname =~ m!(.*?/)[^/]+\z!);
+		File::Path::mkpath($dir);
 		open my $fh, '+>>', $dbname or die "failed to open $dbname: $!";
 		PublicInbox::Spawn::nodatacow_fd(fileno($fh));
 	}

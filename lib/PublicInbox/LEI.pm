@@ -798,7 +798,7 @@ sub _lei_cfg ($;$) {
 			delete $self->{cfg};
 			return bless {}, 'PublicInbox::Config';
 		}
-		my (undef, $cfg_dir, undef) = File::Spec->splitpath($f);
+		my ($cfg_dir) = ($f =~ m!(.*?/)[^/]+\z!);
 		-d $cfg_dir or mkpath($cfg_dir) or die "mkpath($cfg_dir): $!\n";
 		open my $fh, '>>', $f or die "open($f): $!\n";
 		@st = stat($fh) or die "fstat($f): $!\n";

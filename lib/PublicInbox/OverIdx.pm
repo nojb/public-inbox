@@ -463,8 +463,8 @@ sub create {
 	};
 	unless (-r $fn) {
 		require File::Path;
-		require File::Basename;
-		File::Path::mkpath(File::Basename::dirname($fn));
+		my ($dir) = ($fn =~ m!(.*?/)[^/]+\z!);
+		File::Path::mkpath($dir);
 	}
 	# create the DB:
 	PublicInbox::Over::dbh($self);

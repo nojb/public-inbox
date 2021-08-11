@@ -6,7 +6,6 @@ use Test::More;
 use PublicInbox::Config;
 use PublicInbox::TestCommon;
 use PublicInbox::Admin;
-use File::Basename;
 my ($tmpdir, $for_destroy) = tmpdir();
 sub quiet_fail {
 	my ($cmd, $msg) = @_;
