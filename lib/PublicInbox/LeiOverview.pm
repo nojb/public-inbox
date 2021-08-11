@@ -76,7 +76,7 @@ sub new {
 	$fmt //= $devfd >= 0 ? 'json' : (detect_fmt($lei, $dst) or return);
 
 	if (index($dst, '://') < 0) { # not a URL, so assume path
-		 $dst = File::Spec->canonpath($dst);
+		 $dst = $lei->canonpath_harder($dst);
 	} # else URL
 
 	my $self = bless { fmt => $fmt, dst => $dst }, $class;

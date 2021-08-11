@@ -33,7 +33,7 @@ sub new {
 	for my $loc ($lei->externals_each) { # locals only
 		$lxs->prepare_external($loc) if -d $loc;
 	}
-	$self->refresh_externals($lxs);
+	$self->refresh_externals($lxs, $lei);
 	$self;
 }
 
@@ -50,7 +50,7 @@ sub overs_all { # for xoids_for (called only in lei workers?)
 }
 
 sub refresh_externals {
-	my ($self, $lxs) = @_;
+	my ($self, $lxs, $lei) = @_;
 	$self->git->cleanup;
 	my $lk = $self->lock_for_scope;
 	my $cur_lxs = ref($lxs)->new;
@@ -72,7 +72,7 @@ sub refresh_externals {
 	}
 	my @ibxish = $cur_lxs->locals;
 	for my $x ($lxs->locals) {
-		my $d = File::Spec->canonpath($x->{inboxdir} // $x->{topdir});
+		my $d = $lei->canonpath_harder($x->{inboxdir} // $x->{topdir});
 		$seen_ibxish{$d} //= do {
 			$new .= "$d\n";
 			push @ibxish, $x;
@@ -95,7 +95,7 @@ sub refresh_externals {
 		$old = <$fh> // die "readline($f): $!";
 	}
 	for my $x (@ibxish) {
-		$new .= File::Spec->canonpath($x->git->{git_dir})."/objects\n";
+		$new .= $lei->canonpath_harder($x->git->{git_dir})."/objects\n";
 	}
 	$self->{ibxish} = \@ibxish;
 	return if $old eq $new;

@@ -11,6 +11,7 @@ require PublicInbox::ExtSearchIdx;
 require_git 2.6;
 require_ok 'PublicInbox::LeiXSearch';
 require_ok 'PublicInbox::LeiALE';
+require_ok 'PublicInbox::LEI';
 my ($home, $for_destroy) = tmpdir();
 my @ibx;
 for my $V (1..2) {
@@ -88,18 +89,19 @@ is($lxs->over, undef, '->over fails');
 	my $smsg = $lxs->smsg_for($mitem) or BAIL_OUT 'smsg_for broken';
 
 	my $ale = PublicInbox::LeiALE::_new("$home/ale");
-	$ale->refresh_externals($lxs);
+	my $lei = bless {}, 'PublicInbox::LEI';
+	$ale->refresh_externals($lxs, $lei);
 	my $exp = [ $smsg->{blob}, 'blob', -s 't/utf8.eml' ];
 	is_deeply([ $ale->git->check($smsg->{blob}) ], $exp, 'ale->git->check');
 
 	$lxs = PublicInbox::LeiXSearch->new;
 	$lxs->prepare_external($v2ibx);
-	$ale->refresh_externals($lxs);
+	$ale->refresh_externals($lxs, $lei);
 	is_deeply([ $ale->git->check($smsg->{blob}) ], $exp,
 			'ale->git->check remembered inactive external');
 
 	rename("$home/v1tmp", "$home/v1moved") or BAIL_OUT "rename: $!";
-	$ale->refresh_externals($lxs);
+	$ale->refresh_externals($lxs, $lei);
 	is($ale->git->check($smsg->{blob}), undef,
 			'missing after directory gone');
 }

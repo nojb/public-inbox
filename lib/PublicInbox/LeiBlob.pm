@@ -112,7 +112,7 @@ sub lei_blob {
 	if ($opt->{mail} // ($has_hints ? 0 : 1)) {
 		if (grep(defined, @$opt{qw(include only)})) {
 			$lxs = $lei->lxs_prepare;
-			$lei->ale->refresh_externals($lxs);
+			$lei->ale->refresh_externals($lxs, $lei);
 		}
 		my $rdr = {};
 		if ($opt->{mail}) {
@@ -155,7 +155,7 @@ sub lei_blob {
 	return $lei->fail('no --git-dir to try') unless @$git_dirs;
 	unless ($lxs) {
 		$lxs = $lei->lxs_prepare or return;
-		$lei->ale->refresh_externals($lxs);
+		$lei->ale->refresh_externals($lxs, $lei);
 	}
 	if ($lxs->remotes) {
 		require PublicInbox::LeiRemote;

@@ -94,6 +94,12 @@ sub rel2abs {
 # abs_path resolves symlinks in parent iff all parents exist
 sub abs_path { Cwd::abs_path($_[1]) // rel2abs(@_) }
 
+sub canonpath_harder {
+	my $p = $_[-1]; # $_[0] may be self
+	$p = File::Spec->canonpath($p);
+	$p =~ m!(?:/*|\A)\.\.(?:/*|\z)! && -e $p ? Cwd::abs_path($p) : $p;
+}
+
 sub share_path ($) { # $HOME/.local/share/lei/$FOO
 	my ($self) = @_;
 	rel2abs($self, ($self->{env}->{XDG_DATA_HOME} //
@@ -808,8 +814,8 @@ sub _lei_cfg ($;$) {
 	my $cfg = PublicInbox::Config->git_config_dump($f);
 	$cfg->{-st} = $cur_st;
 	$cfg->{'-f'} = $f;
-	if ($sto && File::Spec->canonpath($sto_dir // store_path($self))
-			eq File::Spec->canonpath($cfg->{'leistore.dir'} //
+	if ($sto && canonpath_harder($sto_dir // store_path($self))
+			eq canonpath_harder($cfg->{'leistore.dir'} //
 						store_path($self))) {
 		$cfg->{-lei_store} = $sto;
 		$cfg->{-lei_note_event} = $lne;
@@ -1382,7 +1388,7 @@ sub refresh_watches {
 			next;
 		}
 		if ($url =~ /\Amaildir:(.+)/i) {
-			my $d = File::Spec->canonpath($1);
+			my $d = canonpath_harder($1);
 			if ($state eq 'pause') {
 				cancel_maildir_watch($d, $cfg_f);
 			} elsif (!exists($MDIR2CFGPATH->{$d}->{$cfg_f})) {
@@ -1400,7 +1406,7 @@ sub refresh_watches {
 			next if exists $seen{$url};
 			delete $old->{$url};
 			if ($url =~ /\Amaildir:(.+)/i) {
-				my $d = File::Spec->canonpath($1);
+				my $d = canonpath_harder($1);
 				cancel_maildir_watch($d, $cfg_f);
 			} else { # TODO: imap/nntp/jmap
 				$lei->child_error(1, "E: watch $url TODO");

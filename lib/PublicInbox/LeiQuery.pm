@@ -116,7 +116,7 @@ sub lei_q {
 	my ($self, @argv) = @_;
 	PublicInbox::Config->json; # preload before forking
 	my $lxs = lxs_prepare($self) or return;
-	$self->ale->refresh_externals($lxs);
+	$self->ale->refresh_externals($lxs, $self);
 	my $opt = $self->{opt};
 	my %mset_opt = map { $_ => $opt->{$_} } qw(threads limit offset);
 	$mset_opt{asc} = $opt->{'reverse'} ? 1 : 0;

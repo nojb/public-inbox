@@ -4,7 +4,6 @@
 # for the "lei init" command, not sure if it's even needed...
 package PublicInbox::LeiInit;
 use v5.10.1;
-use File::Spec;
 
 sub lei_init {
 	my ($self, $dir) = @_;
@@ -13,7 +12,7 @@ sub lei_init {
 	$dir //= $self->store_path;
 	$dir = $self->rel2abs($dir);
 	my @cur = stat($cur) if defined($cur);
-	$cur = File::Spec->canonpath($cur // $dir);
+	$cur = $self->canonpath_harder($cur // $dir);
 	my @dir = stat($dir);
 	my $exists = "# leistore.dir=$cur already initialized" if @dir;
 	if (@cur) {

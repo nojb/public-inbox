@@ -215,7 +215,7 @@ sub lei_rediff {
 		$lei->{curl} //= which('curl') or return
 			$lei->fail('curl needed for', $lxs->remotes);
 	}
-	$lei->ale->refresh_externals($lxs);
+	$lei->ale->refresh_externals($lxs, $lei);
 	my $self = bless {
 		-force_eml => 1, # for LeiInput->input_fh
 		lxs => $lxs,

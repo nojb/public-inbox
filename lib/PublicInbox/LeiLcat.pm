@@ -128,7 +128,7 @@ sub _stdin { # PublicInbox::InputPipe::consume callback for --stdin
 sub lei_lcat {
 	my ($lei, @argv) = @_;
 	my $lxs = $lei->lxs_prepare or return;
-	$lei->ale->refresh_externals($lxs);
+	$lei->ale->refresh_externals($lxs, $lei);
 	my $sto = $lei->_lei_store(1);
 	$lei->{lse} = $sto->search;
 	my $opt = $lei->{opt};

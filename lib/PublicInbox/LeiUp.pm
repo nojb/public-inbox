@@ -42,7 +42,7 @@ sub up1 ($$) {
 	}
 	$lei->{lss} = $lss; # for LeiOverview->new
 	my $lxs = $lei->lxs_prepare or return;
-	$lei->ale->refresh_externals($lxs);
+	$lei->ale->refresh_externals($lxs, $lei);
 	$lei->_start_query;
 }
 
