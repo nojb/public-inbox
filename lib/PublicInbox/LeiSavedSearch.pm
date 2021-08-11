@@ -115,9 +115,16 @@ sub up { # updating existing saved search via "lei up"
 sub new { # new saved search "lei q --save"
 	my ($cls, $lei) = @_;
 	my $self = bless { ale => $lei->ale }, $cls;
-	my $dst = $lei->{ovv}->{dst};
-	my $dir = lss_dir_for($lei, \$dst);
 	require File::Path;
+	my $dst = $lei->{ovv}->{dst};
+
+	# canonicalize away relative paths into the config
+	if ($lei->{ovv}->{fmt} eq 'maildir' &&
+			$dst =~ m!(?:/*|\A)\.\.(?:/*|\z)! && !-d $dst) {
+		File::Path::make_path($dst);
+		$lei->{ovv}->{dst} = $dst = $lei->abs_path($dst);
+	}
+	my $dir = lss_dir_for($lei, \$dst);
 	File::Path::make_path($dir); # raises on error
 	$self->{-cfg} = {};
 	my $f = $self->{'-f'} = "$dir/lei.saved-search";

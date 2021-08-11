@@ -202,5 +202,14 @@ test_lei(sub {
 
 	lei_ok([qw(edit-search), $v2s], { VISUAL => 'cat', EDITOR => 'cat' });
 	like($lei_out, qr/^\[lei/sm, 'edit-search can cat');
+
+	lei_ok('-C', "$home/v2s",
+		qw(q -q --save -o ../s m:testmessage@example.com));
+	lei_ok qw(ls-search);
+	unlike $lei_out, qr{/\.\./s$}sm, 'relative path not in ls-search';
+	like $lei_out, qr{^\Q$home\E/s$}sm,
+		'absolute path appears in ls-search';
+	lei_ok qw(up ../s -C), "$home/v2s", \'relative lei up';
+	lei_ok qw(up), "$home/s", \'absolute lei up';
 });
 done_testing;
