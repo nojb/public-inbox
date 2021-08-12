@@ -57,7 +57,7 @@ sub up1_redispatch {
 		up1($l, $out);
 		$l->qerr("# $out done");
 	};
-	$l->err($@) if $@;
+	$l->child_error(1 << 8, $@) if $@;
 }
 
 sub lei_up {
