@@ -61,11 +61,13 @@ sub up1_redispatch {
 }
 
 sub lei_up {
-	my ($lei, $out) = @_;
+	my ($lei, @outs) = @_;
 	$lei->{lse} = $lei->_lei_store(1)->search;
 	my $opt = $lei->{opt};
 	$opt->{save} = -1;
+	my @local;
 	if (defined $opt->{all}) {
+		return $lei->fail("--all and @outs incompatible") if @outs;
 		length($opt->{mua}//'') and return
 			$lei->fail('--all and --mua= are incompatible');
 
@@ -74,7 +76,20 @@ sub lei_up {
 		$opt->{all} eq 'local' or return
 			$lei->fail('only --all=local works at the moment');
 		my @all = PublicInbox::LeiSavedSearch::list($lei);
-		my @local = grep(!m!\Aimaps?://!i, @all);
+		@local = grep(!m!\Aimaps?://!i, @all);
+	} else {
+		@local = @outs;
+	}
+	if (scalar(@outs) > 1) {
+		length($opt->{mua}//'') and return $lei->fail(<<EOM);
+multiple outputs and --mua= are incompatible
+EOM
+		# TODO:
+		return $lei->fail(<<EOM) if grep(m!\Aimaps?://!i, @outs);
+multiple destinations only supported for local outputs (FIXME)
+EOM
+	}
+	if (scalar(@local) > 1) {
 		$lei->_lei_store->write_prepare($lei); # share early
 		# daemon mode, re-dispatch into our event loop w/o
 		# creating an extra fork-level
@@ -89,7 +104,7 @@ sub lei_up {
 		$lei->event_step_init;
 		$op_c->{ops} = { '' => [$lei->can('dclose'), $lei] };
 	} else {
-		up1($lei, $out);
+		up1($lei, $local[0]);
 	}
 }
 

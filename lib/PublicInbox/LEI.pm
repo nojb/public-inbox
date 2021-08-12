@@ -178,7 +178,7 @@ our %CMD = ( # sorted in order of importance/use:
 	import-before! lock=s@ rsyncable alert=s@ mua=s verbose|v+
 	shared color! mail-sync!), @c_opt, opt_dash('limit|n=i', '[0-9]+') ],
 
-'up' => [ 'OUTPUT|--all', 'update saved search',
+'up' => [ 'OUTPUT...|--all', 'update saved search',
 	qw(jobs|j=s lock=s@ alert=s@ mua=s verbose|v+ all:s), @c_opt ],
 
 'lcat' => [ '--stdin|MSGID_OR_URL...', 'display local copy of message(s)',
