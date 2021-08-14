@@ -55,13 +55,16 @@ sub _xsmsg_vmd { # retry_reopen
 	$kw{flagged} = 1 if delete($smsg->{lei_q_tt_flagged});
 	my @num = $self->over->blob_exists($smsg->{blob});
 	for my $num (@num) { # there should only be one...
-		$doc = $xdb->get_document(num2docid($self, $num));
-		$x = xap_terms('K', $doc);
-		%kw = (%kw, %$x);
-		if ($want_label) { # JSON/JMAP only
-			$x = xap_terms('L', $doc);
-			%L = (%L, %$x);
-		}
+		eval {
+			$doc = $xdb->get_document(num2docid($self, $num));
+			$x = xap_terms('K', $doc);
+			%kw = (%kw, %$x);
+			if ($want_label) { # JSON/JMAP only
+				$x = xap_terms('L', $doc);
+				%L = (%L, %$x);
+			}
+		};
+		warn "$$ $0 #$num (nshard=$self->{nshard}) $smsg->{blob}: $@";
 	}
 	$smsg->{kw} = [ sort keys %kw ] if scalar(keys(%kw));
 	$smsg->{L} = [ sort keys %L ] if scalar(keys(%L));
