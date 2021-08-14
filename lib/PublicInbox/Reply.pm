@@ -28,7 +28,7 @@ my $reply_headers = join('|', @reply_headers);
 sub mailto_arg_link {
 	my ($ibx, $hdr) = @_;
 	my $cc = {}; # everyone else
-	my $to; # this is the From address by defaultq
+	my $to; # this is the From address by default
 	my $reply_to_all = 'reply-to-all'; # the only good default :P
 	my $reply_to_cfg = $ibx->{replyto};
 
@@ -72,6 +72,7 @@ sub mailto_arg_link {
 	my $mid = $hdr->header_raw('Message-ID');
 	push @arg, '--in-reply-to='.squote_maybe(mid_clean($mid));
 	my $irt = mid_href($mid);
+	add_addrs(\$to, $cc, $ibx->{-primary_address}) unless defined($to);
 	delete $cc->{$to};
 	if ($obfs) {
 		my $arg_to = $to;

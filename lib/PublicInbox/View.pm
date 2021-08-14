@@ -281,8 +281,15 @@ sub eml_entry {
 sub pad_link ($$;$) {
 	my ($mid, $level, $s) = @_;
 	$s ||= '...';
-	my $id = id_compress($mid, 1);
-	(' 'x19).indent_for($level).th_pfx($level)."<a\nhref=#r$id>($s)</a>\n";
+	my $href = defined($mid) ?
+		("<a\nhref=#r".id_compress($mid, 1).">($s)</a>\n") :
+		"($s)\n";
+	(' 'x19).indent_for($level).th_pfx($level).$href;
+}
+
+sub _skel_hdr {
+	# my ($mapping, $mid) = @_;
+	($_[0]->{$_[1] // \'bogus'} // [ "(?)\n" ])->[0];
 }
 
 sub _th_index_lite {
@@ -314,10 +321,11 @@ sub _th_index_lite {
 				my $s = ($idx - 1). ' preceding siblings ...';
 				$rv .= pad_link($pmid, $level, $s);
 			} elsif ($idx == 2) {
-				my $ppmid = $siblings->[0]->{mid};
-				$rv .= $pad . $mapping->{$ppmid}->[0];
+				$rv .= $pad . _skel_hdr($mapping,
+						$siblings->[0] ?
+						$siblings->[0]->{mid} : undef);
 			}
-			$rv .= $pad . $mapping->{$pmid}->[0];
+			$rv .= $pad . _skel_hdr($mapping, $pmid);
 		}
 	}
 	my $s_s = nr_to_s($nr_s, 'sibling', 'siblings');
@@ -327,26 +335,26 @@ sub _th_index_lite {
 	$attr =~ s!<a\nhref=[^>]+>([^<]+)</a>!$1!s; # no point linking to self
 	$rv .= "<b>@ $attr";
 	if ($nr_c) {
-		my $cmid = $children->[0]->{mid};
-		$rv .= $pad . $mapping->{$cmid}->[0];
+		my $cmid = $children->[0] ? $children->[0]->{mid} : undef;
+		$rv .= $pad . _skel_hdr($mapping, $cmid);
 		if ($nr_c > 2) {
 			my $s = ($nr_c - 1). ' more replies';
 			$rv .= pad_link($cmid, $level + 1, $s);
 		} elsif (my $cn = $children->[1]) {
-			$rv .= $pad . $mapping->{$cn->{mid}}->[0];
+			$rv .= $pad . _skel_hdr($mapping, $cn->{mid});
 		}
 	}
 
 	my $next = $siblings->[$idx+1] if $siblings && $idx >= 0;
 	if ($next) {
 		my $nmid = $next->{mid};
-		$rv .= $pad . $mapping->{$nmid}->[0];
+		$rv .= $pad . _skel_hdr($mapping, $nmid);
 		my $nnext = $nr_s - $idx;
 		if ($nnext > 2) {
 			my $s = ($nnext - 1).' subsequent siblings';
 			$rv .= pad_link($nmid, $level, $s);
 		} elsif (my $nn = $siblings->[$idx + 2]) {
-			$rv .= $pad . $mapping->{$nn->{mid}}->[0];
+			$rv .= $pad . _skel_hdr($mapping, $nn->{mid});
 		}
 	}
 	$rv .= $pad ."<a\nhref=#r$id>$s_s, $s_c; $ctx->{s_nr}</a>\n";
@@ -453,8 +461,8 @@ EOF
 	$ctx->{skel} = \$skel;
 	$ctx->{prev_attr} = '';
 	$ctx->{prev_level} = 0;
-	$ctx->{root_anchor} = anchor_for($mid);
-	$ctx->{mapping} = {};
+	$ctx->{root_anchor} = 'm' . id_compress($mid, 1);
+	$ctx->{mapping} = {}; # mid -> [ header_summary, node, idx, level ]
 	$ctx->{s_nr} = ($nr > 1 ? "$nr+ messages" : 'only message')
 	               .' in thread';
 
@@ -869,11 +877,6 @@ sub linkify_ref_no_over {
 	"&lt;<a\nhref=\"../$href/\">$html</a>&gt;";
 }
 
-sub anchor_for {
-	my ($msgid) = @_;
-	'm' . id_compress($msgid, 1);
-}
-
 sub ghost_parent {
 	my ($upfx, $mid) = @_;
 
@@ -1274,7 +1277,7 @@ sub thread_adj_level {
 sub ghost_index_entry {
 	my ($ctx, $level, $node) = @_;
 	my ($beg, $end) = thread_adj_level($ctx,  $level);
-	$beg . '<pre>'. ghost_parent($ctx->{-upfx}, $node->{mid})
+	$beg . '<pre>'. ghost_parent($ctx->{-upfx}, $node->{mid} // '?')
 		. '</pre>' . $end;
 }
 
