@@ -20,7 +20,7 @@ use PublicInbox::Eml;
 use PublicInbox::Import;
 use PublicInbox::InboxWritable qw(eml_from_path);
 use PublicInbox::V2Writable;
-use PublicInbox::ContentHash qw(content_hash);
+use PublicInbox::ContentHash qw(content_hash git_sha);
 use PublicInbox::MID qw(mids);
 use PublicInbox::LeiSearch;
 use PublicInbox::MDA;
@@ -506,6 +506,13 @@ sub write_prepare {
 		PublicInbox::LeiStoreErr->new($err_pipe->[0], $lei);
 	}
 	$lei->{sto} = $self;
+}
+
+# TODO: support SHA-256
+sub git_blob_id { # called via LEI->git_blob_id
+	my ($self, $eml) = @_;
+	$eml->header_set($_) for @PublicInbox::Import::UNWANTED_HEADERS;
+	git_sha(1, $eml)->hexdigest;
 }
 
 1;

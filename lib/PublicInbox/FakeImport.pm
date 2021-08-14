@@ -4,12 +4,15 @@
 # pretend to do PublicInbox::Import::add for "lei index"
 package PublicInbox::FakeImport;
 use strict;
+use v5.10.1;
 use PublicInbox::ContentHash qw(git_sha);
+use PublicInbox::Import;
 
 sub new { bless { bytes_added => 0 }, __PACKAGE__ }
 
 sub add {
 	my ($self, $eml, $check_cb, $smsg) = @_;
+	PublicInbox::Import::drop_unwanted_headers($eml);
 	$smsg->populate($eml);
 	my $raw = $eml->as_string;
 	$smsg->{blob} = git_sha(1, \$raw)->hexdigest;

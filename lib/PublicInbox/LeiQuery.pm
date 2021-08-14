@@ -73,7 +73,7 @@ sub lxs_prepare {
 	my @only = @{$opt->{only} // []};
 	# --local is enabled by default unless --only is used
 	# we'll allow "--only $LOCATION --local"
-	my $sto = $self->_lei_store(1); # FIXME: should not create
+	my $sto = $self->_lei_store(1);
 	$self->{lse} = $sto->search;
 	if ($opt->{'local'} //= scalar(@only) ? 0 : 1) {
 		$lxs->prepare_external($self->{lse});

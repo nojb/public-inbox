@@ -1420,4 +1420,9 @@ sub refresh_watches {
 	}
 }
 
+sub git_blob_id {
+	my ($lei, $eml) = @_;
+	($lei->{sto} // _lei_store($lei, 1))->git_blob_id($eml);
+}
+
 1;
