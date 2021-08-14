@@ -266,11 +266,15 @@ sub _smsg_fill ($$) {
 sub each_remote_eml { # callback for MboxReader->mboxrd
 	my ($eml, $self, $lei, $each_smsg) = @_;
 	my $xoids = $lei->{ale}->xoids_for($eml, 1);
-	if ($self->{import_sto} && !$xoids) {
-		$self->{import_sto}->ipc_do('add_eml', $eml);
-	}
 	my $smsg = bless {}, 'PublicInbox::Smsg';
-	$smsg->{blob} = $xoids ? (keys(%$xoids))[0]
+	if ($self->{import_sto} && !$xoids) {
+		my $res = $self->{import_sto}->ipc_do('add_eml', $eml);
+		if (ref($res) eq ref($smsg)) { # totally new message
+			$smsg = $res;
+			$smsg->{kw} = []; # short-circuit xsmsg_vmd
+		}
+	}
+	$smsg->{blob} //= $xoids ? (keys(%$xoids))[0]
 				: git_sha(1, $eml)->hexdigest;
 	_smsg_fill($smsg, $eml);
 	wait_startq($lei);

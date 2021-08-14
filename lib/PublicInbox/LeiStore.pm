@@ -329,6 +329,7 @@ sub add_eml {
 		}
 		\@docids;
 	} else { # totally new message
+		delete $smsg->{-oidx}; # for IPC-friendliness
 		$smsg->{num} = $oidx->adj_counter('eidx_docid', '+');
 		$oidx->add_overview($eml, $smsg);
 		$oidx->add_xref3($smsg->{num}, -1, $smsg->{blob}, '.');

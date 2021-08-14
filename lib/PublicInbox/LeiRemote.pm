@@ -26,11 +26,12 @@ sub _each_mboxrd_eml { # callback for MboxReader->mboxrd
 	my ($eml, $self) = @_;
 	my $lei = $self->{lei};
 	my $xoids = $lei->{ale}->xoids_for($eml, 1);
-	if ($lei->{sto} && !$xoids) { # memoize locally
-		$lei->{sto}->ipc_do('add_eml', $eml);
-	}
 	my $smsg = bless {}, 'PublicInbox::Smsg';
-	$smsg->{blob} = $xoids ? (keys(%$xoids))[0]
+	if ($lei->{sto} && !$xoids) { # memoize locally
+		my $res = $lei->{sto}->ipc_do('add_eml', $eml);
+		$smsg = $res if ref($res) eq ref($smsg);
+	}
+	$smsg->{blob} //= $xoids ? (keys(%$xoids))[0]
 				: git_sha(1, $eml)->hexdigest;
 	$smsg->populate($eml);
 	$smsg->{mid} //= '(none)';
