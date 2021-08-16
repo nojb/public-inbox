@@ -4,7 +4,8 @@
  * Suitable for print, and blinding people with brightness.
  * Haphazardly thrown together because bright colors hurt my eyes
  */
-* { background:#fff; color:#333 }
+* { font-size: 100%; font-family: monospace; background:#fff; color:#333 }
+pre { white-space: pre-wrap }
 
 /*
  * Underlined links add visual noise which make them hard-to-read.

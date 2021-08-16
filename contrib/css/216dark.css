@@ -5,7 +5,8 @@
  * It reduces eyestrain for me, and energy usage for all:
  * https://en.wikipedia.org/wiki/Light-on-dark_color_scheme
  */
-* { background:#000; color:#ccc }
+* { font-size: 100%; font-family: monospace; background:#000; color:#ccc }
+pre { white-space: pre-wrap }
 
 /*
  * Underlined links add visual noise which make them hard-to-read.
