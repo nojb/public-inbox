@@ -52,7 +52,11 @@ $run_log->autoflush(1); # one reader, many writers
 key2sub($_) for @tests; # precache
 
 my ($for_destroy, $lei_env, $lei_daemon_pid, $owner_pid);
-if (!$ENV{TEST_LEI_DAEMON_PERSIST_DIR} &&
+
+# I get ECONNRESET from lei on FreeBSD 11.3 even with
+# kern.ipc.soacceptqueue=1073741823, so persistent lei-daemon in tests
+# is Linux-only for now:
+if ($^O eq 'linux' && !$ENV{TEST_LEI_DAEMON_PERSIST_DIR} &&
 		(PublicInbox::Spawn->can('recv_cmd4') ||
 			eval { require Socket::MsgHdr })) {
 	$lei_env = {};
