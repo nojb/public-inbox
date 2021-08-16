@@ -19,6 +19,7 @@ sub new {
 	my ($class, $topdir) = @_;
 	bless {
 		topdir => $topdir,
+		-primary_address => 'unknown@example.com',
 		# xpfx => 'ei15'
 		xpfx => "$topdir/ei".PublicInbox::Search::SCHEMA_VERSION
 	}, $class;
