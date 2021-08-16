@@ -1154,10 +1154,8 @@ sub dump_topics {
 			$anchor = '#t'; # thread skeleton
 		}
 
-		my $mbox = qq(<a\nhref="$href/t.mbox.gz">mbox.gz</a>);
-		my $atom = qq(<a\nhref="$href/t.atom">Atom</a>);
 		my $s = "<a\nhref=\"$href/T/$anchor\">$top_subj</a>\n" .
-			" $ds UTC $n - $mbox / $atom\n";
+			" $ds UTC $n\n";
 		for (my $i = 0; $i < scalar(@extra); $i += 2) {
 			my $level = $extra[$i];
 			my $subj = $extra[$i + 1]; # already normalized

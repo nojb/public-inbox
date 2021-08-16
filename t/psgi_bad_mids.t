@@ -53,7 +53,7 @@ test_psgi(sub { $www->call(@_) }, sub {
 		ok(index($raw, $mid) < 0, "escaped $mid");
 	}
 
-	my (@xmids) = ($raw =~ m!\bhref="([^"]+)/t\.mbox\.gz"!sg);
+	my (@xmids) = ($raw =~ m!\bhref="([^"]+?)/T/#u"!sg);
 	is(scalar(@xmids), scalar(@mids),
 		'got escaped links to all messages');
 
