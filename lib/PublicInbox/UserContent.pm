@@ -17,13 +17,18 @@ sub CSS () {
 	 * It reduces eyestrain for me, and energy usage for all:
 	 * https://en.wikipedia.org/wiki/Light-on-dark_color_scheme
 	 */
-	* { background:#000 !important; color:#ccc !important }
+	* { font-size: 100% !important;
+		font-family: monospace !important;
+		background:#000 !important;
+		color:#ccc !important }
+	pre { white-space: pre-wrap !important }
 
 	/*
 	 * Underlined links add visual noise which make them hard-to-read.
 	 * Use colors to make them stand out, instead.
 	 */
-	a:link { color:#69f !important; text-decoration:none !important }
+	a:link { color:#69f !important;
+		text-decoration:none !important }
 	a:visited { color:#96f !important }
 
 	/* quoted text in emails gets a different color */
@@ -101,6 +106,7 @@ if (scalar(@ARGV) == 1 && -r __FILE__) {
 
 	open my $rw, '+<', __FILE__ or die $!;
 	my $out = do { local $/; <$rw> } or die $!;
+	$css =~ s/; /;\n\t\t/g;
 	$out =~ s/^sub CSS.*^_\n\}/sub CSS () {\n\t<<'_'\n${css}_\n}/sm;
 	seek $rw, 0, 0;
 	print $rw $out or die $!;
