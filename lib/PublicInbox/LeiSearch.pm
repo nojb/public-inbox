@@ -64,7 +64,8 @@ sub _xsmsg_vmd { # retry_reopen
 				%L = (%L, %$x);
 			}
 		};
-		warn "$$ $0 #$num (nshard=$self->{nshard}) $smsg->{blob}: $@";
+		warn "$$ $0 #$num (nshard=$self->{nshard}) $smsg->{blob}: $@"
+			if $@;
 	}
 	$smsg->{kw} = [ sort keys %kw ] if scalar(keys(%kw));
 	$smsg->{L} = [ sort keys %L ] if scalar(keys(%L));
