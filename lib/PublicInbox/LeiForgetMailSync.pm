@@ -14,8 +14,7 @@ use PublicInbox::LeiExportKw;
 
 sub lei_forget_mail_sync {
 	my ($lei, @folders) = @_;
-	my $sto = $lei->_lei_store or return;
-	my $lms = $sto->search->lms or return;
+	my $lms = $lei->lms or return;
 	my $err = $lms->arg2folder($lei, \@folders);
 	$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
 	return $lei->fail($err->{fail}) if $err->{fail};

@@ -41,8 +41,7 @@ sub inspect_imap_uid ($$) {
 sub inspect_sync_folder ($$) {
 	my ($lei, $folder) = @_;
 	my $ent = {};
-	my $lse = $lei->{lse} or return $ent;
-	my $lms = $lse->lms or return $ent;
+	my $lms = $lei->lms or return $ent;
 	my $folders = [ $folder ];
 	my $err = $lms->arg2folder($lei, $folders);
 	if ($err) {

@@ -133,8 +133,7 @@ sub lei_blob {
 		}
 		my $ce = $?;
 		return if $ce == 0;
-		my $sto = $lei->_lei_store;
-		my $lms = $sto ? $sto->search->lms : undef;
+		my $lms = $lei->lms;
 		if (my $bref = $lms ? $lms->local_blob($blob, 1) : undef) {
 			defined($lei->{-attach_idx}) and
 				return extract_attach($lei, $blob, $bref);

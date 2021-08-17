@@ -13,7 +13,7 @@ use PublicInbox::MID qw($MID_EXTRACT);
 
 sub lcat_folder ($$$) {
 	my ($lei, $lms, $folder) = @_;
-	$lms //= $lei->{lse}->lms // return;
+	$lms //= $lei->lms or return;
 	my $folders = [ $folder];
 	my $err = $lms->arg2folder($lei, $folders);
 	$lei->qerr(@{$err->{qerr}}) if $err && $err->{qerr};
@@ -29,7 +29,7 @@ sub lcat_folder ($$$) {
 
 sub lcat_imap_uri ($$) {
 	my ($lei, $uri) = @_;
-	my $lms = $lei->{lse}->lms or return;
+	my $lms = $lei->lms or return;
 	# cf. LeiXsearch->lcat_dump
 	if (defined $uri->uid) {
 		my $oidhex = $lms->imap_oid($lei, $uri);
@@ -129,8 +129,7 @@ sub lei_lcat {
 	my ($lei, @argv) = @_;
 	my $lxs = $lei->lxs_prepare or return;
 	$lei->ale->refresh_externals($lxs, $lei);
-	my $sto = $lei->_lei_store(1);
-	$lei->{lse} = $sto->search;
+	$lei->_lei_store(1);
 	my $opt = $lei->{opt};
 	my %mset_opt = map { $_ => $opt->{$_} } qw(threads limit offset);
 	$mset_opt{asc} = $opt->{'reverse'} ? 1 : 0;
@@ -153,8 +152,7 @@ no args allowed on command-line with --stdin
 
 sub _complete_lcat {
 	my ($lei, @argv) = @_;
-	my $sto = $lei->_lei_store or return;
-	my $lms = $sto->search->lms or return;
+	my $lms = $lei->lms or return;
 	my $match_cb = $lei->complete_url_prepare(\@argv);
 	map { $match_cb->($_) } $lms->folders;
 }

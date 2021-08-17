@@ -1425,4 +1425,13 @@ sub git_blob_id {
 	($lei->{sto} // _lei_store($lei, 1))->git_blob_id($eml);
 }
 
+sub lms { # read-only LeiMailSync
+	my ($lei) = @_;
+	my $lse = $lei->{lse} // do {
+		my $sto = $lei->{sto} // _lei_store($lei);
+		$sto ? $sto->search : undef
+	};
+	$lse ? $lse->lms : undef;
+}
+
 1;
