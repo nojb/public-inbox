@@ -216,6 +216,12 @@ sub lms_mv_src {
 	_lms_rw($self)->mv_src($folder, $oidbin, $id, $newbn);
 }
 
+sub lms_forget_folders {
+	my ($self, @folders) = @_;
+	my $lms = _lms_rw($self);
+	for my $f (@folders) { $lms->forget_folder($f) }
+}
+
 sub set_sync_info {
 	my ($self, $oidhex, $folder, $id) = @_;
 	_lms_rw($self)->set_src($oidhex, $folder, $id);
