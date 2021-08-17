@@ -20,7 +20,6 @@ use Socket qw(AF_UNIX MSG_EOR SOCK_STREAM);
 my $MY_MAX_ARG_STRLEN = 4096 * 33; # extra 4K for serialization
 my $SEQPACKET = eval { Socket::SOCK_SEQPACKET() }; # portable enough?
 our @EXPORT_OK = qw(ipc_freeze ipc_thaw);
-my $WQ_MAX_WORKERS = 4096;
 my ($enc, $dec);
 # ->imports at BEGIN turns sereal_*_with_object into custom ops on 5.14+
 # and eliminate method call overhead
@@ -354,7 +353,6 @@ sub wq_workers_start {
 		die "socketpair: $!";
 	$self->ipc_atfork_prepare;
 	$nr_workers //= $self->{-wq_nr_workers};
-	$nr_workers = $WQ_MAX_WORKERS if $nr_workers > $WQ_MAX_WORKERS;
 	my $sigset = $oldset // PublicInbox::DS::block_signals();
 	$self->{-wq_workers} = {};
 	$self->{-wq_ident} = $ident;
@@ -367,7 +365,6 @@ sub wq_worker_incr { # SIGTTIN handler
 	my ($self, $oldset, $fields) = @_;
 	$self->{-wq_s2} or return;
 	die "-wq_nr_workers locked" if defined $self->{-wq_nr_workers};
-	return if wq_workers($self) >= $WQ_MAX_WORKERS;
 	$self->ipc_atfork_prepare;
 	my $sigset = $oldset // PublicInbox::DS::block_signals();
 	_wq_worker_start($self, $sigset, $fields);
@@ -442,8 +439,6 @@ sub wq_kill {
 	my $workers = $self->{-wq_workers} or return;
 	kill($sig // 'TERM', keys %$workers);
 }
-
-sub WQ_MAX_WORKERS { $WQ_MAX_WORKERS }
 
 sub DESTROY {
 	my ($self) = @_;
