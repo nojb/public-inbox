@@ -133,7 +133,8 @@ sub call {
 	# convenience redirects order matters
 	} elsif ($path_info =~ m!$INBOX_RE/([^/]{2,})\z!o) {
 		r301($ctx, $1, $2);
-
+	} elsif ($path_info =~ m!\A/\+/([a-zA-Z0-9_\-\.]+)\.css\z!) {
+		get_css($ctx, undef, $1); # for WwwListing
 	} else {
 		legacy_redirects($ctx, $path_info);
 	}
@@ -627,18 +628,20 @@ sub style {
 	};
 }
 
-# /$INBOX/$KEY.css endpoint
+# /$INBOX/$KEY.css and /+/$KEY.css endpoints
 # CSS is configured globally for all inboxes, but we access them on
 # a per-inbox basis.  This allows administrators to setup per-inbox
 # static routes to intercept the request before it hits PSGI
+# inbox == undef => top-level WwwListing
 sub get_css ($$$) {
 	my ($ctx, $inbox, $key) = @_;
-	my $r404 = invalid_inbox($ctx, $inbox);
+	my $r404 = defined($inbox) ? invalid_inbox($ctx, $inbox) : undef;
 	return $r404 if $r404;
 	my $self = $ctx->{www};
-	my $css_map = $self->{-css_map} || stylesheets_prepare($self, '');
+	my $css_map = $self->{-css_map} ||
+		stylesheets_prepare($self, defined($inbox) ? '' : '+/');
 	my $css = $css_map->{$key};
-	if (!defined($css) && $key eq 'userContent') {
+	if (!defined($css) && defined($inbox) && $key eq 'userContent') {
 		my $env = $ctx->{env};
 		$css = PublicInbox::UserContent::sample($ctx->{ibx}, $env);
 	}

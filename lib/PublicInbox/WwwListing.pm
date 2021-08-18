@@ -190,9 +190,9 @@ sub psgi_triple {
 	my $h = [ 'Content-Type', 'text/html; charset=UTF-8',
 			'Content-Length', undef ];
 	my $gzf = gzf_maybe($h, $ctx->{env});
-	$gzf->zmore('<html><head><title>' .
-				'public-inbox listing</title>' .
-				'</head><body>');
+	$gzf->zmore('<html><head><title>public-inbox listing</title>' .
+			$ctx->{www}->style('+/') .
+			'</head><body>');
 	my $code = 404;
 	if (my $list = delete $ctx->{-list}) {
 		my $mset = delete $ctx->{-mset};
