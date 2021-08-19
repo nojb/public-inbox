@@ -74,7 +74,7 @@ sub lei_note_event {
 	my $err = $lms->arg2folder($lei, [ $folder ]);
 	return if $err->{fail};
 	undef $lms;
-	my $state = $cfg->get_1("watch.$folder", 'state') // 'pause';
+	my $state = $cfg->get_1("watch.$folder", 'state') // 'tag-rw';
 	return if $state eq 'pause';
 	$lei->ale; # prepare
 	$sto->write_prepare($lei);

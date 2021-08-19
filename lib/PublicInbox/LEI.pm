@@ -1370,6 +1370,14 @@ sub cancel_maildir_watch ($$) {
 	for my $x (@{$w // []}) { $x->cancel }
 }
 
+sub add_maildir_watch ($$) {
+	my ($d, $cfg_f) = @_;
+	if (!exists($MDIR2CFGPATH->{$d}->{$cfg_f})) {
+		my @w = $dir_idle->add_watches(["$d/cur", "$d/new"], 1);
+		push @{$MDIR2CFGPATH->{$d}->{$cfg_f}}, @w if @w;
+	}
+}
+
 sub refresh_watches {
 	my ($lei) = @_;
 	my $cfg = _lei_cfg($lei) or return;
@@ -1380,7 +1388,7 @@ sub refresh_watches {
 	for my $w (grep(/\Awatch\..+\.state\z/, keys %$cfg)) {
 		my $url = substr($w, length('watch.'), -length('.state'));
 		require PublicInbox::LeiWatch;
-		my $lw = $watches->{$url} //= PublicInbox::LeiWatch->new($url);
+		$watches->{$url} //= PublicInbox::LeiWatch->new($url);
 		$seen{$url} = undef;
 		my $state = $cfg->get_1("watch.$url", 'state');
 		if (!watch_state_ok($state)) {
@@ -1391,16 +1399,36 @@ sub refresh_watches {
 			my $d = canonpath_harder($1);
 			if ($state eq 'pause') {
 				cancel_maildir_watch($d, $cfg_f);
-			} elsif (!exists($MDIR2CFGPATH->{$d}->{$cfg_f})) {
-				my @w = $dir_idle->add_watches(
-						["$d/cur", "$d/new"], 1);
-				push @{$MDIR2CFGPATH->{$d}->{$cfg_f}}, @w if @w;
+			} else {
+				add_maildir_watch($d, $cfg_f);
 			}
 		} else { # TODO: imap/nntp/jmap
-			$lei->child_error(1,
-				"E: watch $url not supported, yet");
+			$lei->child_error(1, "E: watch $url not supported, yet")
 		}
 	}
+
+	# add all known Maildir folders as implicit watches
+	my $sto = $lei->_lei_store;
+	my $renames = 0;
+	if (my $lms = $sto ? $sto->search->lms : undef) {
+		for my $d ($lms->folders('maildir:')) {
+			substr($d, 0, length('maildir:')) = '';
+			my $cd = canonpath_harder($d);
+			my $f = "maildir:$cd";
+
+			# fixup old bugs while we're iterating:
+			if ($d ne $cd) {
+				$sto->ipc_do('lms_rename_folder',
+						"maildir:$d", $f);
+				++$renames;
+			}
+			next if $watches->{$f}; # may be set to pause
+			$watches->{$f} = PublicInbox::LeiWatch->new($f);
+			$seen{$f} = undef;
+			add_maildir_watch($cd, $cfg_f);
+		}
+	}
+	my $wait = $renames ? $sto->ipc_do('done') : undef;
 	if ($old) { # cull old non-existent entries
 		for my $url (keys %$old) {
 			next if exists $seen{$url};

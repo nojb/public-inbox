@@ -412,6 +412,16 @@ sub forget_folder {
 	$dbh->do('DELETE FROM folders WHERE fid = ?', undef, $fid);
 }
 
+# only used for changing canonicalization errors
+sub rename_folder {
+	my ($self, $old, $new) = @_;
+	my $fid = delete($self->{fmap}->{$old}) //
+		fid_for($self, $old) // return;
+	$self->{dbh}->do(<<EOM, undef, $new, $fid);
+UPDATE folders SET loc = ? WHERE fid = ?
+EOM
+}
+
 sub imap_oidbin ($$$) {
 	my ($self, $url, $uid) = @_; # $url MUST have UIDVALIDITY
 	my $fid = $self->{fmap}->{$url} //= fid_for($self, $url) // return;

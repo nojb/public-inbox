@@ -222,6 +222,11 @@ sub lms_forget_folders {
 	for my $f (@folders) { $lms->forget_folder($f) }
 }
 
+sub lms_rename_folder {
+	my ($self, $old, $new) = @_;
+	_lms_rw($self)->rename_folder($old, $new);
+}
+
 sub set_sync_info {
 	my ($self, $oidhex, $folder, $id) = @_;
 	_lms_rw($self)->set_src($oidhex, $folder, $id);
