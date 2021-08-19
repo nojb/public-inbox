@@ -114,7 +114,7 @@ my $test_completion = sub {
 	%out = map { $_ => 1 } split(/\s+/s, $lei_out);
 	for my $sw (qw(-f --format -o --output --mfolder --augment -a
 			--mua --no-local --local --verbose -v
-			--save --no-remote --remote --torsocks
+			--save --no-save --no-remote --remote --torsocks
 			--reverse -r )) {
 		ok($out{$sw}, "$sw offered as `lei q' completion");
 	}

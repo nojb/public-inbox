@@ -28,7 +28,8 @@ ok(!glob("$o/cur/*"), 'last result cleared after augment-import');
 
 lei_ok(qw(q -o), "maildir:$o", qw(m:qp@example.com));
 @fn = glob("$o/cur/*:2,S");
-is(scalar(@fn), 1, "`seen' flag set on Maildir file");
+is(scalar(@fn), 1, "`seen' flag set on Maildir file") or
+	diag "$o contents: ", explain([glob("$o/*/*")]);
 
 # ensure --no-import-before works
 my $n = $fn[0];

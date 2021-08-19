@@ -390,10 +390,16 @@ sub new {
 		-e $dst && !-d _ and die
 				"$dst exists and is not a directory\n";
 		$lei->{ovv}->{dst} = $dst .= '/' if substr($dst, -1) ne '/';
+		$lei->{opt}->{save} //= \1 if $lei->{cmd} eq 'q';
 	} elsif (substr($fmt, 0, 4) eq 'mbox') {
 		require PublicInbox::MboxReader;
 		$self->can("eml2$fmt") or die "bad mbox format: $fmt\n";
 		$self->{base_type} = 'mbox';
+		if ($lei->{cmd} eq 'q' &&
+				(($lei->path_to_fd($dst) // -1) < 0) &&
+				(-f $dst || !-e _)) {
+			$lei->{opt}->{save} //= \1;
+		}
 	} elsif ($fmt =~ /\Aimaps?\z/) {
 		require PublicInbox::NetWriter;
 		require PublicInbox::URIimap;
@@ -408,6 +414,7 @@ sub new {
 		$dst = $lei->{ovv}->{dst} = $$uri; # canonicalized
 		$lei->{net} = $net;
 		$self->{base_type} = 'imap';
+		$lei->{opt}->{save} //= \1 if $lei->{cmd} eq 'q';
 	} elsif ($fmt eq 'text') {
 		require PublicInbox::LeiViewText;
 		$lei->{lvt} = PublicInbox::LeiViewText->new($lei);
@@ -454,9 +461,17 @@ sub _pre_augment_maildir {
 	open $self->{poke_dh}, '<', "${dst}cur" or die "open ${dst}cur: $!";
 }
 
+sub clobber_dst_prepare ($;$) {
+	my ($lei, $f) = @_;
+	my $wait = (defined($f) && $lei->{sto}) ?
+			$lei->{sto}->ipc_do('lms_forget_folders', $f) : undef;
+	my $dedupe = $lei->{dedupe} or return;
+	$dedupe->reset_dedupe if $dedupe->can('reset_dedupe');
+}
+
 sub _do_augment_maildir {
 	my ($self, $lei) = @_;
-	return if ($lei->{opt}->{save} // 0) < 0;
+	return if $lei->{cmd} eq 'up';
 	my $dst = $lei->{ovv}->{dst};
 	my $lse = $lei->{opt}->{'import-before'} ? $lei->{lse} : undef;
 	my $mdr = PublicInbox::MdirReader->new;
@@ -468,9 +483,11 @@ sub _do_augment_maildir {
 			$dedupe->pause_dedupe;
 		}
 	} elsif ($lse) {
+		clobber_dst_prepare($lei, "maildir:$dst");
 		$mdr->{shard_info} = $self->{shard_info};
 		$mdr->maildir_each_eml($dst, \&_md_update, $lei, $lse, 1);
 	} else {# clobber existing Maildir
+		clobber_dst_prepare($lei, "maildir:$dst");
 		$mdr->maildir_each_file($dst, \&_unlink);
 	}
 }
@@ -487,7 +504,7 @@ sub _imap_augment_or_delete { # PublicInbox::NetReader::imap_each cb
 
 sub _do_augment_imap {
 	my ($self, $lei) = @_;
-	return if ($lei->{opt}->{save} // 0) < 0;
+	return if $lei->{cmd} eq 'up';
 	my $net = $lei->{net};
 	my $lse = $lei->{opt}->{'import-before'} ? $lei->{lse} : undef;
 	if ($lei->{opt}->{augment}) {
@@ -499,11 +516,13 @@ sub _do_augment_imap {
 		}
 	} elsif ($lse) {
 		my $delete_mic;
+		clobber_dst_prepare($lei, "$self->{uri}");
 		$net->imap_each($self->{uri}, \&_imap_augment_or_delete,
 					$lei, $lse, \$delete_mic);
 		$delete_mic->expunge if $delete_mic;
 	} elsif (!$self->{-wq_worker_nr}) { # undef or 0
 		# clobber existing IMAP folder
+		clobber_dst_prepare($lei, "$self->{uri}");
 		$net->imap_delete_all($self->{uri});
 	}
 }
@@ -563,6 +582,8 @@ sub _pre_augment_mbox {
 			if $imp_before && !ref($imp_before);
 		die "--augment specified but $dst is not seekable\n" if
 			$lei->{opt}->{augment};
+		die "cannot --save with unseekable $dst\n" if
+			$lei->{dedupe} && $lei->{dedupe}->can('reset_dedupe');
 	}
 	if ($self->{zsfx} = PublicInbox::MboxReader::zsfx($dst)) {
 		pipe(my ($r, $w)) or die "pipe: $!";
@@ -581,10 +602,10 @@ sub _do_augment_mbox {
 	my ($self, $lei) = @_;
 	return unless $self->{seekable};
 	my $opt = $lei->{opt};
-	return if ($opt->{save} // 0) < 0;
+	return if $lei->{cmd} eq 'up';
 	my $out = $lei->{1};
 	my ($fmt, $dst) = @{$lei->{ovv}}{qw(fmt dst)};
-	return unless -s $out;
+	return clobber_dst_prepare($lei) unless -s $out;
 	unless ($opt->{augment} || $opt->{'import-before'}) {
 		truncate($out, 0) or die "truncate($dst): $!";
 		return;
@@ -599,6 +620,8 @@ sub _do_augment_mbox {
 	if ($opt->{augment}) {
 		$dedupe = $lei->{dedupe};
 		$dedupe->prepare_dedupe if $dedupe;
+	} else {
+		clobber_dst_prepare($lei);
 	}
 	if ($opt->{'import-before'}) { # the default
 		my $lse = $lei->{lse};

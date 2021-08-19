@@ -75,7 +75,7 @@ for my $mbox (@MBOX) {
 my ($tmpdir, $for_destroy) = tmpdir();
 local $ENV{TMPDIR} = $tmpdir;
 open my $err, '>>', "$tmpdir/lei.err" or BAIL_OUT $!;
-my $lei = bless { 2 => $err }, 'PublicInbox::LEI';
+my $lei = bless { 2 => $err, cmd => 'test' }, 'PublicInbox::LEI';
 my $commit = sub {
 	$_[0] = undef; # wcb
 	delete $lei->{1};

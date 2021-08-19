@@ -243,6 +243,16 @@ sub pause_dedupe {
 	$oidx->commit_lazy;
 }
 
+sub reset_dedupe {
+	my ($self) = @_;
+	prepare_dedupe($self);
+	my $lk = $self->lock_for_scope_fast;
+	for my $t (qw(xref3 over id2num)) {
+		$self->{oidx}->{dbh}->do("DELETE FROM $t");
+	}
+	pause_dedupe($self);
+}
+
 sub mm { undef }
 
 sub altid_map { {} }

@@ -64,7 +64,6 @@ sub lei_up {
 	my ($lei, @outs) = @_;
 	$lei->{lse} = $lei->_lei_store(1)->search;
 	my $opt = $lei->{opt};
-	$opt->{save} = -1;
 	my @local;
 	if (defined $opt->{all}) {
 		return $lei->fail("--all and @outs incompatible") if @outs;

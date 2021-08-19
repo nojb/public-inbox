@@ -26,9 +26,9 @@ TODO: mention curl options?
 
 Read search terms from stdin.
 
-=item --save
+=item --no-save
 
-Save a search for L<lei-up(1)>.
+Do not save the search for L<lei-up(1)>.
 
 =item --output=MFOLDER
 

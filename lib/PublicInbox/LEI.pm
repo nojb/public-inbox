@@ -173,7 +173,7 @@ our %CMD = ( # sorted in order of importance/use:
 'q' => [ '--stdin|SEARCH_TERMS...', 'search for messages matching terms',
 	'stdin|', # /|\z/ must be first for lone dash
 	@lxs_opt,
-	qw(save output|mfolder|o=s format|f=s dedupe|d=s threads|t+
+	qw(save! output|mfolder|o=s format|f=s dedupe|d=s threads|t+
 	sort|s=s reverse|r offset=i pretty jobs|j=s globoff|g augment|a
 	import-before! lock=s@ rsyncable alert=s@ mua=s verbose|v+
 	shared color! mail-sync!), @c_opt, opt_dash('limit|n=i', '[0-9]+') ],
@@ -337,7 +337,7 @@ my %OPTDESC = (
 'torsocks=s' => ['VAL|auto|no|yes',
 		'whether or not to wrap git and curl commands with torsocks'],
 'no-torsocks' => 'alias for --torsocks=no',
-'save' =>  "save a search for `lei up'",
+'save!' =>  "do not save a search for `lei up'",
 'import-remote!' => 'do not memoize remote messages into local store',
 
 'type=s' => [ 'any|mid|git', 'disambiguate type' ],
