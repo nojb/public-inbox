@@ -1423,6 +1423,7 @@ sub refresh_watches {
 				++$renames;
 			}
 			next if $watches->{$f}; # may be set to pause
+			require PublicInbox::LeiWatch;
 			$watches->{$f} = PublicInbox::LeiWatch->new($f);
 			$seen{$f} = undef;
 			add_maildir_watch($cd, $cfg_f);
