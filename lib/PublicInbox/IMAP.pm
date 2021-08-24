@@ -195,14 +195,14 @@ sub cmd_capability ($$) {
 # but uo2m_hibernate can compact and deduplicate it
 sub uo2m_ary_new ($;$) {
 	my ($self, $exists) = @_;
-	my $base = $self->{uid_base};
-	my $uids = $self->{ibx}->over->uid_range($base + 1, $base + UID_SLICE);
+	my $ub = $self->{uid_base};
+	my $uids = $self->{ibx}->over(1)->uid_range($ub + 1, $ub + UID_SLICE);
 
 	# convert UIDs to offsets from {base}
 	my @tmp; # [$UID_OFFSET] => $MSN
 	my $msn = 0;
-	++$base;
-	$tmp[$_ - $base] = ++$msn for @$uids;
+	++$ub;
+	$tmp[$_ - $ub] = ++$msn for @$uids;
 	$$exists = $msn if $exists;
 	\@tmp;
 }
@@ -243,7 +243,7 @@ sub uo2m_extend ($$;$) {
 	# need to extend the current range:
 	my $base = $self->{uid_base};
 	++$beg;
-	my $uids = $self->{ibx}->over->uid_range($beg, $base + UID_SLICE);
+	my $uids = $self->{ibx}->over(1)->uid_range($beg, $base + UID_SLICE);
 	return $uo2m if !scalar(@$uids);
 	my @tmp; # [$UID_OFFSET] => $MSN
 	my $write_method = $_[2] // 'msg_more';
@@ -342,7 +342,7 @@ sub cmd_idle ($$) {
 	my $fd = fileno($sock);
 	$self->{-idle_tag} = $tag;
 	# only do inotify on most recent slice
-	if ($ibx->over->max < $uid_end) {
+	if ($ibx->over(1)->max < $uid_end) {
 		$ibx->subscribe_unlock($fd, $self);
 		$self->{imapd}->idler_start;
 	}
@@ -393,7 +393,7 @@ sub inbox_lookup ($$;$) {
 	my ($ibx, $exists, $uidmax, $uid_base) = (undef, 0, 0, 0);
 	$mailbox = lc $mailbox;
 	$ibx = $self->{imapd}->{mailboxes}->{$mailbox} or return;
-	my $over = $ibx->over;
+	my $over = $ibx->over(1);
 	if ($over != $ibx) { # not a dummy
 		$mailbox =~ /\.([0-9]+)\z/ or
 				die "BUG: unexpected dummy mailbox: $mailbox\n";
@@ -418,7 +418,8 @@ sub inbox_lookup ($$;$) {
 		# if "INBOX.foo.bar" is selected and "INBOX.foo.bar.0",
 		# check for new UID ranges (e.g. "INBOX.foo.bar.1")
 		if (my $z = $self->{imapd}->{mailboxes}->{"$mailbox.0"}) {
-			ensure_slices_exist($self->{imapd}, $z, $z->over->max);
+			ensure_slices_exist($self->{imapd}, $z,
+						$z->over(1)->max);
 		}
 	}
 	($ibx, $exists, $uidmax + 1, $uid_base);
@@ -722,7 +723,7 @@ sub range_step ($$) {
 		uid_clamp($self, \$beg, \$end);
 	} elsif ($range =~ /\A([0-9]+):\*\z/) {
 		$beg = $1 + 0;
-		$end = $self->{ibx}->over->max;
+		$end = $self->{ibx}->over(1)->max;
 		$end = $uid_end if $end > $uid_end;
 		$beg = $end if $beg > $end;
 		uid_clamp($self, \$beg, \$end);
@@ -740,7 +741,7 @@ sub range_step ($$) {
 sub refill_range ($$$) {
 	my ($self, $msgs, $range_info) = @_;
 	my ($beg, $end, $range_csv) = @$range_info;
-	if (scalar(@$msgs = @{$self->{ibx}->over->query_xover($beg, $end)})) {
+	if (scalar(@$msgs = @{$self->{ibx}->over(1)->query_xover($beg, $end)})){
 		$range_info->[0] = $msgs->[-1]->{num} + 1;
 		return;
 	}
@@ -781,7 +782,7 @@ sub fetch_smsg { # long_response
 sub refill_uids ($$$;$) {
 	my ($self, $uids, $range_info, $sql) = @_;
 	my ($beg, $end, $range_csv) = @$range_info;
-	my $over = $self->{ibx}->over;
+	my $over = $self->{ibx}->over(1);
 	while (1) {
 		if (scalar(@$uids = @{$over->uid_range($beg, $end, $sql)})) {
 			$range_info->[0] = $uids->[-1] + 1; # update $beg
@@ -1114,7 +1115,7 @@ sub parse_imap_query ($$) {
 	my ($self, $query) = @_;
 	my $q = PublicInbox::IMAPsearchqp::parse($self, $query);
 	if (ref($q)) {
-		my $max = $self->{ibx}->over->max;
+		my $max = $self->{ibx}->over(1)->max;
 		my $beg = 1;
 		uid_clamp($self, \$beg, \$max);
 		$q->{range_info} = [ $beg, $max ];

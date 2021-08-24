@@ -8,6 +8,7 @@ use PublicInbox::Git;
 use PublicInbox::MID qw(mid2path);
 use PublicInbox::Eml;
 use List::Util qw(max);
+use Carp qw(croak);
 
 # Long-running "git-cat-file --batch" processes won't notice
 # unlinked packs, so we need to restart those processes occasionally.
@@ -168,8 +169,8 @@ sub max_git_epoch {
 }
 
 sub mm {
-	my ($self) = @_;
-	$self->{mm} ||= eval {
+	my ($self, $req) = @_;
+	$self->{mm} //= eval {
 		require PublicInbox::Msgmap;
 		my $dir = $self->{inboxdir};
 		if ($self->version >= 2) {
@@ -177,7 +178,7 @@ sub mm {
 		} else {
 			PublicInbox::Msgmap->new($dir);
 		}
-	};
+	} // ($req ? croak("E: $@") : undef);
 }
 
 sub search {
@@ -195,18 +196,18 @@ sub search {
 sub isrch { $_[0]->{isrch} // search($_[0]) }
 
 sub over {
-	$_[0]->{over} //= eval {
-		my $srch = $_[0]->{search} //= do {
-			_cleanup_later($_[0]);
+	my ($self, $req) = @_;
+	$self->{over} //= eval {
+		my $srch = $self->{search} //= do {
+			_cleanup_later($self);
 			require PublicInbox::Search;
-			PublicInbox::Search->new($_[0]);
+			PublicInbox::Search->new($self);
 		};
 		my $over = PublicInbox::Over->new("$srch->{xpfx}/over.sqlite3");
 		$over->dbh; # may fail
 		$over;
-	};
+	} // ($req ? croak("E: $@") : undef);
 }
-
 
 sub try_cat {
 	my ($path) = @_;

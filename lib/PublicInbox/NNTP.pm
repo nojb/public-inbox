@@ -202,7 +202,7 @@ sub cmd_list ($;$$) {
 
 sub listgroup_range_i {
 	my ($self, $beg, $end) = @_;
-	my $r = $self->{ibx}->mm->msg_range($beg, $end, 'num');
+	my $r = $self->{ibx}->mm(1)->msg_range($beg, $end, 'num');
 	scalar(@$r) or return;
 	$self->msg_more(join('', map { "$_->[0]\r\n" } @$r));
 	1;
@@ -210,7 +210,7 @@ sub listgroup_range_i {
 
 sub listgroup_all_i {
 	my ($self, $num) = @_;
-	my $ary = $self->{ibx}->mm->ids_after($num);
+	my $ary = $self->{ibx}->mm(1)->ids_after($num);
 	scalar(@$ary) or return;
 	more($self, join("\r\n", @$ary));
 	1;
@@ -261,7 +261,7 @@ sub parse_time ($$;$) {
 
 sub group_line ($$) {
 	my ($self, $ibx) = @_;
-	my ($min, $max) = $ibx->mm->minmax;
+	my ($min, $max) = $ibx->mm(1)->minmax;
 	more($self, "$ibx->{newsgroup} $max $min n");
 }
 
@@ -367,7 +367,7 @@ sub cmd_group ($$) {
 	$nntpd->idler_start;
 
 	$self->{ibx} = $ibx;
-	my ($min, $max) = $ibx->mm->minmax;
+	my ($min, $max) = $ibx->mm(1)->minmax;
 	$self->{article} = $min;
 	my $est_size = $max - $min;
 	"211 $est_size $min $max $group";
@@ -381,7 +381,7 @@ sub article_adj ($$) {
 	defined $n or return '420 no current article has been selected';
 
 	$n += $off;
-	my $mid = $ibx->mm->mid_for($n);
+	my $mid = $ibx->mm(1)->mid_for($n);
 	unless ($mid) {
 		$n = $off > 0 ? 'next' : 'previous';
 		return "421 no $n article in this group";
@@ -418,9 +418,8 @@ sub xref_by_tc ($$$) {
 			$by_addr->{lc($_)} // ()
 		} (PublicInbox::Address::emails($smsg->{$f} // ''));
 		for my $ibx (@ibxs) {
-			my $ngname = $ibx->{newsgroup} // next;
-			next if defined $xref->{$ngname};
-			$xref->{$ngname} = eval { $ibx->mm->num_for($mid) };
+			$xref->{$ibx->{newsgroup}} //=
+						$ibx->mm(1)->num_for($mid);
 		}
 	}
 }
@@ -437,13 +436,15 @@ sub xref ($$$) {
 		$xref = { $cur_ng => $smsg->{num} };
 		my $mid = $smsg->{mid};
 		for my $ibx (values %{$nntpd->{pi_cfg}->{-by_newsgroup}}) {
-			next if defined($xref->{$ibx->{newsgroup}});
-			my $num = eval { $ibx->mm->num_for($mid) } // next;
-			$xref->{$ibx->{newsgroup}} = $num;
+			$xref->{$ibx->{newsgroup}} //=
+						 $ibx->mm(1)->num_for($mid);
 		}
 	}
 	my $ret = "$nntpd->{servername} $cur_ng:".delete($xref->{$cur_ng});
-	$ret .= " $_:$xref->{$_}" for (sort keys %$xref);
+	for my $ng (sort keys %$xref) {
+		my $num = $xref->{$ng} // next;
+		$ret .= " $ng:$num";
+	}
 	$ret;
 }
 
@@ -504,7 +505,7 @@ find_ibx:
 				return '412 no newsgroup has been selected';
 	}
 found:
-	my $smsg = $ibx->over->get_art($n) or return $err;
+	my $smsg = $ibx->over(1)->get_art($n) or return $err;
 	$smsg->{-ibx} = $ibx;
 	if ($code == 223) { # STAT
 		set_art($self, $n);
@@ -618,7 +619,7 @@ sub get_range ($$) {
 	my $ibx = $self->{ibx} or return '412 no news group has been selected';
 	defined $range or return '420 No article(s) selected';
 	my ($beg, $end);
-	my ($min, $max) = $ibx->mm->minmax;
+	my ($min, $max) = $ibx->mm(1)->minmax;
 	if ($range =~ /\A([0-9]+)\z/) {
 		$beg = $end = $1;
 	} elsif ($range =~ /\A([0-9]+)-\z/) {
@@ -688,7 +689,7 @@ sub long_response ($$;@) {
 
 sub hdr_msgid_range_i {
 	my ($self, $beg, $end) = @_;
-	my $r = $self->{ibx}->mm->msg_range($beg, $end);
+	my $r = $self->{ibx}->mm(1)->msg_range($beg, $end);
 	@$r or return;
 	$self->msg_more(join('', map { "$_->[0] <$_->[1]>\r\n" } @$r));
 	1;
@@ -714,7 +715,7 @@ sub mid_lookup ($$) {
 	my ($self, $mid) = @_;
 	my $cur_ibx = $self->{ibx};
 	if ($cur_ibx) {
-		my $n = $cur_ibx->mm->num_for($mid);
+		my $n = $cur_ibx->mm(1)->num_for($mid);
 		return ($cur_ibx, $n) if defined $n;
 	}
 	my $pi_cfg = $self->{nntpd}->{pi_cfg};
@@ -744,7 +745,7 @@ EOF
 	} else { # slow path for non-ALL users
 		for my $ibx (values %{$pi_cfg->{-by_newsgroup}}) {
 			next if defined $cur_ibx && $ibx eq $cur_ibx;
-			my $n = $ibx->mm->num_for($mid);
+			my $n = $ibx->mm(1)->num_for($mid);
 			return ($ibx, $n) if defined $n;
 		}
 	}
@@ -754,7 +755,7 @@ EOF
 sub xref_range_i {
 	my ($self, $beg, $end) = @_;
 	my $ibx = $self->{ibx};
-	my $msgs = $ibx->over->query_xover($$beg, $end);
+	my $msgs = $ibx->over(1)->query_xover($$beg, $end);
 	scalar(@$msgs) or return;
 	$$beg = $msgs->[-1]->{num} + 1;
 	$self->msg_more(join('', map {
@@ -770,7 +771,7 @@ sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
 		my $mid = $1;
 		my ($ibx, $n) = mid_lookup($self, $mid);
 		return r430 unless $n;
-		my $smsg = $ibx->over->get_art($n) or return;
+		my $smsg = $ibx->over(1)->get_art($n) or return;
 		hdr_mid_response($self, $xhdr, $ibx, $n, $range,
 				xref($self, $ibx, $smsg));
 	} else { # numeric range
@@ -783,16 +784,15 @@ sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
 }
 
 sub over_header_for {
-	my ($over, $num, $field) = @_;
-	my $smsg = $over->get_art($num) or return;
+	my ($ibx, $num, $field) = @_;
+	my $smsg = $ibx->over(1)->get_art($num) or return;
 	return PublicInbox::Smsg::date($smsg) if $field eq 'date';
 	$smsg->{$field};
 }
 
 sub smsg_range_i {
 	my ($self, $beg, $end, $field) = @_;
-	my $over = $self->{ibx}->over;
-	my $msgs = $over->query_xover($$beg, $end);
+	my $msgs = $self->{ibx}->over(1)->query_xover($$beg, $end);
 	scalar(@$msgs) or return;
 	my $tmp = '';
 
@@ -816,7 +816,7 @@ sub hdr_smsg ($$$$) {
 	if (defined $range && $range =~ $ONE_MSGID) {
 		my ($ibx, $n) = mid_lookup($self, $1);
 		return r430 unless defined $n;
-		my $v = over_header_for($ibx->over, $n, $field);
+		my $v = over_header_for($ibx, $n, $field);
 		hdr_mid_response($self, $xhdr, $ibx, $n, $range, $v);
 	} else { # numeric range
 		$range = $self->{article} unless defined $range;
@@ -885,7 +885,7 @@ sub hdr_mid_response ($$$$$$) {
 
 sub xrover_i {
 	my ($self, $beg, $end) = @_;
-	my $h = over_header_for($self->{ibx}->over, $$beg, 'references');
+	my $h = over_header_for($self->{ibx}, $$beg, 'references');
 	more($self, "$$beg $h") if defined($h);
 	$$beg++ < $end;
 }
@@ -925,7 +925,7 @@ sub cmd_over ($;$) {
 	if ($range && $range =~ $ONE_MSGID) {
 		my ($ibx, $n) = mid_lookup($self, $1);
 		defined $n or return r430;
-		my $smsg = $ibx->over->get_art($n) or return r430;
+		my $smsg = $ibx->over(1)->get_art($n) or return r430;
 		more($self, '224 Overview information follows (multi-line)');
 
 		# Only set article number column if it's the current group
@@ -946,7 +946,7 @@ sub cmd_over ($;$) {
 sub xover_i {
 	my ($self, $beg, $end) = @_;
 	my $ibx = $self->{ibx};
-	my $msgs = $ibx->over->query_xover($$beg, $end);
+	my $msgs = $ibx->over(1)->query_xover($$beg, $end);
 	my $nr = scalar @$msgs or return;
 
 	# OVERVIEW.FMT
@@ -1014,7 +1014,7 @@ sub cmd_xpath ($$) {
 		}
 	} else { # slow path, no point in using long_response
 		for my $ibx (values %$groups) {
-			my $n = $ibx->mm->num_for($mid) // next;
+			my $n = $ibx->mm(1)->num_for($mid) // next;
 			push @paths, "$ibx->{newsgroup}/$n";
 		}
 	}
