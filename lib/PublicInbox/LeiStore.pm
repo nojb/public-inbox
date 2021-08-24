@@ -471,7 +471,7 @@ sub xchg_stderr {
 }
 
 sub done {
-	my ($self) = @_;
+	my ($self, $sock_ref) = @_;
 	my $err = '';
 	if (my $im = delete($self->{im})) {
 		eval { $im->done };
@@ -486,6 +486,10 @@ sub done {
 	$self->{priv_eidx}->done; # V2Writable::done
 	xchg_stderr($self);
 	die $err if $err;
+
+	# notify clients ->done has been issued
+	defined($sock_ref) and
+		$self->{s2d_op_p}->pkt_do('sto_done_complete', $sock_ref);
 }
 
 sub ipc_atfork_child {
@@ -493,28 +497,37 @@ sub ipc_atfork_child {
 	my $lei = $self->{lei};
 	$lei->_lei_atfork_child(1) if $lei;
 	xchg_stderr($self);
-	if (my $err = delete($self->{err_pipe})) {
-		close $err->[0];
-		$self->{-err_wr} = $err->[1];
+	if (my $to_close = delete($self->{to_close})) {
+		close($_) for @$to_close;
 	}
 	$self->SUPER::ipc_atfork_child;
 }
 
 sub write_prepare {
 	my ($self, $lei) = @_;
+	$lei // die 'BUG: $lei not passed';
 	unless ($self->{-ipc_req}) {
-		my $d = $lei->store_path;
-		$self->ipc_lock_init("$d/ipc.lock");
-		substr($d, -length('/lei/store'), 10, '');
+		# s2d => store-to-daemon messages
+		require PublicInbox::PktOp;
+		my ($s2d_op_c, $s2d_op_p) = PublicInbox::PktOp->pair;
+		my $dir = $lei->store_path;
+		$self->ipc_lock_init("$dir/ipc.lock");
+		substr($dir, -length('/lei/store'), 10, '');
 		pipe(my ($r, $w)) or die "pipe: $!";
-		my $err_pipe = [ $r, $w ];
 		# Mail we import into lei are private, so headers filtered out
 		# by -mda for public mail are not appropriate
 		local @PublicInbox::MDA::BAD_HEADERS = ();
-		$self->ipc_worker_spawn("lei/store $d", $lei->oldset,
-					{ lei => $lei, err_pipe => $err_pipe });
+		$self->ipc_worker_spawn("lei/store $dir", $lei->oldset, {
+					lei => $lei,
+					-err_wr => $w,
+					to_close => [ $r, $s2d_op_c->{sock} ],
+					s2d_op_p => $s2d_op_p,
+				});
 		require PublicInbox::LeiStoreErr;
-		PublicInbox::LeiStoreErr->new($err_pipe->[0], $lei);
+		PublicInbox::LeiStoreErr->new($r, $lei);
+		$s2d_op_c->{ops} = {
+			sto_done_complete => [ $lei->can('sto_done_complete') ]
+		};
 	}
 	$lei->{sto} = $self;
 }

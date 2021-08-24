@@ -25,6 +25,7 @@ sub new {
 	my ($op_c, $ops) = $lei->workers_start($self, $nproc,
 		undef, { ipt => $ipt }); # LeiInput subclass
 	$op_c->{ops} = $ops; # for PktOp->event_step
+	$self->{lei_sock} = $lei->{sock}; # keep client for pmd_done_wait
 	$lei->{pmd} = $self;
 }
 
@@ -32,7 +33,7 @@ sub ipc_atfork_child {
 	my ($self) = @_;
 	my $ipt = $self->{ipt} // die 'BUG: no self->{ipt}';
 	$ipt->{lei} = $self->{lei};
-	$ipt->ipc_atfork_child;
+	$ipt->ipc_atfork_child; # calls _lei_atfork_child;
 }
 
 sub each_mdir_fn { # maildir_each_file callback
@@ -48,13 +49,13 @@ sub mdir_iter { # via wq_io_do
 sub pmd_done_wait {
 	my ($arg, $pid) = @_;
 	my ($self, $lei) = @$arg;
-	my $wait = $lei->{sto}->ipc_do('done');
 	$lei->can('wq_done_wait')->($arg, $pid);
 }
 
 sub _lei_wq_eof { # EOF callback for main lei daemon
 	my ($lei) = @_;
 	my $pmd = delete $lei->{pmd} or return $lei->fail;
+	$lei->sto_done_request($pmd->{lei_sock});
 	$pmd->wq_wait_old(\&pmd_done_wait, $lei);
 }
 

@@ -13,6 +13,7 @@ sub new {
 	my $self = bless { -wq_ident => 'lei import_kw worker' }, $cls;
 	my ($op_c, $ops) = $lei->workers_start($self, $self->detect_nproc);
 	$op_c->{ops} = $ops; # for PktOp->event_step
+	$self->{lei_sock} = $lei->{sock};
 	$lei->{ikw} = $self;
 }
 
@@ -42,13 +43,13 @@ sub ck_update_kw { # via wq_io_do
 sub ikw_done_wait {
 	my ($arg, $pid) = @_;
 	my ($self, $lei) = @$arg;
-	my $wait = $lei->{sto}->ipc_do('done');
 	$lei->can('wq_done_wait')->($arg, $pid);
 }
 
 sub _lei_wq_eof { # EOF callback for main lei daemon
 	my ($lei) = @_;
 	my $ikw = delete $lei->{ikw} or return $lei->fail;
+	$lei->sto_done_request($ikw->{lei_sock});
 	$ikw->wq_wait_old(\&ikw_done_wait, $lei);
 }
 

@@ -37,6 +37,7 @@ $GLP_PASS->configure(qw(gnu_getopt no_ignore_case auto_abbrev pass_through));
 
 our %PATH2CFG; # persistent for socket daemon
 our $MDIR2CFGPATH; # /path/to/maildir => { /path/to/config => [ ino watches ] }
+our %LIVE_SOCK; # "GLOB(0x....)" => $lei->{sock}
 
 # TBD: this is a documentation mechanism to show a subcommand
 # (may) pass options through to another command:
@@ -565,6 +566,7 @@ sub _lei_atfork_child {
 	$dir_idle->force_close if $dir_idle;
 	%PATH2CFG = ();
 	$MDIR2CFGPATH = {};
+	%LIVE_SOCK = ();
 	eval 'no warnings; undef $PublicInbox::LeiNoteEvent::to_flush';
 	undef $errors_log;
 	$quit = \&CORE::exit;
@@ -1429,7 +1431,7 @@ sub refresh_watches {
 			add_maildir_watch($cd, $cfg_f);
 		}
 	}
-	my $wait = $renames ? $sto->ipc_do('done') : undef;
+	$lei->sto_done_request if $renames;
 	if ($old) { # cull old non-existent entries
 		for my $url (keys %$old) {
 			next if exists $seen{$url};
@@ -1461,6 +1463,21 @@ sub lms { # read-only LeiMailSync
 		$sto ? $sto->search : undef
 	};
 	$lse ? $lse->lms : undef;
+}
+
+sub sto_done_request { # only call this from lei-daemon process (not workers)
+	my ($lei, $sock) = @_;
+	if ($sock //= $lei->{sock}) {
+		$LIVE_SOCK{"$sock"} = $sock;
+		$lei->{sto}->ipc_do('done', "$sock"); # issue, async wait
+	} else { # forcibly wait
+		my $wait = $lei->{sto}->ipc_do('done');
+	}
+}
+
+sub sto_done_complete { # called in lei-daemon when LeiStore->done is complete
+	my ($sock_str) = @_;
+	delete $LIVE_SOCK{$sock_str}; # frees {sock} for waiting lei clients
 }
 
 1;

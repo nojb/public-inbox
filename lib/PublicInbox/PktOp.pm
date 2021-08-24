@@ -56,9 +56,12 @@ sub event_step {
 			($cmd, @pargs) = split(/ /, $msg);
 		}
 		my $op = $self->{ops}->{$cmd //= $msg};
-		die "BUG: unknown message: `$cmd'" unless $op;
-		my ($sub, @args) = @$op;
-		$sub->(@args, @pargs);
+		if ($op) {
+			my ($sub, @args) = @$op;
+			$sub->(@args, @pargs);
+		} elsif ($msg ne '') {
+			die "BUG: unknown message: `$cmd'";
+		}
 		return $self->close if $msg eq ''; # close on EOF
 	}
 }

@@ -16,12 +16,12 @@ sub lei_forget_mail_sync {
 	my ($lei, @folders) = @_;
 	my $lms = $lei->lms or return;
 	my $sto = $lei->_lei_store or return; # may disappear due to race
-	$sto->write_prepare;
+	$sto->write_prepare($lei);
 	my $err = $lms->arg2folder($lei, \@folders);
 	$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
 	return $lei->fail($err->{fail}) if $err->{fail};
 	$sto->ipc_do('lms_forget_folders', @folders);
-	my $wait = $sto->ipc_do('done');
+	$lei->sto_done_request;
 }
 
 *_complete_forget_mail_sync = \&PublicInbox::LeiExportKw::_complete_export_kw;

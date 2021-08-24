@@ -15,7 +15,7 @@ sub flush_lei ($) {
 	if (my $lne = delete $lei->{cfg}->{-lei_note_event}) {
 		$lne->wq_close(1, undef, $lei); # runs _lei_wq_eof;
 	} elsif ($lei->{sto}) { # lms_clear_src calls only:
-		my $wait = $lei->{sto}->ipc_do('done');
+		$lei->sto_done_request;
 	}
 }
 
@@ -117,7 +117,7 @@ sub lne_done_wait {
 sub _lei_wq_eof { # EOF callback for main lei daemon
 	my ($lei) = @_;
 	my $lne = delete $lei->{lne} or return $lei->fail;
-	my $wait = $lei->{sto}->ipc_do('done');
+	$lei->sto_done_request;
 	$lne->wq_wait_old(\&lne_done_wait, $lei);
 }
 
