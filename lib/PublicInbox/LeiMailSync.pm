@@ -79,8 +79,8 @@ sub fid_for {
 	my ($fid) = $dbh->selectrow_array($sel, undef, $folder);
 	return $fid if defined $fid;
 
+	# caller had trailing slash (LeiToMail)
 	if ($folder =~ s!\A((?:maildir|mh):.*?)/+\z!$1!i) {
-		warn "folder: $folder/ had trailing slash in arg\n";
 		($fid) = $dbh->selectrow_array($sel, undef, $folder);
 		if (defined $fid) {
 			$dbh->do(<<EOM, undef, $folder, $fid) if $rw;
