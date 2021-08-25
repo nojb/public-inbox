@@ -486,6 +486,12 @@ sub err ($;@) {
 
 sub qerr ($;@) { $_[0]->{opt}->{quiet} or err(shift, @_) }
 
+sub qfin { # show message on finalization (LeiFinmsg)
+	my ($lei, $msg) = @_;
+	return if $lei->{opt}->{quiet};
+	$lei->{fmsg} ? push(@{$lei->{fmsg}}, "$msg\n") : qerr($lei, $msg);
+}
+
 sub fail_handler ($;$$) {
 	my ($lei, $code, $io) = @_;
 	close($io) if $io; # needed to avoid warnings on SIGPIPE

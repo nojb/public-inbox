@@ -398,9 +398,12 @@ Error closing $lei->{ovv}->{dst}: $!
 	if ($lei->{-progress}) {
 		my $tot = $lei->{-mset_total} // 0;
 		my $nr = $lei->{-nr_write} // 0;
-		$lei->qerr($l2m ?
-			"# $nr written to $lei->{ovv}->{dst} ($tot matches)" :
-			"# $tot matches");
+		if ($l2m) {
+			$lei->qfin("# $nr written to " .
+				"$lei->{ovv}->{dst} ($tot matches)");
+		} else {
+			$lei->qerr("# $tot matches");
+		}
 	}
 	$lei->start_mua if $start_mua;
 	$lei->dclose;

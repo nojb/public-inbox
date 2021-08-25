@@ -48,6 +48,8 @@ sub up1 ($$) {
 
 sub up1_redispatch {
 	my ($lei, $out, $op_p) = @_;
+	require PublicInbox::LeiFinmsg;
+	$lei->{fmsg} //= PublicInbox::LeiFinmsg->new($lei->{2});
 	my $l = bless { %$lei }, ref($lei);
 	$l->{opt} = { %{$l->{opt}} };
 	delete $l->{sock};
