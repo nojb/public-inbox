@@ -525,7 +525,7 @@ sub _fill_ei ($$) {
 		my $v = get_1($self, $pfx, $k) // next;
 		$es->{$k} = $v;
 	}
-	for my $k (qw(altid coderepo hide url infourl)) {
+	for my $k (qw(coderepo hide url infourl)) {
 		my $v = $self->{"$pfx.$k"} // next;
 		$es->{$k} = _array($v);
 	}
