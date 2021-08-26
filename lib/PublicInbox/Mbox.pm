@@ -161,19 +161,17 @@ sub all_ids_cb {
 			my $smsg = $ctx->{over}->get_art($num) or next;
 			return $smsg;
 		}
-		$ctx->{ids} = $ids = $ctx->{mm}->ids_after(\($ctx->{prev}));
+		$ctx->{ids} = $ids = $ctx->{over}->ids_after(\($ctx->{prev}));
 	} while (@$ids);
 }
 
 sub mbox_all_ids {
 	my ($ctx) = @_;
-	my $ibx = $ctx->{ibx};
 	my $prev = 0;
-	my $mm = $ctx->{mm} = $ibx->mm;
-	my $ids = $mm->ids_after(\$prev) or return
-		[404, [qw(Content-Type text/plain)], ["No results found\n"]];
-	$ctx->{over} = $ibx->over or
+	$ctx->{over} = $ctx->{ibx}->over or
 		return PublicInbox::WWW::need($ctx, 'Overview');
+	my $ids = $ctx->{over}->ids_after(\$prev) or return
+		[404, [qw(Content-Type text/plain)], ["No results found\n"]];
 	$ctx->{ids} = $ids;
 	$ctx->{prev} = $prev;
 	require PublicInbox::MboxGz;

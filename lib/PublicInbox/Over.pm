@@ -371,4 +371,15 @@ SELECT COUNT(*) FROM xref3 WHERE oidbin = ?
 
 sub blob_exists { oidbin_exists($_[0], pack('H*', $_[1])) }
 
+# used by NNTP.pm
+sub ids_after {
+	my ($self, $num) = @_;
+	my $ids = dbh($self)->selectcol_arrayref(<<'', undef, $$num);
+SELECT num FROM over WHERE num > ?
+ORDER BY num ASC LIMIT 1000
+
+	$$num = $ids->[-1] if @$ids;
+	$ids;
+}
+
 1;

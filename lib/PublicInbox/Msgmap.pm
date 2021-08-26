@@ -189,17 +189,6 @@ CREATE TABLE IF NOT EXISTS meta (
 
 }
 
-# used by NNTP.pm
-sub ids_after {
-	my ($self, $num) = @_;
-	my $ids = $self->{dbh}->selectcol_arrayref(<<'', undef, $$num);
-SELECT num FROM msgmap WHERE num > ?
-ORDER BY num ASC LIMIT 1000
-
-	$$num = $ids->[-1] if @$ids;
-	$ids;
-}
-
 sub msg_range {
 	my ($self, $beg, $end, $cols) = @_;
 	$cols //= 'num,mid';

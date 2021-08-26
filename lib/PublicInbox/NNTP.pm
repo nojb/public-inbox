@@ -210,7 +210,7 @@ sub listgroup_range_i {
 
 sub listgroup_all_i {
 	my ($self, $num) = @_;
-	my $ary = $self->{ibx}->mm(1)->ids_after($num);
+	my $ary = $self->{ibx}->over(1)->ids_after($num);
 	scalar(@$ary) or return;
 	more($self, join("\r\n", @$ary));
 	1;

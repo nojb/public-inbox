@@ -52,6 +52,9 @@ my $client = sub {
 	my $cfg = PublicInbox::Config->git_config_dump($f);
 	is($?, 0, 'no errors from git-config parsing');
 	ok($cfg->{'extindex.all.topdir'}, 'extindex.topdir defined');
+
+	$res = $cb->(GET('/all/all.mbox.gz'));
+	is($res->code, 200, 'all.mbox.gz');
 };
 test_psgi(sub { $www->call(@_) }, $client);
 %$env = (%$env, TMPDIR => $tmpdir, PI_CONFIG => $pi_config);
