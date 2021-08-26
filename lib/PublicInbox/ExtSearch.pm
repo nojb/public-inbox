@@ -106,10 +106,6 @@ sub description {
 		'$EXTINDEX_DIR/description missing';
 }
 
-sub cloneurl { [] } # TODO
-
-sub nntp_url { [] }
-
 no warnings 'once';
 *base_url = \&PublicInbox::Inbox::base_url;
 *smsg_eml = \&PublicInbox::Inbox::smsg_eml;

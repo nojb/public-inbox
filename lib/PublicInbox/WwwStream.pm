@@ -120,52 +120,50 @@ sub code_footer ($) {
 
 sub _html_end {
 	my ($ctx) = @_;
-	my $urls = <<EOF;
-<a
-id=mirror>This inbox may be cloned and mirrored by anyone:</a>
-EOF
-
 	my $ibx = $ctx->{ibx};
 	my $desc = ascii_html($ibx->description);
-
-	my @urls;
+	my $s = "<a\nid=mirror>";
 	my $http = $ctx->{base_url};
-	my $max = $ibx->max_git_epoch;
 	my $dir = (split(m!/!, $http))[-1];
 	my %seen = ($http => 1);
-	# TODO: some of these URLs may be too long and we may need to
-	# do something like code_footer() above, but these are local
-	# admin-defined
-	if (defined($max)) { # v2
-		for my $i (0..$max) {
-			# old epochs my be deleted:
-			-d "$ibx->{inboxdir}/git/$i.git" or next;
-			my $url = "$http/$i";
-			$seen{$url} = 1;
-			push @urls, "$url $dir/git/$i.git";
+	if ($ibx->can('cloneurl')) { # PublicInbox::Inbox
+		$s .= "This inbox may be cloned and mirrored by anyone:</a>\n";
+		my @urls;
+		my $max = $ibx->max_git_epoch;
+		# TODO: some of these URLs may be too long and we may need to
+		# do something like code_footer() above, but these are local
+		# admin-defined
+		if (defined($max)) { # v2
+			for my $i (0..$max) {
+				# old epochs my be deleted:
+				-d "$ibx->{inboxdir}/git/$i.git" or next;
+				my $url = "$http/$i";
+				$seen{$url} = 1;
+				push @urls, "$url $dir/git/$i.git";
+			}
+			my $nr = scalar(@urls);
+			if ($nr > 1) {
+				$s .= "\n\t";
+				$s .= "# this inbox consists of $nr epochs:";
+				$urls[0] .= "\t# oldest";
+				$urls[-1] .= "\t# newest";
+			}
+		} else { # v1
+			push @urls, $http;
 		}
-		my $nr = scalar(@urls);
-		if ($nr > 1) {
-			$urls .= "\n\t# this inbox consists of $nr epochs:";
-			$urls[0] .= "\t# oldest";
-			$urls[-1] .= "\t# newest";
+		# FIXME: epoch splits can be different in other repositories,
+		# use the "cloneurl" file as-is for now:
+		for my $u (@{$ibx->cloneurl}) {
+			next if $seen{$u}++;
+			push @urls, ($u =~ /\Ahttps?:/ ?
+					qq(<a\nhref="$u">$u</a>) : $u);
 		}
-	} else { # v1
-		push @urls, $http;
-	}
-
-	# FIXME: epoch splits can be different in other repositories,
-	# use the "cloneurl" file as-is for now:
-	foreach my $u (@{$ibx->cloneurl}) {
-		next if $seen{$u}++;
-		push @urls, $u =~ /\Ahttps?:/ ? qq(<a\nhref="$u">$u</a>) : $u;
-	}
-
-	$urls .= "\n" . join('', map { "\tgit clone --mirror $_\n" } @urls);
-	if (my $addrs = $ibx->{address}) {
-		$addrs = join(' ', @$addrs) if ref($addrs) eq 'ARRAY';
-		my $v = defined $max ? '-V2' : '-V1';
-		$urls .= <<EOF;
+		$s .= "\n";
+		$s .= join('', map { "\tgit clone --mirror $_\n" } @urls);
+		if (my $addrs = $ibx->{address}) {
+			$addrs = join(' ', @$addrs) if ref($addrs) eq 'ARRAY';
+			my $v = defined $max ? '-V2' : '-V1';
+			$s .= <<EOF;
 
 	# If you have public-inbox 1.1+ installed, you may
 	# initialize and index your mirror using the following commands:
@@ -173,26 +171,41 @@ EOF
 		$addrs
 	public-inbox-index $dir
 EOF
+		}
+	} else { # PublicInbox::ExtSearch
+		$s .= <<EOM;
+This is an extindex which is an amalgamation of several public-inboxes</a>
+EOM
+		my $v = $ctx->{www}->{pi_cfg}->{lc('publicInbox.wwwListing')};
+		if (($v // '') =~ /\A(?:all|match=domain)\z/) {
+			my $upfx = ($ctx->{-upfx} // ''). '../';
+			$s .= <<EOM;
+A list of them is available in the <a\nhref="$upfx">listing</a>
+EOM
+		}
 	}
+
 	my $cfg_link = ($ctx->{-upfx} // '').'_/text/config/raw';
-	$urls .= <<EOF;
+	$s .= <<EOF;
 
 Example <a
 href="$cfg_link">config snippet</a> for mirrors.
 EOF
-	my @nntp = map { qq(<a\nhref="$_">$_</a>) } @{$ibx->nntp_url};
-	if (@nntp) {
-		$urls .= @nntp == 1 ? 'Newsgroup' : 'Newsgroups are';
-		$urls .= ' available over NNTP:';
-		$urls .= "\n\t" . join("\n\t", @nntp) . "\n";
+	if ($ibx->can('nntp_url')) {
+		my @nntp = map { qq(<a\nhref="$_">$_</a>) } @{$ibx->nntp_url};
+		if (@nntp) {
+			$s .= @nntp == 1 ? 'Newsgroup' : 'Newsgroups are';
+			$s .= ' available over NNTP:';
+			$s .= "\n\t" . join("\n\t", @nntp) . "\n";
+		}
 	}
-	if ($urls =~ m!\b[^:]+://\w+\.onion/!) {
-		$urls .= " note: .onion URLs require Tor: ";
-		$urls .= qq[<a\nhref="$TOR_URL">$TOR_URL</a>];
+	if ($s =~ m!\b[^:]+://\w+\.onion/!) {
+		$s .= " note: .onion URLs require Tor: ";
+		$s .= qq[<a\nhref="$TOR_URL">$TOR_URL</a>];
 	}
 	'<hr><pre>'.join("\n\n",
 		$desc,
-		$urls,
+		$s,
 		coderepos($ctx),
 		code_footer($ctx->{env})
 	).'</pre></body></html>';
