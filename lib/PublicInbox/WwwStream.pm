@@ -12,8 +12,10 @@ use parent qw(Exporter PublicInbox::GzipFilter);
 our @EXPORT_OK = qw(html_oneshot);
 use PublicInbox::Hval qw(ascii_html prurl ts2str);
 our $TOR_URL = 'https://www.torproject.org/';
-our $CODE_URL = [ qw(http://7fh6tueqddpjyxjmgtdiueylzoqt6pt7hec3pukyptlmohoowvhde4yd.onion/public-inbox.git
-	https://public-inbox.org/public-inbox.git) ];
+
+our $CODE_URL = [ qw(
+http://7fh6tueqddpjyxjmgtdiueylzoqt6pt7hec3pukyptlmohoowvhde4yd.onion/public-inbox.git
+https://public-inbox.org/public-inbox.git) ];
 
 sub base_url ($) {
 	my $ctx = shift;
@@ -107,7 +109,13 @@ EOF
 sub code_footer ($) {
 	my ($env) = @_;
 	my $u = prurl($env, $CODE_URL);
-	qq(AGPL code for this site: git clone <a\nhref="$u">$u</a>)
+	my $arg = $u;
+	if ($arg =~ s!\A(https?://)([^/\.]+)\.onion/!$1\$hostname\.onion/!i) {
+		"AGPL code for this site:\n\thostname=$2\n\t" .
+		qq(torsocks git clone <a\nhref="$u">$arg</a>)
+	} else {
+		qq(AGPL code for this site: git clone <a\nhref="$u">$u</a>)
+	}
 }
 
 sub _html_end {
@@ -125,6 +133,9 @@ EOF
 	my $max = $ibx->max_git_epoch;
 	my $dir = (split(m!/!, $http))[-1];
 	my %seen = ($http => 1);
+	# TODO: some of these URLs may be too long and we may need to
+	# do something like code_footer() above, but these are local
+	# admin-defined
 	if (defined($max)) { # v2
 		for my $i (0..$max) {
 			# old epochs my be deleted:
