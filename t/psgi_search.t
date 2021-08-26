@@ -8,7 +8,6 @@ use IO::Uncompress::Gunzip qw(gunzip);
 use PublicInbox::Eml;
 use PublicInbox::Config;
 use PublicInbox::Inbox;
-use bytes (); # only for bytes::length
 my @mods = qw(DBD::SQLite Search::Xapian HTTP::Request::Common Plack::Test
 		URI::Escape Plack::Builder);
 require_mods(@mods);

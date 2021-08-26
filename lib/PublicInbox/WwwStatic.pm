@@ -9,8 +9,8 @@
 # functionality of nginx.
 package PublicInbox::WwwStatic;
 use strict;
+use v5.10.1;
 use parent qw(Exporter);
-use bytes ();
 use Fcntl qw(SEEK_SET O_RDONLY O_NONBLOCK);
 use POSIX qw(strftime);
 use HTTP::Date qw(time2str);
@@ -318,7 +318,7 @@ sub dir_response ($$$) {
 		"</head><body><pre>Index of $path_info_html</pre><hr><pre>\n");
 	$gzf->zmore(join("\n", @entries));
 	my $out = $gzf->zflush("</pre><hr></body></html>\n");
-	$h->[3] = bytes::length($out);
+	$h->[3] = length($out);
 	[ 200, $h, [ $out ] ]
 }
 

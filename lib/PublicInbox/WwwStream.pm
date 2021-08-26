@@ -7,9 +7,9 @@
 # See PublicInbox::GzipFilter parent class for more info.
 package PublicInbox::WwwStream;
 use strict;
+use v5.10.1;
 use parent qw(Exporter PublicInbox::GzipFilter);
 our @EXPORT_OK = qw(html_oneshot);
-use bytes (); # length
 use PublicInbox::Hval qw(ascii_html prurl ts2str);
 our $TOR_URL = 'https://www.torproject.org/';
 our $CODE_URL = [ qw(http://7fh6tueqddpjyxjmgtdiueylzoqt6pt7hec3pukyptlmohoowvhde4yd.onion/public-inbox.git
@@ -216,7 +216,7 @@ sub html_oneshot ($$;$) {
 	};
 	$ctx->zmore($$sref) if $sref;
 	my $bdy = $ctx->zflush(_html_end($ctx));
-	$res_hdr->[3] = bytes::length($bdy);
+	$res_hdr->[3] = length($bdy);
 	[ $code, $res_hdr, [ $bdy ] ]
 }
 

@@ -241,7 +241,7 @@ sub parse_time ($$;$) {
 		$gmt = 1;
 	}
 	my ($YYYY, $MM, $DD);
-	if (bytes::length($date) == 8) { # RFC 3977 allows YYYYMMDD
+	if (length($date) == 8) { # RFC 3977 allows YYYYMMDD
 		($YYYY, $MM, $DD) = unpack('A4A2A2', $date);
 	} else { # legacy clients send YYMMDD
 		my $YY;

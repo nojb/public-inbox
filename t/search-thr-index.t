@@ -1,8 +1,8 @@
+#!perl -w
 # Copyright (C) 2017-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
-use bytes (); # only for bytes::length
+use v5.10.1;
 use Test::More;
 use PublicInbox::TestCommon;
 use PublicInbox::MID qw(mids);
@@ -45,7 +45,7 @@ foreach (reverse split(/\n\n/, $data)) {
 	my $mime = PublicInbox::Eml->new(\$_);
 	$mime->header_set('From' => 'bw@g');
 	$mime->header_set('To' => 'git@vger.kernel.org');
-	my $bytes = bytes::length($mime->as_string);
+	my $bytes = length($mime->as_string);
 	my $mid = mids($mime->header_obj)->[0];
 	my $smsg = bless {
 		bytes => $bytes,
@@ -92,7 +92,7 @@ To: git@vger.kernel.org
 	my $tid0 = $dbh->selectrow_array(<<'', undef, $num);
 SELECT tid FROM over WHERE num = ? LIMIT 1
 
-	my $bytes = bytes::length($mime->as_string);
+	my $bytes = length($mime->as_string);
 	my $mid = mids($mime->header_obj)->[0];
 	my $smsg = bless {
 		bytes => $bytes,

@@ -55,7 +55,7 @@ sub tiny_test {
 	ok(my $clone = $manifest->{'/alt'}, '/alt in manifest');
 	is($clone->{owner}, "lorelei \x{100}", 'owner set');
 	is($clone->{reference}, '/bare', 'reference detected');
-	is($clone->{description}, "we're all clones", 'description read');
+	is($clone->{description}, "we're \x{100}ll clones", 'description read');
 	ok(my $bare = $manifest->{'/bare'}, '/bare in manifest');
 	is($bare->{description}, 'Unnamed repository',
 		'missing $GIT_DIR/description fallback');
@@ -72,6 +72,10 @@ sub tiny_test {
 	ok(my $v2epoch1 = $manifest->{'/v2/git/1.git'}, 'v2 epoch 1 appeared');
 	like($v2epoch1->{description}, qr/ \[epoch 1\]\z/,
 		'epoch 1 in description');
+
+	$res = $http->get("http://$host:$port/alt/description");
+	is($res->{content}, "we're \xc4\x80ll clones\n", 'UTF-8 description')
+		or diag explain($res);
 }
 
 my $td;
@@ -91,9 +95,9 @@ SKIP: {
 		is(xsys(@clone, $alt, "$v2/git/$i.git"), 0, "clone epoch $i")
 	}
 	ok(open(my $fh, '>', "$v2/inbox.lock"), 'mock a v2 inbox');
-	open $fh, '>', "$alt/description" or die;
-	print $fh "we're all clones\n" or die;
-	close $fh or die;
+	open $fh, '>', "$alt/description" or xbail "open $alt/description $!";
+	print $fh "we're \xc4\x80ll clones\n" or xbail "print $!";
+	close $fh or xbail "write: $alt/description $!";
 	is(xsys('git', "--git-dir=$alt", qw(config gitweb.owner),
 		"lorelei \xc4\x80"), 0,
 		'set gitweb user');
@@ -178,6 +182,13 @@ manifest = \${site}/v2/manifest.js.gz
 	for (qw(v2/git/0.git v2/git/1.git v2/git/2.git)) {
 		ok(-d "$tmpdir/per-inbox/$_", "grok-pull created $_");
 	}
+	$td->kill;
+	$td->join;
+	is($?, 0, 'no error in exited process');
+	open $fh, '<', $err or BAIL_OUT("open $err failed: $!");
+	my $eout = do { local $/; <$fh> };
+	unlike($eout, qr/wide/i, 'no Wide character warnings');
+	unlike($eout, qr/uninitialized/i, 'no uninitialized warnings');
 }
 
 done_testing();

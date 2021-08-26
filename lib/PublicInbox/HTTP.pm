@@ -21,7 +21,6 @@
 package PublicInbox::HTTP;
 use strict;
 use parent qw(PublicInbox::DS);
-use bytes (); # only for bytes::length
 use Fcntl qw(:seek);
 use Plack::HTTPParser qw(parse_http_request); # XS or pure Perl
 use Plack::Util;
@@ -89,7 +88,7 @@ sub event_step { # called by PublicInbox::DS
 
 	return read_input($self) if ref($self->{env});
 	my $rbuf = $self->{rbuf} // (\(my $x = ''));
-	$self->do_read($rbuf, 8192, bytes::length($$rbuf)) or return;
+	$self->do_read($rbuf, 8192, length($$rbuf)) or return;
 	rbuf_process($self, $rbuf);
 }
 
@@ -104,7 +103,7 @@ sub rbuf_process {
 	# (they are rarely-used and git (as of 2.7.2) does not use them)
 	if ($r == -1 || $env{HTTP_TRAILER} ||
 			# this length-check is necessary for PURE_PERL=1:
-			($r == -2 && bytes::length($$rbuf) > 0x4000)) {
+			($r == -2 && length($$rbuf) > 0x4000)) {
 		return quit($self, 400);
 	}
 	if ($r < 0) { # incomplete
@@ -121,7 +120,7 @@ sub rbuf_process {
 # IO::Handle::write returns boolean, this returns bytes written:
 sub xwrite ($$$) {
 	my ($fh, $rbuf, $max) = @_;
-	my $w = bytes::length($$rbuf);
+	my $w = length($$rbuf);
 	$w = $max if $w > $max;
 	$fh->write($$rbuf, $w) or return;
 	$w;
@@ -236,7 +235,7 @@ sub response_header_write {
 sub chunked_write ($$) {
 	my $self = $_[0];
 	return if $_[1] eq '';
-	msg_more($self, sprintf("%x\r\n", bytes::length($_[1])));
+	msg_more($self, sprintf("%x\r\n", length($_[1])));
 	msg_more($self, $_[1]);
 
 	# use $self->write(\"\n\n") if you care about real-time
@@ -411,12 +410,12 @@ sub read_input_chunked { # unlikely...
 			$$rbuf =~ s/\A\r\n//s and
 				return app_dispatch($self, $input, $rbuf);
 
-			return quit($self, 400) if bytes::length($$rbuf) > 2;
+			return quit($self, 400) if length($$rbuf) > 2;
 		}
 		if ($len == CHUNK_END) {
 			if ($$rbuf =~ s/\A\r\n//s) {
 				$len = CHUNK_START;
-			} elsif (bytes::length($$rbuf) > 2) {
+			} elsif (length($$rbuf) > 2) {
 				return quit($self, 400);
 			}
 		}
@@ -426,14 +425,14 @@ sub read_input_chunked { # unlikely...
 				if (($len + -s $input) > $MAX_REQUEST_BUFFER) {
 					return quit($self, 413);
 				}
-			} elsif (bytes::length($$rbuf) > CHUNK_MAX_HDR) {
+			} elsif (length($$rbuf) > CHUNK_MAX_HDR) {
 				return quit($self, 400);
 			}
 			# will break from loop since $len >= 0
 		}
 
 		if ($len < 0) { # chunk header is trickled, read more
-			$self->do_read($rbuf, 8192, bytes::length($$rbuf)) or
+			$self->do_read($rbuf, 8192, length($$rbuf)) or
 				return recv_err($self, $len);
 			# (implicit) goto chunk_start if $r > 0;
 		}

@@ -15,8 +15,7 @@
 
 package PublicInbox::ViewVCS;
 use strict;
-use warnings;
-use bytes (); # only for bytes::length
+use v5.10.1;
 use PublicInbox::SolverGit;
 use PublicInbox::WwwStream qw(html_oneshot);
 use PublicInbox::Linkify;
@@ -49,7 +48,7 @@ sub stream_blob_parse_hdr { # {parse_hdr} for Qspawn
 	} elsif (index($$bref, "\0") >= 0) {
 		[200, [qw(Content-Type application/octet-stream), @cl] ];
 	} else {
-		my $n = bytes::length($$bref);
+		my $n = length($$bref);
 		if ($n >= $BIN_DETECT || $n == $size) {
 			return [200, [ 'Content-Type',
 				'text/plain; charset=UTF-8', @cl ] ];

@@ -5,8 +5,7 @@
 # See Documentation/design_www.txt for this.
 package PublicInbox::View;
 use strict;
-use warnings;
-use bytes (); # only for bytes::length
+use v5.10.1;
 use List::Util qw(max);
 use PublicInbox::MsgTime qw(msg_datestamp);
 use PublicInbox::Hval qw(ascii_html obfuscate_addrs prurl mid_href
@@ -531,7 +530,7 @@ sub attach_link ($$$$;$) {
 	return unless $part->{bdy};
 
 	my $nl = $idx eq '1' ? '' : "\n"; # like join("\n", ...)
-	my $size = bytes::length($part->body);
+	my $size = length($part->body);
 
 	# hide attributes normally, unless we want to aid users in
 	# spotting MUA problems:

@@ -6,7 +6,6 @@ package PublicInbox::ManifestJsGz;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::WwwListing);
-use bytes (); # length
 use PublicInbox::Config;
 use IO::Compress::Gzip qw(gzip);
 use HTTP::Date qw(time2str);
@@ -108,7 +107,7 @@ sub psgi_triple {
 	gzip(\$manifest => \(my $out));
 	[ 200, [ qw(Content-Type application/gzip),
 		 'Last-Modified', time2str($ctx->{-mtime}),
-		 'Content-Length', bytes::length($out) ], [ $out ] ]
+		 'Content-Length', length($out) ], [ $out ] ]
 }
 
 sub per_inbox {

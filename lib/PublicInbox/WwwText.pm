@@ -4,8 +4,7 @@
 # used for displaying help texts and other non-mail content
 package PublicInbox::WwwText;
 use strict;
-use warnings;
-use bytes (); # only for bytes::length
+use v5.10.1;
 use PublicInbox::Linkify;
 use PublicInbox::WwwStream;
 use PublicInbox::Hval qw(ascii_html);
@@ -43,7 +42,7 @@ sub get_text {
 			$txt = $gzf->translate($txt);
 			$txt .= $gzf->zflush;
 		}
-		$hdr->[3] = bytes::length($txt);
+		$hdr->[3] = length($txt);
 		return [ $code, $hdr, [ $txt ] ]
 	}
 

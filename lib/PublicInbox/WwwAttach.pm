@@ -4,8 +4,8 @@
 # For retrieving attachments from messages in the WWW interface
 package PublicInbox::WwwAttach; # internal package
 use strict;
+use v5.10.1;
 use parent qw(PublicInbox::GzipFilter);
-use bytes (); # only for bytes::length
 use PublicInbox::Eml;
 
 sub referer_match ($) {
@@ -50,7 +50,7 @@ sub get_attach_i { # ->each_part callback
 			$part = "Deep-linking prevented\n";
 		}
 	}
-	push @{$res->[1]}, 'Content-Length', bytes::length($part);
+	push @{$res->[1]}, 'Content-Length', length($part);
 	$res->[2]->[0] = $part;
 }
 

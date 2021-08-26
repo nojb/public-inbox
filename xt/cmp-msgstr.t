@@ -60,7 +60,7 @@ my $cmp = sub {
 				my $dig = $dig_cls->new;
 				$dig->add($part);
 				push @$cmp_arg, "M: ".$dig->hexdigest;
-				push @$cmp_arg, "B: ".bytes::length($part);
+				push @$cmp_arg, "B: ".length($part);
 			} else {
 				$part =~ s/\s+\z//s;
 				push @$cmp_arg, "X: ".$part;

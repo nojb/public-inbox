@@ -20,8 +20,7 @@
 
 package PublicInbox::WwwHighlight;
 use strict;
-use warnings;
-use bytes (); # only for bytes::length
+use v5.10.1;
 use parent qw(PublicInbox::HlMod);
 use PublicInbox::Linkify qw();
 use PublicInbox::Hval qw(ascii_html);
@@ -69,7 +68,7 @@ sub call {
 	$l->linkify_2($$bref);
 
 	my $h = [ 'Content-Type', 'text/html; charset=UTF-8' ];
-	push @$h, 'Content-Length', bytes::length($$bref);
+	push @$h, 'Content-Length', length($$bref);
 
 	[ 200, $h, [ $$bref ] ]
 }

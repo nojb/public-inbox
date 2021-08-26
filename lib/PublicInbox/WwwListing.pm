@@ -5,12 +5,12 @@
 # Used by PublicInbox::WWW
 package PublicInbox::WwwListing;
 use strict;
+use v5.10.1;
 use PublicInbox::Hval qw(prurl fmt_ts ascii_html);
 use PublicInbox::Linkify;
 use PublicInbox::GzipFilter qw(gzf_maybe);
 use PublicInbox::ConfigIter;
 use PublicInbox::WwwStream;
-use bytes (); # bytes::length
 
 sub ibx_entry {
 	my ($ctx, $ibx, $ce) = @_;
@@ -213,7 +213,7 @@ sub psgi_triple {
 	my $out = $gzf->zflush('</pre><hr><pre>'.
 			PublicInbox::WwwStream::code_footer($ctx->{env}) .
 			'</pre></body></html>');
-	$h->[3] = bytes::length($out);
+	$h->[3] = length($out);
 	[ $code, $h, [ $out ] ];
 }
 

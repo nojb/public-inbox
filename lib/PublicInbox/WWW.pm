@@ -11,10 +11,8 @@
 # - Must not rely on static content
 # - UTF-8 is only for user-content, 7-bit US-ASCII for us
 package PublicInbox::WWW;
-use 5.010_001;
 use strict;
-use warnings;
-use bytes (); # only for bytes::length
+use v5.10.1;
 use PublicInbox::Config;
 use PublicInbox::Hval;
 use URI::Escape qw(uri_unescape);
@@ -646,8 +644,7 @@ sub get_css ($$$) {
 		$css = PublicInbox::UserContent::sample($ctx->{ibx}, $env);
 	}
 	defined $css or return r404();
-	my $h = [ 'Content-Length', bytes::length($css),
-		'Content-Type', 'text/css' ];
+	my $h = [ 'Content-Length', length($css), 'Content-Type', 'text/css' ];
 	PublicInbox::GitHTTPBackend::cache_one_year($h);
 	[ 200, $h, [ $css ] ];
 }
@@ -656,7 +653,8 @@ sub get_description {
 	my ($ctx, $inbox) = @_;
 	invalid_inbox($ctx, $inbox) || do {
 		my $d = $ctx->{ibx}->description . "\n";
-		[ 200, [ 'Content-Length', bytes::length($d),
+		utf8::encode($d);
+		[ 200, [ 'Content-Length', length($d),
 			'Content-Type', 'text/plain' ], [ $d ] ];
 	};
 }
