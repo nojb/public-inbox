@@ -214,10 +214,37 @@ EOF
 	1;
 }
 
+# n.b. this is a perfect candidate for memoization
+sub extindex_config ($$$) {
+	my ($ctx, $hdr, $txt) = @_;
+	my $ibx = $ctx->{ibx};
+	push @$hdr, 'Content-Disposition', 'inline; filename=extindex.config';
+	my $name = dq_escape($ibx->{name});
+	my $base_url = $ibx->base_url($ctx->{env});
+	$$txt .= <<EOS;
+; Example public-inbox config snippet for the external index (extindex) at:
+; $base_url
+; See public-inbox-config(5)manpage for more details:
+; https://public-inbox.org/public-inbox-config.html
+[extindex "$name"]
+	topdir = /path/to/extindex-topdir
+	url = https://example.com/$name/
+	url = http://example.onion/$name/
+EOS
+	for my $k (qw(infourl)) {
+		defined(my $v = $ibx->{$k}) or next;
+		$$txt .= "\t$k = $v\n";
+	}
+	# TODO: coderepo support for extindex
+	1;
+}
+
 sub _default_text ($$$$) {
 	my ($ctx, $key, $hdr, $txt) = @_;
 	return _colors_help($ctx, $txt) if $key eq 'color';
-	return inbox_config($ctx, $hdr, $txt) if $key eq 'config';
+	$key eq 'config' and return $ctx->{ibx}->can('cloneurl') ?
+			inbox_config($ctx, $hdr, $txt) :
+			extindex_config($ctx, $hdr, $txt);
 	return if $key ne 'help'; # TODO more keys?
 
 	my $ibx = $ctx->{ibx};

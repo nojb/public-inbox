@@ -40,6 +40,18 @@ my $client = sub {
 		'Host: header respected in Atom feed');
 	unlike($res->content, qr!http://bogus\.example\.com/!s,
 		'default URL ignored with different host header');
+
+	$res = $cb->(GET('/all/_/text/config/'));
+	is($res->code, 200, '/text/config HTML');
+	$res = $cb->(GET('/all/_/text/config/raw'));
+	is($res->code, 200, '/text/config raw');
+	my $f = "$tmpdir/extindex.config";
+	open my $fh, '>', $f or xbail $!;
+	print $fh $res->content or xbail $!;
+	close $fh or xbail $!;
+	my $cfg = PublicInbox::Config->git_config_dump($f);
+	is($?, 0, 'no errors from git-config parsing');
+	ok($cfg->{'extindex.all.topdir'}, 'extindex.topdir defined');
 };
 test_psgi(sub { $www->call(@_) }, $client);
 %$env = (%$env, TMPDIR => $tmpdir, PI_CONFIG => $pi_config);
