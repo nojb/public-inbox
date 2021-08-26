@@ -23,7 +23,7 @@ package PublicInbox::DS;
 use strict;
 use v5.10.1;
 use parent qw(Exporter);
-use bytes;
+use bytes qw(length substr); # FIXME(?): needed for PublicInbox::NNTP
 use POSIX qw(WNOHANG sigprocmask SIG_SETMASK);
 use Fcntl qw(SEEK_SET :DEFAULT O_APPEND);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
@@ -499,13 +499,14 @@ sub drop {
 # n.b.: use ->write/->read for this buffer to allow compatibility with
 # PerlIO::mmap or PerlIO::scalar if needed
 sub tmpio ($$$) {
-    my ($self, $bref, $off) = @_;
-    my $fh = tmpfile('wbuf', $self->{sock}, O_APPEND) or
-        return drop($self, "tmpfile $!");
-    $fh->autoflush(1);
-    my $len = bytes::length($$bref) - $off;
-    $fh->write($$bref, $len, $off) or return drop($self, "write ($len): $!");
-    [ $fh, 0 ] # [1] = offset, [2] = length, not set by us
+	my ($self, $bref, $off) = @_;
+	my $fh = tmpfile('wbuf', $self->{sock}, O_APPEND) or
+		return drop($self, "tmpfile $!");
+	$fh->autoflush(1);
+	my $len = length($$bref) - $off;
+	print $fh substr($$bref, $off, $len) or
+		return drop($self, "write ($len): $!");
+	[ $fh, 0 ] # [1] = offset, [2] = length, not set by us
 }
 
 =head2 C<< $obj->write( $data ) >>
@@ -547,7 +548,7 @@ sub write {
         $bref->($self);
         return 1;
     } else {
-        my $to_write = bytes::length($$bref);
+        my $to_write = length($$bref);
         my $written = syswrite($sock, $$bref, $to_write);
 
         if (defined $written) {
@@ -582,7 +583,7 @@ sub msg_more ($$) {
 		!$sock->can('stop_SSL')) {
         my $n = send($sock, $_[1], MSG_MORE);
         if (defined $n) {
-            my $nlen = bytes::length($_[1]) - $n;
+            my $nlen = length($_[1]) - $n;
             return 1 if $nlen == 0; # all done!
             # queue up the unwritten substring:
             my $tmpio = tmpio($self, \($_[1]), $n) or return 0;
