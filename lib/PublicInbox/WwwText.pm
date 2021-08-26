@@ -129,7 +129,42 @@ sub dq_escape ($) {
 	$name;
 }
 
-sub URI_PATH () { '^A-Za-z0-9\-\._~/' }
+sub _coderepo_config ($$) {
+	my ($ctx, $txt) = @_;
+	my $cr = $ctx->{ibx}->{coderepo} // return;
+	# note: this doesn't preserve cgitrc layout, since we parse cgitrc
+	# and drop the original structure
+	$$txt .= "\tcoderepo = $_\n" for @$cr;
+	$$txt .= <<'EOF';
+
+; `coderepo' entries allows blob reconstruction via patch emails if
+; the inbox is indexed with Xapian.  `@@ <from-range> <to-range> @@'
+; line number ranges in `[PATCH]' emails link to /$INBOX_NAME/$OID/s/,
+; an HTTP endpoint which reconstructs git blobs via git-apply(1).
+EOF
+	my $pi_cfg = $ctx->{www}->{pi_cfg};
+	for my $cr_name (@$cr) {
+		my $urls = $pi_cfg->get_all("coderepo.$cr_name.cgiturl");
+		my $path = "/path/to/$cr_name";
+		$cr_name = dq_escape($cr_name);
+
+		$$txt .= qq([coderepo "$cr_name"]\n);
+		if ($urls && scalar(@$urls)) {
+			$$txt .= "\t; ";
+			$$txt .= join(" ||\n\t;\t", map {;
+				my $dst = $path;
+				if ($path !~ m![a-z0-9_/\.\-]!i) {
+					$dst = '"'.dq_escape($dst).'"';
+				}
+				qq(git clone $_ $dst);
+			} @$urls);
+			$$txt .= "\n";
+		}
+		$$txt .= "\tdir = $path\n";
+		$$txt .= "\tcgiturl = https://example.com/";
+		$$txt .= uri_escape_utf8($cr_name, '^A-Za-z0-9\-\._~/')."\n";
+	}
+}
 
 # n.b. this is a perfect candidate for memoization
 sub inbox_config ($$$) {
@@ -176,41 +211,7 @@ EOF
 		$$txt .= "\t$k = $v\n";
 	}
 	$$txt .= "\tnntpmirror = $_\n" for (@{$ibx->nntp_url});
-
-	# note: this doesn't preserve cgitrc layout, since we parse cgitrc
-	# and drop the original structure
-	if (defined(my $cr = $ibx->{coderepo})) {
-		$$txt .= "\tcoderepo = $_\n" for @$cr;
-		$$txt .= <<'EOF';
-
-; `coderepo' entries allows blob reconstruction via patch emails if
-; the inbox is indexed with Xapian.  `@@ <from-range> <to-range> @@'
-; line number ranges in `[PATCH]' emails link to /$INBOX_NAME/$OID/s/,
-; an HTTP endpoint which reconstructs git blobs via git-apply(1).
-EOF
-		my $pi_cfg = $ctx->{www}->{pi_cfg};
-		for my $cr_name (@$cr) {
-			my $urls = $pi_cfg->get_all("coderepo.$cr_name.cgiturl");
-			my $path = "/path/to/$cr_name";
-			$cr_name = dq_escape($cr_name);
-
-			$$txt .= qq([coderepo "$cr_name"]\n);
-			if ($urls && scalar(@$urls)) {
-				$$txt .= "\t; ";
-				$$txt .= join(" ||\n\t;\t", map {;
-					my $dst = $path;
-					if ($path !~ m![a-z0-9_/\.\-]!i) {
-						$dst = '"'.dq_escape($dst).'"';
-					}
-					qq(git clone $_ $dst);
-				} @$urls);
-				$$txt .= "\n";
-			}
-			$$txt .= "\tdir = $path\n";
-			$$txt .= "\tcgiturl = https://example.com/";
-			$$txt .= uri_escape_utf8($cr_name, URI_PATH)."\n";
-		}
-	}
+	_coderepo_config($ctx, $txt);
 	1;
 }
 
@@ -235,7 +236,7 @@ EOS
 		defined(my $v = $ibx->{$k}) or next;
 		$$txt .= "\t$k = $v\n";
 	}
-	# TODO: coderepo support for extindex
+	_coderepo_config($ctx, $txt);
 	1;
 }
 
