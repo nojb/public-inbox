@@ -7,22 +7,29 @@ package PublicInbox::WwwListing;
 use strict;
 use v5.10.1;
 use PublicInbox::Hval qw(prurl fmt_ts ascii_html);
-use PublicInbox::Linkify;
 use PublicInbox::GzipFilter qw(gzf_maybe);
 use PublicInbox::ConfigIter;
 use PublicInbox::WwwStream;
+use URI::Escape qw(uri_escape_utf8);
 
 sub ibx_entry {
 	my ($ctx, $ibx, $ce) = @_;
-	$ce->{description} //= $ibx->description;
+	my $desc = ascii_html($ce->{description} //= $ibx->description);
 	my $ts = fmt_ts($ce->{-modified} //= $ibx->modified);
-	my $url = prurl($ctx->{env}, $ibx->{url});
-	my $tmp = <<"";
-* $ts - $url
-  $ce->{description}
-
-	if (defined(my $info_url = $ibx->{infourl})) {
-		$tmp .= '  ' . prurl($ctx->{env}, $info_url) . "\n";
+	my ($url, $href);
+	if (defined($ibx->{url})) {
+		$url = $href = ascii_html(prurl($ctx->{env}, $ibx->{url}));
+	} else {
+		$href = ascii_html(uri_escape_utf8($ibx->{name})) . '/';
+		$url = ascii_html($ibx->{name});
+	}
+	my $tmp = <<EOM;
+* $ts - <a\nhref="$href">$url</a>
+  $desc
+EOM
+	if (defined($url = $ibx->{infourl})) {
+		$url = ascii_html(prurl($ctx->{env}, $url));
+		$tmp .= qq(  <a\nhref="$url">$url</a>\n);
 	}
 	push(@{$ctx->{-list}}, (scalar(@_) == 3 ? # $misc in use, already sorted
 				$tmp : [ $ce->{-modified}, $tmp ] ));
@@ -86,19 +93,24 @@ sub add_misc_ibx { # MiscSearch->retry_reopen callback
 		limit => $q->{l}
 	};
 	$qs .= ' type:inbox';
-	if (my $user_query = $q->{'q'}) {
-		$qs = "( $qs ) AND ( $user_query )";
-	}
-	my $mset = $misc->mset($qs, $opt); # sorts by $MODIFIED (mtime)
+
 	delete $ctx->{-list}; # reset if retried
 	my $pi_cfg = $ctx->{www}->{pi_cfg};
+	if (defined(my $user_query = $q->{'q'})) {
+		$qs = "( $qs ) AND ( $user_query )";
+	} else { # special case for ALL
+		$ctx->ibx_entry($pi_cfg->ALL // die('BUG: ->ALL expected'), {});
+	}
+	my $mset = $misc->mset($qs, $opt); # sorts by $MODIFIED (mtime)
+	my $hide_key = $ctx->hide_key;
+
 	for my $mi ($mset->items) {
 		my $doc = $mi->get_document;
 		my ($eidx_key) = PublicInbox::Search::xap_terms('Q', $doc);
 		$eidx_key // next;
 		my $ibx = $pi_cfg->lookup_eidx_key($eidx_key) // next;
-		next if $ibx->{-hide}->{$ctx->hide_key};
-		grep(/$re/, @{$ibx->{url}}) or next;
+		next if $ibx->{-hide}->{$hide_key};
+		grep(/$re/, @{$ibx->{url} // []}) or next;
 		$ctx->ibx_entry($ibx, $misc->doc2ibx_cache_ent($doc));
 		if ($r) { # for descriptions in search_nav_bot
 			my $pct = PublicInbox::Search::get_pct($mi);
@@ -203,9 +215,8 @@ sub psgi_triple {
 			@$list = map { $_->[1] }
 				sort { $b->[0] <=> $a->[0] } @$list;
 		}
-		$list = join("\n", @$list);
-		my $l = PublicInbox::Linkify->new;
-		$gzf->zmore('<pre>'.$l->to_html($list));
+		$gzf->zmore('<pre>');
+		$gzf->zmore(join("\n", @$list));
 		$gzf->zmore(mset_footer($ctx, $mset)) if $mset;
 	} else {
 		$gzf->zmore('<pre>no inboxes, yet');

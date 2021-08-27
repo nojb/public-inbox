@@ -28,6 +28,8 @@ run_script([qw(-extindex --all), "$tmpdir/eidx"], $env) or BAIL_OUT;
 [extindex "all"]
 	topdir = $tmpdir/eidx
 	url = http://bogus.example.com/all
+[publicinbox]
+	wwwlisting = all
 EOM
 }
 my $www = PublicInbox::WWW->new(PublicInbox::Config->new($pi_config));
@@ -55,6 +57,10 @@ my $client = sub {
 
 	$res = $cb->(GET('/all/all.mbox.gz'));
 	is($res->code, 200, 'all.mbox.gz');
+
+	$res = $cb->(GET('/'));
+	my $html = $res->content;
+	like($html, qr!\Qhttp://bogus.example.com/all\E!, 'html shows /all');
 };
 test_psgi(sub { $www->call(@_) }, $client);
 %$env = (%$env, TMPDIR => $tmpdir, PI_CONFIG => $pi_config);
