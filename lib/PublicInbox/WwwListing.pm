@@ -17,7 +17,7 @@ sub ibx_entry {
 	my $desc = ascii_html($ce->{description} //= $ibx->description);
 	my $ts = fmt_ts($ce->{-modified} //= $ibx->modified);
 	my ($url, $href);
-	if (defined($ibx->{url})) {
+	if (scalar(@{$ibx->{url} // []})) {
 		$url = $href = ascii_html(prurl($ctx->{env}, $ibx->{url}));
 	} else {
 		$href = ascii_html(uri_escape_utf8($ibx->{name})) . '/';
@@ -41,7 +41,7 @@ sub list_match_i { # ConfigIter callback
 		return if $section !~ m!\Apublicinbox\.([^/]+)\z!;
 		my $ibx = $cfg->lookup_name($1) or return;
 		if (!$ibx->{-hide}->{$ctx->hide_key} &&
-					grep(/$re/, @{$ibx->{url}})) {
+					grep(/$re/, @{$ibx->{url} // []})) {
 			$ctx->ibx_entry($ibx);
 		}
 	} else { # undef == "EOF"
