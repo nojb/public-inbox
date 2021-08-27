@@ -96,7 +96,8 @@ sub add_misc_ibx { # MiscSearch->retry_reopen callback
 
 	delete $ctx->{-list}; # reset if retried
 	my $pi_cfg = $ctx->{www}->{pi_cfg};
-	if (defined(my $user_query = $q->{'q'})) {
+	my $user_query = $q->{'q'} // '';
+	if ($user_query =~ /\S/) {
 		$qs = "( $qs ) AND ( $user_query )";
 	} else { # special case for ALL
 		$ctx->ibx_entry($pi_cfg->ALL // die('BUG: ->ALL expected'), {});
@@ -218,6 +219,10 @@ sub psgi_triple {
 		$gzf->zmore('<pre>');
 		$gzf->zmore(join("\n", @$list));
 		$gzf->zmore(mset_footer($ctx, $mset)) if $mset;
+	} elsif (my $mset = delete $ctx->{-mset}) {
+		$gzf->zmore(mset_nav_top($ctx, $mset));
+		$gzf->zmore('<pre>no matching inboxes');
+		$gzf->zmore(mset_footer($ctx, $mset));
 	} else {
 		$gzf->zmore('<pre>no inboxes, yet');
 	}

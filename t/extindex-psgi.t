@@ -59,8 +59,14 @@ my $client = sub {
 	is($res->code, 200, 'all.mbox.gz');
 
 	$res = $cb->(GET('/'));
-	my $html = $res->content;
-	like($html, qr!\Qhttp://bogus.example.com/all\E!, 'html shows /all');
+	like($res->content, qr!\Qhttp://bogus.example.com/all\E!,
+		'/all listed');
+	$res = $cb->(GET('/?q='));
+	is($res->code, 200, 'no query means all inboxes');
+	$res = $cb->(GET('/?q=nonexistent'));
+	is($res->code, 404, 'no inboxes matched');
+	unlike($res->content, qr!no inboxes, yet!,
+		'we have inboxes, just no matches');
 };
 test_psgi(sub { $www->call(@_) }, $client);
 %$env = (%$env, TMPDIR => $tmpdir, PI_CONFIG => $pi_config);
