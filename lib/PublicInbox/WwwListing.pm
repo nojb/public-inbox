@@ -226,9 +226,7 @@ sub psgi_triple {
 	} else {
 		$gzf->zmore('<pre>no inboxes, yet');
 	}
-	my $out = $gzf->zflush('</pre><hr><pre>'.
-			PublicInbox::WwwStream::code_footer($ctx->{env}) .
-			'</pre></body></html>');
+	my $out = $gzf->zflush('</pre></body></html>');
 	$h->[3] = length($out);
 	[ $code, $h, [ $out ] ];
 }

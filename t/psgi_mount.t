@@ -48,14 +48,9 @@ test_psgi($app, sub {
 	unlike($res->content, qr!\b\Qhttp://[^/]+/test/\E!,
 		'No URLs which are not mount-aware');
 
-	$res = $cb->(GET('/a/test/new.html'));
-	like($res->content, qr!git clone --mirror http://[^/]+/a/test\b!,
-		'clone URL in new.html is mount-aware');
-
-	$res = $cb->(GET('/a/test/blah%40example.com/'));
-	is($res->code, 200, 'OK with URLMap mount');
-	like($res->content, qr!git clone --mirror http://[^/]+/a/test\b!,
-		'clone URL in /$INBOX/$MESSAGE_ID/ is mount-aware');
+	$res = $cb->(GET('/a/test/_/text/mirror/'));
+	like($res->content, qr!git clone --mirror\s+.*?http://[^/]+/a/test\b!s,
+		'clone URL in /text/mirror is mount-aware');
 
 	$res = $cb->(GET('/a/test/blah%40example.com/raw'));
 	is($res->code, 200, 'OK with URLMap mount');

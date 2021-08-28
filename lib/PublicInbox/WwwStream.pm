@@ -11,7 +11,6 @@ use v5.10.1;
 use parent qw(Exporter PublicInbox::GzipFilter);
 our @EXPORT_OK = qw(html_oneshot);
 use PublicInbox::Hval qw(ascii_html prurl ts2str);
-our $TOR_URL = 'https://www.torproject.org/';
 
 our $CODE_URL = [ qw(
 http://7fh6tueqddpjyxjmgtdiueylzoqt6pt7hec3pukyptlmohoowvhde4yd.onion/public-inbox.git
@@ -42,8 +41,6 @@ sub html_top ($) {
 	my $desc = ascii_html($ibx->description);
 	my $title = delete($ctx->{-title_html}) // $desc;
 	my $upfx = $ctx->{-upfx} || '';
-	my $help = $upfx.'_/text/help/';
-	my $color = $upfx.'_/text/color/';
 	my $atom = $ctx->{-atom} || $upfx.'new.atom';
 	my $top = "<b>$desc</b>";
 	if (my $t_max = $ctx->{-t_max}) {
@@ -54,9 +51,11 @@ sub html_top ($) {
 		$top = qq(<a\nhref="./">$top</a>);
 	}
 	my $code = $ibx->{coderepo} ? qq( / <a\nhref=#code>code</a>) : '';
-	my $links = qq(<a\nhref="$help">help</a> / ).
-			qq(<a\nhref="$color">color</a> / ).
-			qq(<a\nhref=#mirror>mirror</a>$code / ).
+	# id=mirror must exist for legacy bookmarks
+	my $links = qq(<a\nhref="${upfx}_/text/help/">help</a> / ).
+			qq(<a\nhref="${upfx}_/text/color/">color</a> / ).
+			qq(<a\nid=mirror) .
+			qq(\nhref="${upfx}_/text/mirror/">mirror</a>$code / ).
 			qq(<a\nhref="$atom">Atom feed</a>);
 	if ($ibx->isrch) {
 		my $q_val = delete($ctx->{-q_value_html}) // '';
@@ -106,109 +105,12 @@ EOF
 	@ret; # may be empty, this sub is called as an arg for join()
 }
 
-sub code_footer ($) {
-	my ($env) = @_;
-	my $u = prurl($env, $CODE_URL);
-	my $arg = $u;
-	if ($arg =~ s!\A(https?://)([^/\.]+)\.onion/!$1\$hostname\.onion/!i) {
-		"AGPL code for this site:\n\thostname=$2\n\t" .
-		qq(torsocks git clone <a\nhref="$u">$arg</a>)
-	} else {
-		qq(AGPL code for this site: git clone <a\nhref="$u">$u</a>)
-	}
-}
-
 sub _html_end {
 	my ($ctx) = @_;
-	my $ibx = $ctx->{ibx};
-	my $desc = ascii_html($ibx->description);
-	my $s = "<a\nid=mirror>";
-	my $http = $ctx->{base_url};
-	my $dir = (split(m!/!, $http))[-1];
-	my %seen = ($http => 1);
-	if ($ibx->can('cloneurl')) { # PublicInbox::Inbox
-		$s .= "This inbox may be cloned and mirrored by anyone:</a>\n";
-		my @urls;
-		my $max = $ibx->max_git_epoch;
-		# TODO: some of these URLs may be too long and we may need to
-		# do something like code_footer() above, but these are local
-		# admin-defined
-		if (defined($max)) { # v2
-			for my $i (0..$max) {
-				# old epochs my be deleted:
-				-d "$ibx->{inboxdir}/git/$i.git" or next;
-				my $url = "$http/$i";
-				$seen{$url} = 1;
-				push @urls, "$url $dir/git/$i.git";
-			}
-			my $nr = scalar(@urls);
-			if ($nr > 1) {
-				$s .= "\n\t";
-				$s .= "# this inbox consists of $nr epochs:";
-				$urls[0] .= "\t# oldest";
-				$urls[-1] .= "\t# newest";
-			}
-		} else { # v1
-			push @urls, $http;
-		}
-		# FIXME: epoch splits can be different in other repositories,
-		# use the "cloneurl" file as-is for now:
-		for my $u (@{$ibx->cloneurl}) {
-			next if $seen{$u}++;
-			push @urls, ($u =~ /\Ahttps?:/ ?
-					qq(<a\nhref="$u">$u</a>) : $u);
-		}
-		$s .= "\n";
-		$s .= join('', map { "\tgit clone --mirror $_\n" } @urls);
-		if (my $addrs = $ibx->{address}) {
-			$addrs = join(' ', @$addrs) if ref($addrs) eq 'ARRAY';
-			my $v = defined $max ? '-V2' : '-V1';
-			$s .= <<EOF;
-
-	# If you have public-inbox 1.1+ installed, you may
-	# initialize and index your mirror using the following commands:
-	public-inbox-init $v $ibx->{name} $dir/ $http \\
-		$addrs
-	public-inbox-index $dir
-EOF
-		}
-	} else { # PublicInbox::ExtSearch
-		$s .= <<EOM;
-This is an extindex which is an amalgamation of several public-inboxes</a>
-EOM
-		my $v = $ctx->{www}->{pi_cfg}->{lc('publicInbox.wwwListing')};
-		if (($v // '') =~ /\A(?:all|match=domain)\z/) {
-			my $upfx = ($ctx->{-upfx} // ''). '../';
-			$s .= <<EOM;
-A list of them is available in the <a\nhref="$upfx">listing</a>
-EOM
-		}
-	}
-
-	my $cfg_link = ($ctx->{-upfx} // '').'_/text/config/raw';
-	$s .= <<EOF;
-
-Example <a
-href="$cfg_link">config snippet</a> for mirrors.
-EOF
-	if ($ibx->can('nntp_url')) {
-		my @nntp = map { qq(<a\nhref="$_">$_</a>) } @{$ibx->nntp_url};
-		if (@nntp) {
-			$s .= @nntp == 1 ? 'Newsgroup' : 'Newsgroups are';
-			$s .= ' available over NNTP:';
-			$s .= "\n\t" . join("\n\t", @nntp) . "\n";
-		}
-	}
-	if ($s =~ m!\b[^:]+://\w+\.onion/!) {
-		$s .= " note: .onion URLs require Tor: ";
-		$s .= qq[<a\nhref="$TOR_URL">$TOR_URL</a>];
-	}
-	'<hr><pre>'.join("\n\n",
-		$desc,
-		$s,
-		coderepos($ctx),
-		code_footer($ctx->{env})
-	).'</pre></body></html>';
+	my @cr = coderepos($ctx);
+	scalar(@cr) ?
+		'<hr><pre>'.join("\n\n", @cr).'</pre></body></html>' :
+		'</body></html>';
 }
 
 # callback for HTTP.pm (and any other PSGI servers)

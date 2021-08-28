@@ -7,7 +7,7 @@ use strict;
 use v5.10.1;
 use PublicInbox::Linkify;
 use PublicInbox::WwwStream;
-use PublicInbox::Hval qw(ascii_html);
+use PublicInbox::Hval qw(ascii_html prurl);
 use URI::Escape qw(uri_escape_utf8);
 use PublicInbox::GzipFilter qw(gzf_maybe);
 our $QP_URL = 'https://xapian.org/docs/queryparser.html';
@@ -23,7 +23,7 @@ sub get_text {
 	my ($ctx, $key) = @_;
 	my $code = 200;
 
-	$key = 'help' if !defined $key; # this 302s to _/text/help/
+	$key //= 'help'; # this 302s to _/text/help/
 
 	# get the raw text the same way we get mboxrds
 	my $raw = ($key =~ s!/raw\z!!);
@@ -240,12 +240,138 @@ EOS
 	1;
 }
 
+sub coderepos_raw ($$) {
+	my ($ctx, $top_url) = @_;
+	my $cr = $ctx->{ibx}->{coderepo} // return ();
+	my $cfg = $ctx->{www}->{pi_cfg};
+	my @ret;
+	for my $cr_name (@$cr) {
+		$ret[0] //= <<EOF;
+code repositories for project(s) associated with this inbox:
+EOF
+		my $urls = $cfg->get_all("coderepo.$cr_name.cgiturl");
+		if ($urls) {
+			for (@$urls) {
+				# relative or absolute URL?, prefix relative
+				# "foo.git" with appropriate number of "../"
+				my $u = m!\A(?:[a-z\+]+:)?//!i ? $_ :
+					$top_url.$_;
+				$ret[0] .= "\n\t" . prurl($ctx->{env}, $u);
+			}
+		} else {
+			$ret[0] .= qq[\n\t$cr_name.git (no URL configured)];
+		}
+	}
+	@ret; # may be empty, this sub is called as an arg for join()
+}
+
+sub _mirror_help ($$) {
+	my ($ctx, $txt) = @_;
+	my $ibx = $ctx->{ibx};
+	my $base_url = $ibx->base_url($ctx->{env});
+	chop $base_url; # no trailing slash for "git clone"
+	my $dir = (split(m!/!, $base_url))[-1];
+	my %seen = ($base_url => 1);
+	my $top_url = $base_url;
+	$top_url =~ s!/[^/]+\z!/!;
+	$$txt .= "public-inbox mirroring instructions\n\n";
+	if ($ibx->can('cloneurl')) { # PublicInbox::Inbox
+		$$txt .= "This inbox may be cloned and mirrored by anyone:\n";
+		my @urls;
+		my $max = $ibx->max_git_epoch;
+		# TODO: some of these URLs may be too long and we may need to
+		# do something like code_footer() above, but these are local
+		# admin-defined
+		if (defined($max)) { # v2
+			for my $i (0..$max) {
+				# old epochs my be deleted:
+				-d "$ibx->{inboxdir}/git/$i.git" or next;
+				my $url = "$base_url/$i";
+				$seen{$url} = 1;
+				push @urls, "$url $dir/git/$i.git";
+			}
+			my $nr = scalar(@urls);
+			if ($nr > 1) {
+				$$txt .= "\n\t";
+				$$txt .= "# this inbox consists of $nr epochs:";
+				$urls[0] .= " # oldest";
+				$urls[-1] .= " # newest";
+			}
+		} else { # v1
+			push @urls, $base_url;
+		}
+		# FIXME: epoch splits can be different in other repositories,
+		# use the "cloneurl" file as-is for now:
+		for my $u (@{$ibx->cloneurl}) {
+			next if $seen{$u}++;
+			push @urls, $u;
+		}
+		$$txt .= "\n";
+		$$txt .= join('', map { "\tgit clone --mirror $_\n" } @urls);
+		if (my $addrs = $ibx->{address}) {
+			$addrs = join(' ', @$addrs) if ref($addrs) eq 'ARRAY';
+			my $v = defined $max ? '-V2' : '-V1';
+			$$txt .= <<EOF;
+
+	# If you have public-inbox 1.1+ installed, you may
+	# initialize and index your mirror using the following commands:
+	public-inbox-init $v $ibx->{name} $dir/ $base_url \\
+		$addrs
+	public-inbox-index $dir
+EOF
+		}
+	} else { # PublicInbox::ExtSearch
+		$$txt .= <<EOM;
+This is an extindex which is an amalgamation of several public-inboxes.
+Each public-inbox needs to be mirrored individually.
+EOM
+		my $v = $ctx->{www}->{pi_cfg}->{lc('publicInbox.wwwListing')};
+		if (($v // '') =~ /\A(?:all|match=domain)\z/) {
+			$$txt .= <<EOM;
+A list of them is available at $top_url
+EOM
+		}
+	}
+	my $cfg_link = "$base_url/_/text/config/raw";
+	$$txt .= <<EOF;
+
+Example config snippet for mirrors: $cfg_link
+EOF
+	if ($ibx->can('nntp_url')) {
+		my $nntp = $ibx->nntp_url;
+		if (scalar @$nntp) {
+			$$txt .= "\n";
+			$$txt .= @$nntp == 1 ? 'Newsgroup' : 'Newsgroups are';
+			$$txt .= ' available over NNTP:';
+			$$txt .= "\n\t" . join("\n\t", @$nntp) . "\n";
+		}
+	}
+	if ($$txt =~ m!\b[^:]+://\w+\.onion/!) {
+		$$txt .= <<EOM
+
+note: .onion URLs require Tor: https://www.torproject.org/
+
+EOM
+	}
+	my $code_url = prurl($ctx->{env}, $PublicInbox::WwwStream::CODE_URL);
+	$$txt .= join("\n\n",
+		coderepos_raw($ctx, $top_url), # may be empty
+		"AGPL code for this site:\n\tgit clone $code_url");
+	1;
+}
+
 sub _default_text ($$$$) {
 	my ($ctx, $key, $hdr, $txt) = @_;
-	return _colors_help($ctx, $txt) if $key eq 'color';
-	$key eq 'config' and return $ctx->{ibx}->can('cloneurl') ?
+	if ($key eq 'mirror') {
+		return _mirror_help($ctx, $txt);
+	} elsif ($key eq 'color') {
+		return _colors_help($ctx, $txt);
+	} elsif ($key eq 'config') {
+		return $ctx->{ibx}->can('cloneurl') ?
 			inbox_config($ctx, $hdr, $txt) :
 			extindex_config($ctx, $hdr, $txt);
+	}
+
 	return if $key ne 'help'; # TODO more keys?
 
 	my $ibx = $ctx->{ibx};
