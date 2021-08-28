@@ -49,6 +49,8 @@ sub html_top ($) {
 	# we had some kind of query, link to /$INBOX/?t=YYYYMMDDhhmmss
 	} elsif ($ctx->{qp}->{t}) {
 		$top = qq(<a\nhref="./">$top</a>);
+	} elsif (length($upfx)) {
+		$top = qq(<a\nhref="$upfx">$top</a>);
 	}
 	my $code = $ibx->{coderepo} ? qq( / <a\nhref=#code>code</a>) : '';
 	# id=mirror must exist for legacy bookmarks
