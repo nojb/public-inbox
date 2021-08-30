@@ -89,7 +89,7 @@ sub coderepos ($) {
 	my @ret;
 	for my $cr_name (@$cr) {
 		$ret[0] //= <<EOF;
-<a id=code>code repositories for project(s) associated with this inbox:
+<a id=code>Code repositories for project(s) associated with this inbox:
 EOF
 		my $urls = $cfg->get_all("coderepo.$cr_name.cgiturl");
 		if ($urls) {
@@ -109,10 +109,24 @@ EOF
 
 sub _html_end {
 	my ($ctx) = @_;
-	my @cr = coderepos($ctx);
-	scalar(@cr) ?
-		'<hr><pre>'.join("\n\n", @cr).'</pre></body></html>' :
-		'</body></html>';
+	my $upfx = $ctx->{-upfx} || '';
+	my $m = "${upfx}_/text/mirror/";
+	my $x;
+	if ($ctx->{ibx}->can('cloneurl')) {
+		$x = <<EOF;
+This is a public inbox, see <a
+href="$m">mirroring instructions</a>
+on how to clone and mirror all data and code used for this inbox
+EOF
+	} else {
+		$x = <<EOF;
+This is an external index of several public inboxes,
+see <a href="$m">mirroring instructions</a> on how to clone and mirror
+all data and code used by this external index.
+EOF
+	}
+	chomp $x;
+	'<hr><pre>'.join("\n\n", coderepos($ctx), $x).'</pre></body></html>'
 }
 
 # callback for HTTP.pm (and any other PSGI servers)
