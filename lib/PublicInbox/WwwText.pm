@@ -246,9 +246,13 @@ sub coderepos_raw ($$) {
 	my $cfg = $ctx->{www}->{pi_cfg};
 	my @ret;
 	for my $cr_name (@$cr) {
-		$ret[0] //= <<EOF;
-code repositories for project(s) associated with this inbox:
+		$ret[0] //= do {
+			my $thing = $ctx->{ibx}->can('cloneurl') ?
+				'public inbox' : 'external index';
+			<<EOF;
+Code repositories for project(s) associated with this $thing
 EOF
+		};
 		my $urls = $cfg->get_all("coderepo.$cr_name.cgiturl");
 		if ($urls) {
 			for (@$urls) {
@@ -276,7 +280,8 @@ sub _mirror_help ($$) {
 	$top_url =~ s!/[^/]+\z!/!;
 	$$txt .= "public-inbox mirroring instructions\n\n";
 	if ($ibx->can('cloneurl')) { # PublicInbox::Inbox
-		$$txt .= "This inbox may be cloned and mirrored by anyone:\n";
+		$$txt .=
+		  "This public inbox may be cloned and mirrored by anyone:\n";
 		my @urls;
 		my $max = $ibx->max_git_epoch;
 		# TODO: some of these URLs may be too long and we may need to
@@ -322,8 +327,8 @@ EOF
 		}
 	} else { # PublicInbox::ExtSearch
 		$$txt .= <<EOM;
-This is an extindex which is an amalgamation of several public-inboxes.
-Each public-inbox needs to be mirrored individually.
+This is an external index which is an amalgamation of several public inboxes.
+Each public inbox needs to be mirrored individually.
 EOM
 		my $v = $ctx->{www}->{pi_cfg}->{lc('publicInbox.wwwListing')};
 		if (($v // '') =~ /\A(?:all|match=domain)\z/) {
