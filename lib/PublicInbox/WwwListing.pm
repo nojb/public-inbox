@@ -226,7 +226,10 @@ sub psgi_triple {
 	} else {
 		$gzf->zmore('<pre>no inboxes, yet');
 	}
-	my $out = $gzf->zflush('</pre></body></html>');
+	my $out = $gzf->zflush('</pre><hr><pre>'.
+qq(This is a listing of public inboxes, see the `mirror' link of each inbox
+for instructions on how to mirror all the data and code on this site.) .
+			'</pre></body></html>');
 	$h->[3] = length($out);
 	[ $code, $h, [ $out ] ];
 }
