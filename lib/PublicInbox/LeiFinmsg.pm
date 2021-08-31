@@ -9,13 +9,13 @@ use v5.10.1;
 
 sub new {
 	my ($cls, $io) = @_;
-	bless [ $io ], $cls;
+	bless [ $io, $$ ], $cls;
 }
 
 sub DESTROY {
 	my ($self) = @_;
 	my $io = shift @$self;
-	print $io @$self;
+	shift(@$self) == $$ and print $io @$self;
 }
 
 1;
