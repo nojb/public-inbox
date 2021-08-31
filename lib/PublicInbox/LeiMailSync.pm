@@ -403,13 +403,11 @@ EOF
 
 sub forget_folder {
 	my ($self, $folder) = @_;
-	my ($fid, $sth);
-	$fid = delete($self->{fmap}->{$folder}) //
+	my $fid = delete($self->{fmap}->{$folder}) //
 		fid_for($self, $folder) // return;
-	my $dbh = $self->{dbh};
-	$dbh->do('DELETE FROM blob2name WHERE fid = ?', undef, $fid);
-	$dbh->do('DELETE FROM blob2num WHERE fid = ?', undef, $fid);
-	$dbh->do('DELETE FROM folders WHERE fid = ?', undef, $fid);
+	for my $t (qw(blob2name blob2num folders)) {
+		$self->{dbh}->do("DELETE FROM $t WHERE fid = ?", undef, $fid);
+	}
 }
 
 # only used for changing canonicalization errors
