@@ -951,6 +951,9 @@ sub exec_buf ($$) {
 
 sub start_mua {
 	my ($self) = @_;
+	if ($self->{ovv}->{fmt} =~ /\A(?:maildir)\z/) { # TODO: IMAP
+		refresh_watches($self);
+	}
 	my $mua = $self->{opt}->{mua} // return;
 	my $mfolder = $self->{ovv}->{dst};
 	my (@cmd, $replaced);
