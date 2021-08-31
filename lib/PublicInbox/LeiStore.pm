@@ -243,8 +243,8 @@ sub remove_docids ($;@) {
 	my $eidx = eidx_init($self);
 	for my $docid (@docids) {
 		$eidx->idx_shard($docid)->ipc_do('xdb_remove', $docid);
-		$self->{oidx}->delete_by_num($docid);
-		$self->{oidx}->{dbh}->do(<<EOF, undef, $docid);
+		$eidx->{oidx}->delete_by_num($docid);
+		$eidx->{oidx}->{dbh}->do(<<EOF, undef, $docid);
 DELETE FROM xref3 WHERE docid = ?
 EOF
 	}
