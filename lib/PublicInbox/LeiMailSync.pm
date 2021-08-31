@@ -412,11 +412,24 @@ sub forget_folder {
 # only used for changing canonicalization errors
 sub rename_folder {
 	my ($self, $old, $new) = @_;
-	my $fid = delete($self->{fmap}->{$old}) //
+	my $ofid = delete($self->{fmap}->{$old}) //
 		fid_for($self, $old) // return;
-	$self->{dbh}->do(<<EOM, undef, $new, $fid);
+	eval {
+		$self->{dbh}->do(<<EOM, undef, $new, $ofid);
 UPDATE folders SET loc = ? WHERE fid = ?
 EOM
+	};
+	if ($@ =~ /\bunique\b/i) {
+		my $nfid = $self->{fmap}->{$new} // fid_for($self, $new);
+		for my $t (qw(blob2name blob2num)) {
+			$self->{dbh}->do(<<EOM, undef, $nfid, $ofid);
+UPDATE OR REPLACE $t SET fid = ? WHERE fid = ?
+EOM
+		}
+		$self->{dbh}->do(<<EOM, undef, $ofid);
+DELETE FROM folders WHERE fid = ?
+EOM
+	}
 }
 
 sub imap_oidbin ($$$) {
