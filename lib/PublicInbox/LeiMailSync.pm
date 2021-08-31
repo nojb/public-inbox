@@ -350,9 +350,7 @@ EOM
 		} else {
 			@inc = @all;
 		}
-		for (@inc) {
-			push(@$folders, $_) unless $seen{$_}++;
-		}
+		push(@$folders, (grep { !$seen{$_}++ } @inc));
 	}
 	scalar(@$folders) || $lei->fail(<<EOM);
 no --mail-sync folders known to lei
