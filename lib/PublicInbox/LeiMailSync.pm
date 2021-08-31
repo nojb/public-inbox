@@ -330,6 +330,7 @@ sub group2folders {
 EOM
 	my %x = map { $_ => $_ } split(/,/, $all);
 	my @ok = grep(defined, delete(@x{qw(local remote), ''}));
+	push(@ok, '') if $all eq '';
 	my @no = keys %x;
 	if (@no) {
 		@no = (join(',', @no));
