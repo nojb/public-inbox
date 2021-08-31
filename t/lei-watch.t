@@ -25,7 +25,7 @@ test_lei(sub {
 		lei_ok 'daemon-pid'; chomp(my $pid = $lei_out);
 		skip 'missing /proc/$PID/fd', 1 if !-d "/proc/$pid/fd";
 		my @ino = grep {
-			readlink($_) =~ /\binotify\b/
+			(readlink($_) // '') =~ /\binotify\b/
 		} glob("/proc/$pid/fd/*");
 		is(scalar(@ino), 1, 'only one inotify FD');
 		my $ino_fd = (split('/', $ino[0]))[-1];
