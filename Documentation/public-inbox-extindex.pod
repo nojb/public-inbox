@@ -29,6 +29,17 @@ along with L<DBD::SQLite> and L<DBI> Perl modules.
 
 ... TODO, see L<public-inbox-index(5)>
 
+=item --all
+
+Index all C<publicinbox> entries in C<PI_CONFIG>.
+
+C<publicinbox> entries indexed by C<public-inbox-extindex> can
+have full Xapian searching abilities with the per-C<publicinbox>
+C<indexlevel> set to C<basic> and their respective Xapian
+(C<xap15> or C<xapian15>) directories removed.  For multiple
+public-inboxes where cross-posting is common, this allows
+significant space savings on Xapian indices.
+
 =back
 
 =head1 FILES
