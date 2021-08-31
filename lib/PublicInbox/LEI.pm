@@ -1254,6 +1254,7 @@ sub lazy_start {
 		my (undef, $eof_p) = PublicInbox::PktOp->pair;
 		sub {
 			$exit_code //= shift;
+			eval 'PublicInbox::LeiNoteEvent::flush_task()';
 			my $lis = $pil or exit($exit_code);
 			# closing eof_p triggers \&noop wakeup
 			$listener = $eof_p = $pil = $path = undef;
