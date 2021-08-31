@@ -16,24 +16,25 @@ is_deeply([$ro->folders], [], 'no folders, yet');
 
 my $imap = 'imaps://bob@[::1]/INBOX;UIDVALIDITY=9';
 $lms->lms_begin;
-is($lms->set_src('deadbeef', $imap, 1), 1, 'set IMAP once');
-ok($lms->set_src('deadbeef', $imap, 1) == 0, 'set IMAP idempotently');
+my $deadbeef = "\xde\xad\xbe\xef";
+is($lms->set_src($deadbeef, $imap, 1), 1, 'set IMAP once');
+ok($lms->set_src($deadbeef, $imap, 1) == 0, 'set IMAP idempotently');
 $lms->lms_commit;
 is_deeply([$ro->folders], [$imap], 'IMAP folder added');
 is_deeply([$ro->folders($imap)], [$imap], 'IMAP folder with full GLOB');
 is_deeply([$ro->folders('imaps://bob@[::1]/INBOX')], [$imap],
 		'IMAP folder with partial GLOB');
 
-is_deeply($ro->locations_for("\xde\xad\xbe\xef"),
+is_deeply($ro->locations_for($deadbeef),
 	{ $imap => [ 1 ] }, 'locations_for w/ imap');
 
 my $maildir = 'maildir:/home/user/md';
 my $fname = 'foo:2,S';
 $lms->lms_begin;
-ok($lms->set_src('deadbeef', $maildir, \$fname), 'set Maildir once');
-ok($lms->set_src('deadbeef', $maildir, \$fname) == 0, 'set Maildir again');
+ok($lms->set_src($deadbeef, $maildir, \$fname), 'set Maildir once');
+ok($lms->set_src($deadbeef, $maildir, \$fname) == 0, 'set Maildir again');
 $lms->lms_commit;
-is_deeply($ro->locations_for("\xde\xad\xbe\xef"),
+is_deeply($ro->locations_for($deadbeef),
 	{ $imap => [ 1 ], $maildir => [ $fname ] },
 	'locations_for w/ maildir + imap');
 
@@ -45,7 +46,7 @@ if ('mess things up pretend old bug') {
 	$lms->lms_commit;
 
 	$lms->lms_begin;
-	ok($lms->set_src('deadbeef', $maildir, \$fname), 'set Maildir once');
+	ok($lms->set_src($deadbeef, $maildir, \$fname), 'set Maildir once');
 	$lms->lms_commit;
 };
 

@@ -118,7 +118,7 @@ EOM
 }
 
 sub set_src {
-	my ($self, $oidhex, $folder, $id) = @_;
+	my ($self, $oidbin, $folder, $id) = @_;
 	my $fid = $self->{fmap}->{$folder} //= fid_for($self, $folder, 1);
 	my $sth;
 	if (ref($id)) { # scalar name
@@ -131,7 +131,7 @@ INSERT OR IGNORE INTO blob2name (oidbin, fid, name) VALUES (?, ?, ?)
 INSERT OR IGNORE INTO blob2num (oidbin, fid, uid) VALUES (?, ?, ?)
 
 	}
-	$sth->execute(pack('H*', $oidhex), $fid, $id);
+	$sth->execute($oidbin, $fid, $id);
 }
 
 sub clear_src {
