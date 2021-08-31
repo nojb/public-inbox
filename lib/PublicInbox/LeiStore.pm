@@ -28,6 +28,7 @@ use PublicInbox::Spawn qw(spawn);
 use List::Util qw(max);
 use File::Temp ();
 use POSIX ();
+use IO::Handle (); # ->autoflush
 
 sub new {
 	my (undef, $dir, $opt) = @_;
@@ -514,6 +515,7 @@ sub write_prepare {
 		$self->ipc_lock_init("$dir/ipc.lock");
 		substr($dir, -length('/lei/store'), 10, '');
 		pipe(my ($r, $w)) or die "pipe: $!";
+		$w->autoflush(1);
 		# Mail we import into lei are private, so headers filtered out
 		# by -mda for public mail are not appropriate
 		local @PublicInbox::MDA::BAD_HEADERS = ();
