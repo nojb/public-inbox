@@ -343,20 +343,18 @@ sub _sync_inbox ($$$) {
 
 sub gc_unref_doc ($$$$) {
 	my ($self, $ibx_id, $eidx_key, $docid) = @_;
-	my $dbh = $self->{oidx}->dbh;
-
+	my $remain = 0;
 	# for debug/info purposes, oids may no longer be accessible
+	my $dbh = $self->{oidx}->dbh;
 	my $sth = $dbh->prepare_cached(<<'', undef, 1);
 SELECT oidbin FROM xref3 WHERE docid = ? AND ibx_id = ?
 
 	$sth->execute($docid, $ibx_id);
 	my @oid = map { unpack('H*', $_->[0]) } @{$sth->fetchall_arrayref};
-
-	$dbh->prepare_cached(<<'')->execute($docid, $ibx_id);
-DELETE FROM xref3 WHERE docid = ? AND ibx_id = ?
-
-	my $remain = $self->{oidx}->get_xref3($docid);
-	if (scalar(@$remain)) {
+	for my $oid (@oid) {
+		$remain += $self->{oidx}->remove_xref3($docid, $oid, $eidx_key);
+	}
+	if ($remain) {
 		$self->{oidx}->eidxq_add($docid); # enqueue for reindex
 		for my $oid (@oid) {
 			warn "I: unref #$docid $eidx_key $oid\n";
@@ -421,6 +419,11 @@ DELETE FROM xref3 WHERE docid NOT IN (SELECT num FROM over)
 
 	warn "I: eliminated $nr stale xref3 entries\n" if $nr != 0;
 
+	# fixup from old bugs:
+	$nr = $dbh->do(<<'');
+DELETE FROM over WHERE num NOT IN (SELECT docid FROM xref3)
+
+	warn "I: eliminated $nr stale over entries\n" if $nr != 0;
 	done($self);
 }
 

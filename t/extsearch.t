@@ -466,4 +466,65 @@ SKIP: {
 		'--gc works after compact');
 }
 
+{ # ensure --gc removes non-xposted messages
+	my $old_size = -s $cfg_path // xbail "stat $cfg_path $!";
+	my $tmp_addr = 'v2tmp@example.com';
+	run_script([qw(-init v2tmp --indexlevel basic
+		--newsgroup v2tmp.example),
+		"$home/v2tmp", 'http://example.com/v2tmp', $tmp_addr ])
+		or xbail '-init';
+	$env = { ORIGINAL_RECIPIENT => $tmp_addr };
+	open $fh, '+>', undef or xbail "open $!";
+	$fh->autoflush(1);
+	my $mid = 'tmpmsg@example.com';
+	print $fh <<EOM or xbail "print $!";
+From: b\@z
+To: b\@r
+Message-Id: <$mid>
+Subject: tmpmsg
+Date: Tue, 19 Jan 2038 03:14:07 +0000
+
+EOM
+	seek $fh, 0, SEEK_SET or xbail "seek $!";
+	run_script([qw(-mda --no-precheck)], $env, {0 => $fh}) or xbail '-mda';
+	ok(run_script([qw(-extindex --all), "$home/extindex"]), 'update');
+	my $nr;
+	{
+		my $es = PublicInbox::ExtSearch->new("$home/extindex");
+		my ($id, $prv);
+		my $smsg = $es->over->next_by_mid($mid, \$id, \$prv);
+		ok($smsg, 'tmpmsg indexed');
+		my $mset = $es->search->mset("mid:$mid");
+		is($mset->size, 1, 'new message found');
+		$mset = $es->search->mset('z:0..');
+		$nr = $mset->size;
+	}
+	truncate($cfg_path, $old_size) or xbail "truncate $!";
+	my $rdr = { 2 => \(my $err) };
+	ok(run_script([qw(-extindex --gc), "$home/extindex"], undef, $rdr),
+		'gc to get rid of removed inbox');
+	is_deeply([ grep(!/^(?:I:|#)/, split(/^/m, $err)) ], [],
+		'no non-informational errors in stderr');
+
+	my $es = PublicInbox::ExtSearch->new("$home/extindex");
+	my $mset = $es->search->mset("mid:$mid");
+	is($mset->size, 0, 'tmpmsg gone from search');
+	my ($id, $prv);
+	is($es->over->next_by_mid($mid, \$id, \$prv), undef,
+		'tmpmsg gone from over');
+	$id = $prv = undef;
+	is($es->over->next_by_mid('testmessage@example.com', \$id, \$prv),
+		undef, 'remaining message not indavderover');
+	$mset = $es->search->mset('z:0..');
+	is($mset->size, $nr - 1, 'existing messages not clobbered from search');
+	my $o = $es->over->{dbh}->selectall_arrayref(<<EOM);
+SELECT num FROM over ORDER BY num
+EOM
+	is(scalar(@$o), $mset->size, 'over row count matches Xapian');
+	my $x = $es->over->{dbh}->selectall_arrayref(<<EOM);
+SELECT DISTINCT(docid) FROM xref3 ORDER BY docid
+EOM
+	is_deeply($x, $o, 'xref3 and over docids match');
+}
+
 done_testing;
