@@ -117,7 +117,7 @@ sub ext_msg_ALL ($) {
 			$k =~ s/:[0-9]+:$x->{blob}\z// or next;
 			next if $k eq $cur_key;
 			my $ibx = $by_eidx_key->{$k} // next;
-			my $url = $ibx->base_url or next;
+			$ibx->base_url or next;
 			push(@{$ctx->{found}}, $ibx) unless $seen{$k}++;
 		}
 	}
@@ -188,6 +188,12 @@ sub finalize_exact {
 	finalize_partial($ctx);
 }
 
+sub _url_pfx ($$) {
+	my ($ctx, $u) = @_;
+	(index($u, '://') < 0 && index($u, '/') != 0) ?
+		"$ctx->{-upfx}../$u" : $u;
+}
+
 sub partial_response ($) {
 	my ($ctx) = @_;
 	my $mid = $ctx->{mid};
@@ -196,6 +202,7 @@ sub partial_response ($) {
 	my $html = ascii_html($mid);
 	my $title = "&lt;$html&gt; not found";
 	my $s = "<pre>Message-ID &lt;$html&gt;\nnot found\n";
+	$ctx->{-upfx} //= '../';
 	if (my $n_partial = $ctx->{n_partial}) {
 		$code = 300;
 		my $es = $n_partial == 1 ? '' : 'es';
@@ -204,8 +211,8 @@ sub partial_response ($) {
 		my $cur_name = $ctx->{ibx}->{name};
 		foreach my $pair (@{$ctx->{partial}}) {
 			my ($ibx, $res) = @$pair;
-			my $env = $ctx->{env} if $ibx->{name} eq $cur_name;
-			my $u = $ibx->base_url($env) or next;
+			my $e = $ibx->{name} eq $cur_name ? $ctx->{env} : undef;
+			my $u = _url_pfx($ctx, $ibx->base_url($e) // next);
 			foreach my $m (@$res) {
 				my $href = mid_href($m);
 				my $html = ascii_html($m);
@@ -220,7 +227,6 @@ sub partial_response ($) {
 	}
 	$ctx->{-html_tip} = $s .= '</pre>';
 	$ctx->{-title_html} = $title;
-	$ctx->{-upfx} = '../';
 	html_oneshot($ctx, $code);
 }
 
@@ -253,13 +259,13 @@ sub exact {
 	my $title = "&lt;$html&gt; found in ";
 	my $end = @$found == 1 ? 'another inbox' : 'other inboxes';
 	$ctx->{-title_html} = $title . $end;
-	$ctx->{-upfx} = '../';
+	$ctx->{-upfx} //= '../';
 	my $ext_urls = ext_urls($ctx, $mid, $href, $html);
 	my $code = (@$found == 1 && $ext_urls eq '') ? 200 : 300;
 	$ctx->{-html_tip} = join('',
 			"<pre>Message-ID: &lt;$html&gt;\nfound in $end:\n\n",
 				(map {
-					my $u = $_->base_url;
+					my $u = _url_pfx($ctx, $_->base_url);
 					qq(<a\nhref="$u$href/">$u$html/</a>\n)
 				} @$found),
 			$ext_urls, '</pre>');

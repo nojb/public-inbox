@@ -432,6 +432,7 @@ sub stream_thread ($$) {
 # /$INBOX/$MSGID/t/ and /$INBOX/$MSGID/T/
 sub thread_html {
 	my ($ctx) = @_;
+	$ctx->{-upfx} = '../../';
 	my $mid = $ctx->{mid};
 	my $ibx = $ctx->{ibx};
 	my ($nr, $msgs) = $ibx->over->get_thread($mid);
@@ -455,7 +456,6 @@ EOF
 	$skel .= " (download: <a\nhref=\"../t.mbox.gz\">mbox.gz</a>";
 	$skel .= " / follow: <a\nhref=\"../t.atom\">Atom feed</a>)\n";
 	$skel .= "-- links below jump to the message on this page --\n";
-	$ctx->{-upfx} = '../../';
 	$ctx->{cur_level} = 0;
 	$ctx->{skel} = \$skel;
 	$ctx->{prev_attr} = '';
