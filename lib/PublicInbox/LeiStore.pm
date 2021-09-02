@@ -25,10 +25,14 @@ use PublicInbox::MID qw(mids);
 use PublicInbox::LeiSearch;
 use PublicInbox::MDA;
 use PublicInbox::Spawn qw(spawn);
+use PublicInbox::MdirReader;
+use PublicInbox::LeiToMail;
 use List::Util qw(max);
 use File::Temp ();
 use POSIX ();
 use IO::Handle (); # ->autoflush
+use Sys::Syslog qw(syslog openlog);
+use Errno qw(EEXIST ENOENT);
 
 sub new {
 	my (undef, $dir, $opt) = @_;
@@ -165,12 +169,92 @@ sub _docids_for ($$) {
 	sort { $a <=> $b } values %docids;
 }
 
+# n.b. similar to LeiExportKw->export_kw_md, but this is for a single eml
+sub export1_kw_md ($$$$$) {
+	my ($self, $mdir, $bn, $oidbin, $vmdish) = @_; # vmd/vmd_mod
+	my $orig = $bn;
+	my (@try, $unkn, $kw);
+	if ($bn =~ s/:2,([a-zA-Z]*)\z//) {
+		($kw, $unkn) = PublicInbox::MdirReader::flags2kw($1);
+		if (my $set = $vmdish->{kw}) {
+			$kw = $set;
+		} elsif (my $add = $vmdish->{'+kw'}) {
+			@$kw{@$add} = ();
+		} elsif (my $del = $vmdish->{-kw}) {
+			delete @$kw{@$del};
+		} # else no changes...
+		@try = qw(cur new);
+	} else { # no keywords, yet, could be in new/
+		@try = qw(new cur);
+		$unkn = [];
+		if (my $set = $vmdish->{kw}) {
+			$kw = $set;
+		} elsif (my $add = $vmdish->{'+kw'}) {
+			@$kw{@$add} = (); # auto-vivify
+		} else { # ignore $vmdish->{-kw}
+			$kw = [];
+		}
+	}
+	$kw = [ keys %$kw ] if ref($kw) eq 'HASH';
+	$bn .= ':2,'. PublicInbox::LeiToMail::kw2suffix($kw, @$unkn);
+	return if $orig eq $bn; # no change
+
+	# we use link(2) + unlink(2) since rename(2) may
+	# inadvertently clobber if the "uniquefilename" part wasn't
+	# actually unique.
+	my $dst = "$mdir/cur/$bn";
+	for my $d (@try) {
+		my $src = "$mdir/$d/$orig";
+		if (link($src, $dst)) {
+			if (!unlink($src) and $! != ENOENT) {
+				syslog('warning', "unlink($src): $!");
+			}
+			# TODO: verify oidbin?
+			lms_mv_src($self, "maildir:$mdir",
+					$oidbin, \$orig, $bn);
+			return;
+		} elsif ($! == EEXIST) { # lost race with "lei export-kw"?
+			return;
+		} elsif ($! == ENOENT) {
+			syslog('warning', "link($src -> $dst): $!")
+		} # else loop @try
+	}
+	my $e = $!;
+	my $src = "$mdir/{".join(',', @try)."}/$orig";
+	my $oidhex = unpack('H*', $oidbin);
+	syslog('warning', "link($src -> $dst) ($oidhex): $e");
+	for (@try) { return if -e "$mdir/$_/$orig" };
+	lms_clear_src($self, "maildir:$mdir", \$orig);
+}
+
+sub sto_export_kw ($$$) {
+	my ($self, $docid, $vmdish) = @_; # vmdish (vmd or vmd_mod)
+	my ($eidx, $tl) = eidx_init($self);
+	my $lms = _lms_rw($self) // return;
+	my $xr3 = $eidx->{oidx}->get_xref3($docid, 1);
+	for my $row (@$xr3) {
+		my (undef, undef, $oidbin) = @$row;
+		my $locs = $lms->locations_for($oidbin) // next;
+		while (my ($loc, $ids) = each %$locs) {
+			if ($loc =~ s!\Amaildir:!!i) {
+				for my $id (@$ids) {
+					export1_kw_md($self, $loc, $id,
+							$oidbin, $vmdish);
+				}
+			}
+			# TODO: IMAP
+		}
+	}
+}
+
+# vmd = { kw => [ qw(seen ...) ], L => [ qw(inbox ...) ] }
 sub set_eml_vmd {
 	my ($self, $eml, $vmd, $docids) = @_;
 	my ($eidx, $tl) = eidx_init($self);
 	$docids //= [ _docids_for($self, $eml) ];
 	for my $docid (@$docids) {
 		$eidx->idx_shard($docid)->ipc_do('set_vmd', $docid, $vmd);
+		sto_export_kw($self, $docid, $vmd);
 	}
 	$docids;
 }
@@ -284,6 +368,12 @@ EOF
 	$docid;
 }
 
+sub _add_vmd ($$$$) {
+	my ($self, $idx, $docid, $vmd) = @_;
+	$idx->ipc_do('add_vmd', $docid, $vmd);
+	sto_export_kw($self, $docid, $vmd);
+}
+
 sub add_eml {
 	my ($self, $eml, $vmd, $xoids) = @_;
 	my $im = $self->{-fake_im} // $self->importer; # may create new epoch
@@ -310,7 +400,7 @@ sub add_eml {
 			@$vivify_xvmd = sort { $a <=> $b } keys(%docids);
 		}
 	}
-	if (@$vivify_xvmd) {
+	if (@$vivify_xvmd) { # docids list
 		$xoids //= {};
 		$xoids->{$smsg->{blob}} = 1;
 		for my $docid (@$vivify_xvmd) {
@@ -327,7 +417,7 @@ sub add_eml {
 			for my $oid (keys %$xoids) {
 				$oidx->add_xref3($docid, -1, $oid, '.');
 			}
-			$idx->ipc_do('add_vmd', $docid, $vmd) if $vmd;
+			_add_vmd($self, $idx, $docid, $vmd) if $vmd;
 		}
 		$vivify_xvmd;
 	} elsif (my @docids = _docids_for($self, $eml)) {
@@ -337,7 +427,7 @@ sub add_eml {
 			$oidx->add_xref3($docid, -1, $smsg->{blob}, '.');
 			# add_eidx_info for List-Id
 			$idx->ipc_do('add_eidx_info', $docid, '.', $eml);
-			$idx->ipc_do('add_vmd', $docid, $vmd) if $vmd;
+			_add_vmd($self, $idx, $docid, $vmd) if $vmd;
 		}
 		\@docids;
 	} else { # totally new message
@@ -347,7 +437,7 @@ sub add_eml {
 		$oidx->add_xref3($smsg->{num}, -1, $smsg->{blob}, '.');
 		my $idx = $eidx->idx_shard($smsg->{num});
 		$idx->index_eml($eml, $smsg);
-		$idx->ipc_do('add_vmd', $smsg->{num}, $vmd) if $vmd;
+		_add_vmd($self, $idx, $smsg->{num}, $vmd) if $vmd;
 		$smsg;
 	}
 }
@@ -365,6 +455,7 @@ sub index_eml_only {
 	set_eml($self, $eml, $vmd, $xoids);
 }
 
+# store {kw} / {L} info for a message which is only in an external
 sub _external_only ($$$) {
 	my ($self, $xoids, $eml) = @_;
 	my $eidx = $self->{priv_eidx};
@@ -398,6 +489,7 @@ sub update_xvmd {
 		next if $seen{$docid}++;
 		my $idx = $eidx->idx_shard($docid);
 		$idx->ipc_do('update_vmd', $docid, $vmd_mod);
+		sto_export_kw($self, $docid, $vmd_mod);
 	}
 	return unless scalar(keys(%$xoids));
 
@@ -410,12 +502,14 @@ sub update_xvmd {
 			}
 			my $idx = $eidx->idx_shard($docid);
 			$idx->ipc_do('update_vmd', $docid, $vmd_mod);
+			sto_export_kw($self, $docid, $vmd_mod);
 		}
 		return;
 	}
 	# totally unseen
 	my ($smsg, $idx) = _external_only($self, $xoids, $eml);
 	$idx->ipc_do('update_vmd', $smsg->{num}, $vmd_mod);
+	sto_export_kw($self, $smsg->{num}, $vmd_mod);
 }
 
 # set or update keywords for external message, called via ipc_do
@@ -433,6 +527,7 @@ sub set_xvmd {
 		next if $seen{$docid}++;
 		my $idx = $eidx->idx_shard($docid);
 		$idx->ipc_do('set_vmd', $docid, $vmd);
+		sto_export_kw($self, $docid, $vmd);
 	}
 	return unless scalar(keys(%$xoids));
 
@@ -443,6 +538,7 @@ sub set_xvmd {
 	# totally unseen:
 	my ($smsg, $idx) = _external_only($self, $xoids, $eml);
 	$idx->ipc_do('add_vmd', $smsg->{num}, $vmd);
+	sto_export_kw($self, $smsg->{num}, $vmd);
 }
 
 sub checkpoint {
@@ -497,6 +593,7 @@ sub ipc_atfork_child {
 	if (my $to_close = delete($self->{to_close})) {
 		close($_) for @$to_close;
 	}
+	openlog('lei/store', 'pid,nowait,nofatal,ndelay', 'user');
 	$self->SUPER::ipc_atfork_child;
 }
 

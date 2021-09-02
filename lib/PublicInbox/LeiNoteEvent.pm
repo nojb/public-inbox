@@ -36,32 +36,31 @@ sub note_event_arm_done ($) {
 }
 
 sub eml_event ($$$$) {
-	my ($self, $eml, $kw, $state) = @_;
+	my ($self, $eml, $vmd, $state) = @_;
 	my $sto = $self->{lei}->{sto};
 	my $lse = $self->{lse} //= $sto->search;
-	my $vmd = { kw => $kw };
 	if ($state =~ /\Aimport-(?:rw|ro)\z/) {
 		$sto->ipc_do('set_eml', $eml, $vmd);
 	} elsif ($state =~ /\Aindex-(?:rw|ro)\z/) {
 		my $xoids = $self->{lei}->ale->xoids_for($eml);
 		$sto->ipc_do('index_eml_only', $eml, $vmd, $xoids);
 	} elsif ($state =~ /\Atag-(?:rw|ro)\z/) {
-		my $c = $lse->kw_changed($eml, $kw, my $docids = []);
+		my $c = $lse->kw_changed($eml, $vmd->{kw}, my $docids = []);
 		if (scalar @$docids) { # already in lei/store
 			$sto->ipc_do('set_eml_vmd', undef, $vmd, $docids) if $c;
 		} elsif (my $xoids = $self->{lei}->ale->xoids_for($eml)) {
 			# it's in an external, only set kw, here
 			$sto->ipc_do('set_xvmd', $xoids, $eml, $vmd);
-		} # else { totally unknown
+		} # else { totally unknown: ignore
 	} else {
 		warn "unknown state: $state (in $self->{lei}->{cfg}->{'-f'})\n";
 	}
 }
 
 sub maildir_event { # via wq_io_do
-	my ($self, $fn, $kw, $state) = @_;
+	my ($self, $fn, $vmd, $state) = @_;
 	my $eml = PublicInbox::InboxWritable::eml_from_path($fn) // return;
-	eml_event($self, $eml, $kw, $state);
+	eml_event($self, $eml, $vmd, $state);
 }
 
 sub lei_note_event {
@@ -98,7 +97,8 @@ sub lei_note_event {
 			// return;
 		return if index($fl, 'T') >= 0;
 		my $kw = PublicInbox::MdirReader::flags2kw($fl);
-		$self->wq_io_do('maildir_event', [], $fn, $kw, $state);
+		my $vmd = { kw => $kw, sync_info => [ $folder, \$bn ] };
+		$self->wq_io_do('maildir_event', [], $fn, $vmd, $state);
 	} # else: TODO: imap
 }
 

@@ -25,12 +25,11 @@ sub export_kw_md { # LeiMailSync->each_src callback
 	}
 	$bn .= ':2,'.
 		PublicInbox::LeiToMail::kw2suffix([keys %$sto_kw], @$unknown);
+	return if $bn eq $$id;
 	my $dst = "$mdir/cur/$bn";
-	my @fail;
 	my $lei = $self->{lei};
 	for my $d (@try) {
 		my $src = "$mdir/$d/$$id";
-		next if $src eq $dst;
 
 		# we use link(2) + unlink(2) since rename(2) may
 		# inadvertently clobber if the "uniquefilename" part wasn't
@@ -44,20 +43,19 @@ sub export_kw_md { # LeiMailSync->each_src callback
 			$lei->{sto}->ipc_do('lms_mv_src', "maildir:$mdir",
 						$oidbin, $id, $bn);
 			return; # success anyways if link(2) worked
-		}
-		if ($! == ENOENT && !-e $src) { # some other process moved it
-			$lei->{sto}->ipc_do('lms_clear_src',
-						"maildir:$mdir", $id);
-			next;
-		}
-		push @fail, $src if $! != EEXIST;
+		} elsif ($! == EEXIST) { # lost race with lei/store?
+			return;
+		} elsif ($! != ENOENT) {
+			$lei->child_error(1, "E: link($src -> $dst): $!");
+		} # else loop @try
 	}
-	return unless @fail;
-	# both tries failed
 	my $e = $!;
-	my $orig = '['.join('|', @fail).']';
+	# both tries failed
 	my $oidhex = unpack('H*', $oidbin);
-	$lei->child_error(1, "link($orig, $dst) ($oidhex): $e");
+	my $src = "$mdir/{".join(',', @try)."}/$$id";
+	$lei->child_error(1, "link($src -> $dst) ($oidhex): $e");
+	for (@try) { return if -e "$mdir/$_/$$id" }
+	$lei->{sto}->ipc_do('lms_clear_src', "maildir:$mdir", $id);
 }
 
 sub export_kw_imap { # LeiMailSync->each_src callback
