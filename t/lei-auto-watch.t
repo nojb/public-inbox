@@ -4,9 +4,8 @@
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 use File::Basename qw(basename);
 my ($ro_home, $cfg_path) = setup_public_inboxes;
-my $tick = 2.1;
-my $have_fast_inotify = eval { require Linux::Inotify2; $tick = 0.1 } ||
-	eval { require IO::KQueue; $tick = 0.5 };
+my $have_fast_inotify = eval { require Linux::Inotify2 } ||
+	eval { require IO::KQueue };
 
 $have_fast_inotify or
 	diag("$0 IO::KQueue or Linux::Inotify2 missing, test will be slow");
@@ -31,9 +30,13 @@ test_lei(sub {
 	lei_ok qw(add-watch), $x;
 	my $dst = $x[0] . 'S';
 	rename($x[0], $dst) or xbail "rename($x[0], $dst): $!";
-	tick($tick); # wait for inotify or kevent
+	my $ys = "$y[0]S";
+	for (0..50) {
+		last if -f $ys;
+		tick; # wait for inotify or kevent
+	}
 	my @y2 = glob("$y/*/*");
-	is_deeply(\@y2, [ "$y[0]S" ], "`seen' kw propagated to `y' dir");
+	is_deeply(\@y2, [ $ys ], "`seen' kw propagated to `y' dir");
 	lei_ok qw(note-event done);
 	lei_ok qw(inspect), "blob:$oid";
 	$ins = json_utf8->decode($lei_out);
