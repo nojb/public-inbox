@@ -202,7 +202,7 @@ sub _lms_rw ($) {
 		require PublicInbox::LeiMailSync;
 		my $f = "$self->{priv_eidx}->{topdir}/mail_sync.sqlite3";
 		my $lms = PublicInbox::LeiMailSync->new($f);
-		$lms->lms_begin;
+		$lms->lms_write_prepare;
 		$lms;
 	};
 }
@@ -450,9 +450,7 @@ sub checkpoint {
 	if (my $im = $self->{im}) {
 		$wait ? $im->barrier : $im->checkpoint;
 	}
-	if (my $lms = delete $self->{lms}) {
-		$lms->lms_commit;
-	}
+	delete $self->{lms};
 	$self->{priv_eidx}->checkpoint($wait);
 }
 
@@ -481,9 +479,7 @@ sub done {
 			warn $err;
 		}
 	}
-	if (my $lms = delete $self->{lms}) {
-		$lms->lms_commit;
-	}
+	delete $self->{lms};
 	$self->{priv_eidx}->done; # V2Writable::done
 	xchg_stderr($self);
 	die $err if $err;

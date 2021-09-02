@@ -32,9 +32,7 @@ sub new {
 	bless { filename => $f, fmap => {} }, $cls;
 }
 
-sub lms_commit { delete($_[0]->{dbh})->commit }
-
-sub lms_begin { ($_[0]->{dbh} //= dbh_new($_[0], 1))->begin_work };
+sub lms_write_prepare { ($_[0]->{dbh} //= dbh_new($_[0], 1)) };
 
 sub create_tables {
 	my ($dbh) = @_;
@@ -466,16 +464,6 @@ sub imap_oid {
 	}
 	my $oidbin = imap_oidbin($self, $folders->[0], $uid_uri->uid);
 	$oidbin ? unpack('H*', $oidbin) : undef;
-}
-
-# FIXED? something with "lei <up|q>" is causing uncommitted transaction
-# TODO: remove soon
-sub DESTROY {
-	my ($self) = @_;
-	my $dbh = delete($self->{dbh}) or return;
-	return if $dbh->{ReadOnly};
-	undef $dbh;
-	warn "BUG $$ $0 $self {dbh} OPEN ppid=".getppid.' '.Carp::longmess();
 }
 
 1;
