@@ -537,4 +537,11 @@ sub git_blob_id { # called via LEI->git_blob_id
 	git_sha(1, $eml)->hexdigest;
 }
 
+# called by lei-daemon before lei->refresh_watches
+sub add_sync_folders {
+	my ($self, @folders) = @_;
+	my $lms = _lms_rw($self);
+	for my $f (@folders) { $lms->fid_for($f, 1) }
+}
+
 1;

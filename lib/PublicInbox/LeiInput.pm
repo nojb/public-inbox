@@ -225,6 +225,7 @@ sub prepare_inputs { # returns undef on error
 	my ($self, $lei, $inputs) = @_;
 	my $in_fmt = $lei->{opt}->{'in-format'};
 	my $sync = $lei->{opt}->{'mail-sync'} ? {} : undef; # using LeiMailSync
+	my $may_sync = $sync || $self->{-mail_sync};
 	if ($lei->{opt}->{stdin}) {
 		@$inputs and return
 			$lei->fail("--stdin and @$inputs do not mix");
@@ -267,12 +268,12 @@ sub prepare_inputs { # returns undef on error
 			} elsif (-d $input_path) {
 				$ifmt eq 'maildir' or return
 					$lei->fail("$ifmt not supported");
-				$sync and $input = 'maildir:'.
+				$may_sync and $input = 'maildir:'.
 						$lei->abs_path($input_path);
 				push @md, $input;
 			} elsif ($self->{missing_ok} && !-e _) {
 				# for "lei rm-watch" on missing Maildir
-				$sync and $input = 'maildir:'.
+				$may_sync and $input = 'maildir:'.
 						$lei->abs_path($input_path);
 			} else {
 				return $lei->fail("Unable to handle $input");
@@ -294,7 +295,7 @@ $input is `eml', not --in-format=$in_fmt
 
 			if ($sync) {
 				$input = $lei->abs_path($mdir) . "/$nc/$bn";
-				push @{$sync->{ok}}, $input;
+				push @{$sync->{ok}}, $input if $sync;
 			}
 			require PublicInbox::MdirReader;
 		} else {
@@ -303,15 +304,15 @@ $input is `eml', not --in-format=$in_fmt
 				push @{$sync->{no}}, $input if $sync;
 				push @f, $input;
 			} elsif (-d "$input/new" && -d "$input/cur") {
-				if ($sync) {
+				if ($may_sync) {
 					$input = 'maildir:'.
 						$lei->abs_path($input);
-					push @{$sync->{ok}}, $input;
+					push @{$sync->{ok}}, $input if $sync;
 				}
 				push @md, $input;
 			} elsif ($self->{missing_ok} && !-e $input) {
 				# for lei rm-watch
-				$sync and $input = 'maildir:'.
+				$may_sync and $input = 'maildir:'.
 						$lei->abs_path($input);
 			} else {
 				return $lei->fail("Unable to handle $input")
@@ -342,6 +343,13 @@ $input is `eml', not --in-format=$in_fmt
 		if ($self->can('pmdir_cb')) {
 			require PublicInbox::LeiPmdir;
 			$self->{pmd} = PublicInbox::LeiPmdir->new($lei, $self);
+		}
+
+		# start watching Maildirs ASAP
+		if ($may_sync && $lei->{sto}) {
+			grep(!m!\Amaildir:/!i, @md) and die "BUG: @md (no pfx)";
+			my $wait = $lei->{sto}->ipc_do('add_sync_folders', @md);
+			$lei->refresh_watches;
 		}
 	}
 	$self->{inputs} = $inputs;
