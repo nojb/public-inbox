@@ -26,6 +26,8 @@ sub imap_append {
 		die "APPEND $folder: $@";
 }
 
+sub folder_select { 'select' } # for PublicInbox::NetReader
+
 sub imap_delete_all {
 	my ($self, $uri) = @_;
 	my $mic = $self->mic_for_folder($uri) or return;

@@ -682,4 +682,6 @@ EOF
 	undef;
 }
 
+sub folder_select { 'select' } # for PublicInbox::NetReader
+
 1;

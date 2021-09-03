@@ -493,6 +493,9 @@ sub perm_fl_ok ($) {
 	undef;
 }
 
+# may be overridden in NetWriter or Watch
+sub folder_select { $_[0]->{each_old} ? 'select' : 'examine' }
+
 sub _imap_fetch_all ($$$) {
 	my ($self, $mic, $orig_uri) = @_;
 	my $sec = uri_section($orig_uri);
@@ -501,7 +504,7 @@ sub _imap_fetch_all ($$$) {
 
 	# we need to check for mailbox writability to see if we care about
 	# FLAGS from already-imported messages.
-	my $cmd = $self->{each_old} ? 'select' : 'examine';
+	my $cmd = $self->folder_select;
 	$mic->$cmd($mbx) or return "E: \U$cmd\E $mbx ($sec) failed: $!";
 
 	my ($r_uidval, $r_uidnext, $perm_fl);

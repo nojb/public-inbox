@@ -406,7 +406,7 @@ sub new {
 		my $net = PublicInbox::NetWriter->new;
 		$net->{quiet} = $lei->{opt}->{quiet};
 		my $uri = PublicInbox::URIimap->new($dst)->canonical;
-		$net->add_url($uri);
+		$net->add_url($$uri);
 		my $err = $net->errors($lei);
 		return $lei->fail($err) if $err;
 		$uri->mailbox or return $lei->fail("No mailbox: $dst");
