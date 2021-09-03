@@ -21,14 +21,9 @@ test_lei({ daemon_only => 1 }, sub {
 	ok(kill(0, $pid), 'pid is valid');
 	ok(-S $sock, 'sock created');
 	is(-s $err_log, 0, 'nothing in errors.log');
-	open my $efh, '>>', $err_log or BAIL_OUT $!;
-	print $efh "phail\n" or BAIL_OUT $!;
-	close $efh or BAIL_OUT $!;
-
 	lei_ok('daemon-pid');
 	chomp(my $pid_again = $lei_out);
 	is($pid, $pid_again, 'daemon-pid idempotent');
-	like($lei_err, qr/phail/, 'got mock "phail" error previous run');
 
 	SKIP: {
 		skip 'only testing open files on Linux', 1 if $^O ne 'linux';

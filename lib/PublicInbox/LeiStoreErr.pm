@@ -2,7 +2,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # forwards stderr from lei/store process to any lei clients using
-# the same store
+# the same store, falls back to syslog if no matching clients exist.
 package PublicInbox::LeiStoreErr;
 use strict;
 use v5.10.1;
@@ -31,7 +31,7 @@ sub event_step {
 		print $err $$rbuf and $printed = 1;
 	}
 	if (!$printed) {
-		openlog('lei-store', 'pid,nowait,nofatal,ndelay', 'user');
+		openlog('lei/store', 'pid,nowait,nofatal,ndelay', 'user');
 		for my $l (split(/\n/, $$rbuf)) { syslog('warning', '%s', $l) }
 		closelog(); # don't share across fork
 	}

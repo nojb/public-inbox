@@ -27,6 +27,7 @@ use PublicInbox::Eml;
 use Time::HiRes qw(stat); # ctime comparisons for config cache
 use File::Path qw(mkpath);
 use File::Spec;
+use Sys::Syslog qw(openlog syslog closelog);
 our $quit = \&CORE::exit;
 our ($current_lei, $errors_log, $listener, $oldset, $dir_idle,
 	$recv_cmd, $send_cmd);
@@ -464,7 +465,6 @@ sub x_it ($$) {
 	my ($self, $code) = @_;
 	# make sure client sees stdout before exit
 	$self->{1}->autoflush(1) if $self->{1};
-	dump_and_clear_log();
 	stop_pager($self);
 	if ($self->{pkt_op_p}) { # to top lei-daemon
 		$self->{pkt_op_p}->pkt_do('x_it', $code);
@@ -765,7 +765,6 @@ sub dispatch {
 	my ($self, $cmd, @argv) = @_;
 	local $current_lei = $self; # for __WARN__
 	$self->{2}->autoflush(1); # keep stdout buffered until x_it|DESTROY
-	dump_and_clear_log("from previous run\n");
 	return _help($self, 'no command given') unless defined($cmd);
 	# do not support Getopt bundling for this
 	while ($cmd eq '-C' || $cmd eq '-c') {
@@ -1147,10 +1146,12 @@ sub oldset { $oldset }
 
 sub dump_and_clear_log {
 	if (defined($errors_log) && -s STDIN && seek(STDIN, 0, SEEK_SET)) {
-		my @pfx = @_;
-		unshift(@pfx, "$errors_log ") if @pfx;
-		warn @pfx, do { local $/; <STDIN> };
-		truncate(STDIN, 0) or warn "ftruncate ($errors_log): $!";
+		openlog('lei-daemon', 'pid,nowait,nofatal,ndelay', 'user');
+		chomp(my @lines = <STDIN>);
+		truncate(STDIN, 0) or
+			syslog('warning', "ftruncate (%s): %m", $errors_log);
+		for my $l (@lines) { syslog('warning', '%s', $l) }
+		closelog(); # don't share across fork
 	}
 }
 
@@ -1243,7 +1244,7 @@ sub lazy_start {
 	(-p STDOUT) or die "E: stdout must be a pipe\n";
 	open(STDIN, '+>>', $errors_log) or die "open($errors_log): $!";
 	STDIN->autoflush(1);
-	dump_and_clear_log("from previous daemon process:\n");
+	dump_and_clear_log();
 	POSIX::setsid() > 0 or die "setsid: $!";
 	my $pid = fork // die "fork: $!";
 	return if $pid;
@@ -1345,6 +1346,7 @@ sub DESTROY {
 	}
 	$self->{1}->autoflush(1) if $self->{1};
 	stop_pager($self);
+	dump_and_clear_log();
 	# preserve $? for ->fail or ->x_it code
 }
 
