@@ -206,8 +206,7 @@ sub lei_inspect {
 
 sub _complete_inspect {
 	my ($lei, @argv) = @_;
-	my $sto = $lei->_lei_store or return;
-	my $lms = $sto->search->lms or return;
+	my $lms = $lei->lms or return;
 	my $match_cb = $lei->complete_url_prepare(\@argv);
 	map { $match_cb->($_) } $lms->folders;
 }

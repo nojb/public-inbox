@@ -40,7 +40,7 @@ sub prune_imap { # lms->each_src callback
 
 sub input_path_url { # overrides PublicInbox::LeiInput::input_path_url
 	my ($self, $input, @args) = @_;
-	my $lms = $self->{-lms_ro} //= $self->{lse}->lms;
+	my $lms = $self->{-lms_ro} //= $self->{lei}->lms;
 	if ($input =~ /\Amaildir:(.+)/i) {
 		my $mdir = $1;
 		$lms->each_src($input, \&prune_mdir, $self, $mdir);
@@ -59,24 +59,24 @@ sub lei_prune_mail_sync {
 	my $sto = $lei->_lei_store or return $lei->fail(<<EOM);
 lei/store uninitialized, see lei-import(1)
 EOM
-	my $lse = $sto->search;
-	my $lms = $lse->lms or return $lei->fail(<<EOM);
-lei mail_sync uninitialized, see lei-import(1)
-EOM
-	if (defined(my $all = $lei->{opt}->{all})) {
-		$lms->group2folders($lei, $all, \@folders) or return;
+	if (my $lms = $lei->lms) {
+		if (defined(my $all = $lei->{opt}->{all})) {
+			$lms->group2folders($lei, $all, \@folders) or return;
+		} else {
+			my $err = $lms->arg2folder($lei, \@folders);
+			$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
+			return $lei->fail($err->{fail}) if $err->{fail};
+		}
 	} else {
-		my $err = $lms->arg2folder($lei, \@folders);
-		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
-		return $lei->fail($err->{fail}) if $err->{fail};
+		return $lei->fail(<<EOM);
+lei mail_sync.sqlite3 uninitialized, see lei-import(1)
+EOM
 	}
-	delete $lms->{dbh};
 	$sto->write_prepare($lei);
-	my $self = bless { lse => $lse }, __PACKAGE__;
+	my $self = bless {}, __PACKAGE__;
 	$lei->{opt}->{'mail-sync'} = 1; # for prepare_inputs
 	$self->prepare_inputs($lei, \@folders) or return;
 	my $j = $lei->{opt}->{jobs} || scalar(@{$self->{inputs}}) || 1;
-	undef $lms; # for fork
 	my $ops = {};
 	$sto->write_prepare($lei);
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
