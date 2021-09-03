@@ -279,8 +279,8 @@ our %CMD = ( # sorted in order of importance/use:
 		'git-config(1) wrapper for '._config_path($_[0]);
 	}, qw(config-file|system|global|file|f=s), # for conflict detection
 	 qw(c=s@ C=s@), pass_through('git config') ],
-'inspect' => [ 'ITEMS...', 'inspect lei/store and/or local external',
-	qw(pretty ascii dir=s), @c_opt ],
+'inspect' => [ 'ITEMS...|--stdin', 'inspect lei/store and/or local external',
+	qw(stdin| pretty ascii dir=s), @c_opt ],
 
 'init' => [ '[DIRNAME]', sub {
 	"initialize storage, default: ".store_path($_[0]);

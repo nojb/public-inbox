@@ -9,6 +9,7 @@ package PublicInbox::LeiInspect;
 use strict;
 use v5.10.1;
 use PublicInbox::Config;
+use PublicInbox::MID qw(mids);
 
 sub inspect_blob ($$) {
 	my ($lei, $oidhex) = @_;
@@ -184,6 +185,32 @@ sub inspect1 ($$$) {
 	1;
 }
 
+sub _inspect_argv ($$) {
+	my ($lei, $argv) = @_;
+	my $multi = scalar(@$argv) > 1;
+	$lei->out('[') if $multi;
+	while (defined(my $x = shift @$argv)) {
+		inspect1($lei, $x, scalar(@$argv)) or return;
+	}
+	$lei->out(']') if $multi;
+}
+
+sub ins_add { # InputPipe->consume callback
+	my ($lei) = @_; # $_[1] = $rbuf
+	if (defined $_[1]) {
+		$_[1] eq '' and return eval {
+			my $str = delete $lei->{istr};
+			$str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
+			my $eml = PublicInbox::Eml->new(\$str);
+			_inspect_argv($lei, [ 'blob:'.$lei->git_blob_id($eml),
+				map { "mid:$_" } @{mids($eml)} ]);
+		};
+		$lei->{istr} .= $_[1];
+	} else {
+		$lei->fail("error reading stdin: $!");
+	}
+}
+
 sub lei_inspect {
 	my ($lei, @argv) = @_;
 	$lei->{json} = ref(PublicInbox::Config::json())->new->utf8->canonical;
@@ -196,12 +223,15 @@ sub lei_inspect {
 	}
 	$lei->start_pager if -t $lei->{1};
 	$lei->{1}->autoflush(0);
-	my $multi = scalar(@argv) > 1;
-	$lei->out('[') if $multi;
-	while (defined(my $x = shift @argv)) {
-		inspect1($lei, $x, scalar(@argv)) or return;
+	if ($lei->{opt}->{stdin}) {
+		return $lei->fail(<<'') if @argv;
+no args allowed on command-line with --stdin
+
+		require PublicInbox::InputPipe;
+		PublicInbox::InputPipe::consume($lei->{0}, \&ins_add, $lei);
+		return;
 	}
-	$lei->out(']') if $multi;
+	_inspect_argv($lei, \@argv);
 }
 
 sub _complete_inspect {
