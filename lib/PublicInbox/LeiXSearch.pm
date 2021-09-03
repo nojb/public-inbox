@@ -161,6 +161,7 @@ sub query_one_mset { # for --threads and l2m w/o sort
 	my ($srch, $over) = ($ibxish->search, $ibxish->over);
 	my $dir = $ibxish->{inboxdir} // $ibxish->{topdir};
 	return warn("$dir not indexed by Xapian\n") unless ($srch && $over);
+	bless $srch, 'PublicInbox::LeiSearch'; # for ->qparse_new
 	my $mo = { %{$lei->{mset_opt}} }; # copy
 	my $mset;
 	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei);
