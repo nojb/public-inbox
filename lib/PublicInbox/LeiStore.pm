@@ -215,14 +215,10 @@ sub export1_kw_md ($$$$$) {
 			return;
 		} elsif ($! == EEXIST) { # lost race with "lei export-kw"?
 			return;
-		} elsif ($! == ENOENT) {
-			syslog('warning', "link($src -> $dst): $!")
-		} # else loop @try
+		} elsif ($! != ENOENT) {
+			syslog('warning', "link($src -> $dst): $!");
+		}
 	}
-	my $e = $!;
-	my $src = "$mdir/{".join(',', @try)."}/$orig";
-	my $oidhex = unpack('H*', $oidbin);
-	syslog('warning', "link($src -> $dst) ($oidhex): $e");
 	for (@try) { return if -e "$mdir/$_/$orig" };
 	lms_clear_src($self, "maildir:$mdir", \$orig);
 }
