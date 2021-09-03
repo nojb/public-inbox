@@ -63,7 +63,7 @@ sub input_fh {
 	my ($self, $ifmt, $fh, $name, @args) = @_;
 	if ($ifmt eq 'eml') {
 		my $buf = do { local $/; <$fh> } //
-			return $self->{lei}->child_error(1 << 8, <<"");
+			return $self->{lei}->child_error(0, <<"");
 error reading $name: $!
 
 		# mutt pipes single RFC822 messages with a "From " line,
@@ -104,7 +104,7 @@ sub handle_http_input ($$@) {
 	my $err = $@;
 	waitpid($pid, 0);
 	$? || $err and
-		$lei->child_error($? || 1, "@$cmd failed".$err ? " $err" : '');
+		$lei->child_error($?, "@$cmd failed".$err ? " $err" : '');
 }
 
 sub input_path_url {

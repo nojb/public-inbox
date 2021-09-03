@@ -18,7 +18,7 @@ sub lcat_folder ($$$) {
 	my $err = $lms->arg2folder($lei, $folders);
 	$lei->qerr(@{$err->{qerr}}) if $err && $err->{qerr};
 	if ($err && $err->{fail}) {
-		$lei->child_error(1 << 8, "# unknown folder: $folder");
+		$lei->child_error(0, "# unknown folder: $folder");
 	} else {
 		for my $f (@$folders) {
 			my $fid = $lms->fid_for($f);

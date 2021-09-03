@@ -21,7 +21,7 @@ sub input_eml_cb { # used by input_maildir_cb and input_net_cb
 
 sub input_fh { # overrides PublicInbox::LeiInput::input_fh
 	my ($self, $ifmt, $fh, $input, @args) = @_;
-	$self->{lei}->child_error(1<<8, <<EOM);
+	$self->{lei}->child_error(0, <<EOM);
 $input ($ifmt) not yet supported, try `lei import'
 EOM
 }

@@ -32,7 +32,7 @@ sub solver_user_cb { # called by solver when done
 	my $lei = $self->{lei};
 	my $log_buf = delete $lei->{'log_buf'};
 	$$log_buf =~ s/^/# /sgm;
-	ref($res) eq 'ARRAY' or return $lei->child_error(1 << 8, $$log_buf);
+	ref($res) eq 'ARRAY' or return $lei->child_error(0, $$log_buf);
 	$lei->qerr($$log_buf);
 	my ($git, $oid, $type, $size, $di) = @$res;
 	my $gd = $git->{git_dir};

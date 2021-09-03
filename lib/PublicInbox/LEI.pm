@@ -532,6 +532,7 @@ sub puts ($;@) { out(shift, map { "$_\n" } @_) }
 
 sub child_error { # passes non-fatal curl exit codes to user
 	my ($self, $child_error, $msg) = @_; # child_error is $?
+	$child_error ||= 1 << 8;
 	$self->err($msg) if $msg;
 	if ($self->{pkt_op_p}) { # to top lei-daemon
 		$self->{pkt_op_p}->pkt_do('child_error', $child_error);
@@ -1341,7 +1342,7 @@ sub DESTROY {
 	if (my $counters = delete $self->{counters}) {
 		for my $k (sort keys %$counters) {
 			my $nr = $counters->{$k};
-			$self->child_error(1 << 8, "$nr $k messages");
+			$self->child_error(0, "$nr $k messages");
 		}
 	}
 	$self->{1}->autoflush(1) if $self->{1};
@@ -1417,7 +1418,7 @@ sub refresh_watches {
 				add_maildir_watch($d, $cfg_f);
 			}
 		} else { # TODO: imap/nntp/jmap
-			$lei->child_error(1, "E: watch $url not supported, yet")
+			$lei->child_error(0, "E: watch $url not supported, yet")
 		}
 	}
 
@@ -1452,7 +1453,7 @@ sub refresh_watches {
 				my $d = canonpath_harder($1);
 				cancel_maildir_watch($d, $cfg_f);
 			} else { # TODO: imap/nntp/jmap
-				$lei->child_error(1, "E: watch $url TODO");
+				$lei->child_error(0, "E: watch $url TODO");
 			}
 		}
 	}
