@@ -54,6 +54,10 @@ sub up1_redispatch {
 	$l->{opt} = { %{$l->{opt}} };
 	delete $l->{sock};
 	$l->{''} = $op_p; # daemon only
+
+	# make close($l->{1}) happy in lei->dclose
+	open my $fh, '>&', $l->{1} or return $l->child_error(0, "dup: $!");
+	$l->{1} = $fh;
 	eval {
 		$l->qerr("# updating $out");
 		up1($l, $out);

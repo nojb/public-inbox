@@ -443,6 +443,7 @@ t/lei-q-save.t
 t/lei-q-thread.t
 t/lei-sigpipe.t
 t/lei-tag.t
+t/lei-up.t
 t/lei-watch.t
 t/lei.t
 t/lei_dedupe.t
