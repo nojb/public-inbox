@@ -480,6 +480,14 @@ sub charset_set {
 
 sub crlf { $_[0]->{crlf} // "\n" }
 
+sub raw_size {
+	my ($self) = @_;
+	my $len = length(${$self->{hdr}});
+	defined($self->{bdy}) and
+		$len += length(${$self->{bdy}}) + length($self->{crlf});
+	$len;
+}
+
 # warnings to ignore when handling spam mailboxes and maybe other places
 sub warn_ignore {
 	my $s = "@_";

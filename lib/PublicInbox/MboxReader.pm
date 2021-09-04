@@ -41,7 +41,7 @@ sub _mbox_from {
 			$raw =~ s/^\r?\n\z//ms;
 			$raw =~ s/$from_re/$1/gms;
 			my $eml = PublicInbox::Eml->new(\$raw);
-			$eml_cb->($eml, @arg);
+			$eml_cb->($eml, @arg) if $eml->raw_size;
 		}
 		return if $r == 0; # EOF
 	}
@@ -96,6 +96,7 @@ sub _mbox_cl ($$$;@) {
 			$$hdr =~ s/\A[\r\n]*From [^\n]*\n//s or
 				die "E: no 'From ' line in:\n", Dumper($hdr);
 			my $eml = PublicInbox::Eml->new($hdr);
+			next unless $eml->raw_size;
 			my @cl = $eml->header_raw('Content-Length');
 			my $n = scalar(@cl);
 			$n == 0 and die "E: Content-Length missing in:\n",

@@ -71,6 +71,12 @@ my $check_fmt = sub {
 				"Content-Length is correct $fmt $cur");
 			# clobber for ->as_string comparison below
 			$eml->header_set('Content-Length');
+
+			# special case for t/solve/bare.patch, not sure if we
+			# should even handle it...
+			if ($cl[0] eq '0' && ${$eml->{hdr}} eq '') {
+				delete $eml->{bdy};
+			}
 		} else {
 			is(scalar(@cl), 0, "Content-Length unset $fmt $cur");
 		}
@@ -119,6 +125,23 @@ exit 1
 	like($@, qr/error closing mbox/, 'detects error reading from pipe');
 	is(scalar(@x), 1, 'only saw one message');
 	is(scalar(grep(/Final/, @x)), 0, 'no incomplete bit');
+}
+
+{
+	my $html = <<EOM;
+<html><head><title>hi,</title></head><body>how are you</body></html>
+EOM
+	for my $m (qw(mboxrd mboxcl mboxcl2 mboxo)) {
+		my (@w, @x);
+		local $SIG{__WARN__} = sub { push @w, @_ };
+		open my $fh, '<', \$html or xbail 'PerlIO::scalar';
+		PublicInbox::MboxReader->$m($fh, sub {
+			push @x, $_[0]->as_string
+		});
+		is_deeply(\@x, [], "messages in invalid $m");
+		is_deeply([grep(!/^W: leftover/, @w)], [],
+			"no extra warnings besides leftover ($m)");
+	}
 }
 
 done_testing;

@@ -109,32 +109,25 @@ sub _mboxcl_common ($$$) {
 	$$buf .= 'Content-Length: '.length($$bdy).$crlf.
 		'Lines: '.$lines.$crlf.$crlf;
 	substr($$bdy, 0, 0, $$buf); # prepend header
-	$_[0] = $bdy;
+	$$bdy .= $crlf;
+	$bdy;
 }
 
 # mboxcl still escapes "From " lines
 sub eml2mboxcl {
 	my ($eml, $smsg) = @_;
 	my $buf = _mbox_hdr_buf($eml, 'mboxcl', $smsg);
-	my $crlf = $eml->{crlf};
-	if (my $bdy = delete $eml->{bdy}) {
-		$$bdy =~ s/^From />From /gm;
-		_mboxcl_common($buf, $bdy, $crlf);
-	}
-	$$buf .= $crlf;
-	$buf;
+	my $bdy = delete($eml->{bdy}) // \(my $empty = '');
+	$$bdy =~ s/^From />From /gm;
+	_mboxcl_common($buf, $bdy, $eml->{crlf});
 }
 
 # mboxcl2 has no "From " escaping
 sub eml2mboxcl2 {
 	my ($eml, $smsg) = @_;
 	my $buf = _mbox_hdr_buf($eml, 'mboxcl2', $smsg);
-	my $crlf = $eml->{crlf};
-	if (my $bdy = delete $eml->{bdy}) {
-		_mboxcl_common($buf, $bdy, $crlf);
-	}
-	$$buf .= $crlf;
-	$buf;
+	my $bdy = delete($eml->{bdy}) // \(my $empty = '');
+	_mboxcl_common($buf, $bdy, $eml->{crlf});
 }
 
 sub git_to_mail { # git->cat_async callback
