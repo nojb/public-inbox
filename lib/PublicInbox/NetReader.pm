@@ -96,8 +96,8 @@ sub mic_for ($$$$) { # mic = Mail::IMAPClient
 		$cred = undef;
 	}
 	if ($cred) {
-		$cred->check_netrc unless defined $cred->{password};
-		$cred->fill($lei); # may prompt user here
+		my $p = $cred->{password} // $cred->check_netrc;
+		$cred->fill($lei) unless defined($p); # may prompt user here
 		$mic->User($mic_arg->{User} = $cred->{username});
 		$mic->Password($mic_arg->{Password} = $cred->{password});
 	} else { # AUTH=ANONYMOUS
@@ -121,7 +121,7 @@ sub mic_for ($$$$) { # mic = Mail::IMAPClient
 		}
 		$mic = undef;
 	}
-	$cred->run($mic ? 'approve' : 'reject') if $cred;
+	$cred->run($mic ? 'approve' : 'reject') if $cred && $cred->{filled};
 	if ($err) {
 		$lei ? $lei->fail($err) : warn($err);
 	}
@@ -191,7 +191,7 @@ sub nn_for ($$$$) { # nn = Net::NNTP
 		}, 'PublicInbox::GitCredential';
 		($u, $p) = split(/:/, $ui, 2);
 		($cred->{username}, $cred->{password}) = ($u, $p);
-		$cred->check_netrc unless defined $p;
+		$p //= $cred->check_netrc;
 	}
 	my $common = $nn_args->{$sec} // {};
 	my $nn_arg = {
@@ -204,7 +204,7 @@ sub nn_for ($$$$) { # nn = Net::NNTP
 	%$nn_arg = (%$nn_arg, %$sa) if $sa;
 	my $nn = nn_new($nn_arg, $nntp_opt, $uri);
 	if ($cred) {
-		$cred->fill($lei); # may prompt user here
+		$cred->fill($lei) unless defined($p); # may prompt user here
 		if ($nn->authinfo($u, $p)) {
 			push @{$nntp_opt->{-postconn}}, [ 'authinfo', $u, $p ];
 		} else {
@@ -231,7 +231,7 @@ W: see https://rt.cpan.org/Ticket/Display.html?id=129967 for updates
 	}
 
 	$self->{nn_arg}->{$sec} = $nn_arg;
-	$cred->run($nn ? 'approve' : 'reject') if $cred;
+	$cred->run($nn ? 'approve' : 'reject') if $cred && $cred->{filled};
 	$nn;
 }
 

@@ -56,6 +56,7 @@ sub fill {
 		$self->{$1} = $2;
 	}
 	close $out_r or die "git credential fill failed: \$!=$! \$?=$?\n";
+	$self->{filled} = 1;
 }
 
 1;
