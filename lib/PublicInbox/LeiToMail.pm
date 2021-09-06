@@ -783,6 +783,4 @@ sub net_merge_all_done {
 	$self->wq_close(1);
 }
 
-no warnings 'once'; # the following works even when LeiAuth is lazy-loaded
-*net_merge_all = \&PublicInbox::LeiAuth::net_merge_all;
 1;

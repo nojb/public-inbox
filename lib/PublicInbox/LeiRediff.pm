@@ -255,5 +255,4 @@ sub ipc_atfork_child {
 
 no warnings 'once';
 *net_merge_all_done = \&PublicInbox::LeiInput::input_only_net_merge_all_done;
-*net_merge_all = \&PublicInbox::LeiAuth::net_merge_all;
 1;

@@ -43,6 +43,4 @@ for my $m (qw(pmdir_cb input_net_cb)) {
 *ipc_atfork_child = \&PublicInbox::LeiInput::input_only_atfork_child;
 *net_merge_all_done = \&PublicInbox::LeiInput::input_only_net_merge_all_done;
 
-# the following works even when LeiAuth is lazy-loaded
-*net_merge_all = \&PublicInbox::LeiAuth::net_merge_all;
 1;

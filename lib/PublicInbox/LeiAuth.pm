@@ -49,9 +49,10 @@ sub net_merge_all { # called in wq worker via wq_broadcast
 }
 
 # called by top-level lei-daemon when first worker is done with auth
+# passes updated net auth info to current workers
 sub net_merge_continue {
 	my ($wq, $net_new) = @_;
-	$wq->wq_broadcast('net_merge_all', $net_new); # pass to current workers
+	$wq->wq_broadcast('PublicInbox::LeiAuth::net_merge_all', $net_new);
 	$wq->net_merge_all_done; # defined per-WQ
 }
 

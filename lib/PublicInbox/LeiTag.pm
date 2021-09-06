@@ -118,7 +118,6 @@ sub _complete_tag {
 }
 
 no warnings 'once'; # the following works even when LeiAuth is lazy-loaded
-*net_merge_all = \&PublicInbox::LeiAuth::net_merge_all;
 *net_merge_all_done = \&PublicInbox::LeiInput::input_only_net_merge_all_done;
 
 1;

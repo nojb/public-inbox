@@ -91,7 +91,6 @@ EOM
 no warnings 'once';
 *_complete_prune_mail_sync = \&PublicInbox::LeiExportKw::_complete_export_kw;
 *ipc_atfork_child = \&PublicInbox::LeiInput::input_only_atfork_child;
-*net_merge_all = \&PublicInbox::LeiAuth::net_merge_all;
 *net_merge_all_done = \&PublicInbox::LeiInput::input_only_net_merge_all_done;
 
 1;

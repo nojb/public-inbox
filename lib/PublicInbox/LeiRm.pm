@@ -44,6 +44,5 @@ sub lei_rm {
 no warnings 'once';
 *ipc_atfork_child = \&PublicInbox::LeiInput::input_only_atfork_child;
 *net_merge_all_done = \&PublicInbox::LeiInput::input_only_net_merge_all_done;
-*net_merge_all = \&PublicInbox::LeiAuth::net_merge_all;
 
 1;
