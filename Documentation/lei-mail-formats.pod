@@ -82,7 +82,13 @@ mbox.
 =head1 MH
 
 Not yet supported, locking semantics (or lack thereof) appear to
-make it unsuitable for parallel access.
+make it unsuitable for parallel access.  It is widely-supported
+by a variety of MUAs and mailing list managers, however.
+
+=head1 MMDF
+
+Not yet supported, and it's unclear if current usage/support makes
+it worth supporting.
 
 =head1 IMAP
 

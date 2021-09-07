@@ -117,6 +117,7 @@ $xurls{'ssoma(1)'} = 'https://ssoma.public-inbox.org/ssoma.txt';
 $xurls{'cgitrc(5)'} = 'https://git.zx2c4.com/cgit/tree/cgitrc.5.txt';
 $xurls{'prove(1)'} = 'https://perldoc.perl.org/prove.html';
 $xurls{'mbox(5)'} = 'https://manpages.debian.org/stable/mutt/mbox.5.en.html';
+$xurls{'mmdf(5)'} = 'https://manpages.debian.org/stable/mutt/mmdf.5.en.html';
 
 my $str = do { local $/; <STDIN> };
 my ($title) = ($str =~ /\A([^\n]+)/);
