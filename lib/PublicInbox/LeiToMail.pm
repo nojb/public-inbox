@@ -361,6 +361,7 @@ sub _v2_write_cb ($$) {
 		$eml //= PublicInbox::Eml->new($bref);
 		return if $dedupe && $dedupe->is_dup($eml, $smsg);
 		$lei->{v2w}->ipc_do('add', $eml); # V2Writable->add
+		++$lei->{-nr_write};
 	}
 }
 

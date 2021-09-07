@@ -179,6 +179,8 @@ test_lei(sub {
 	my (@before, @after);
 	require PublicInbox::MboxReader;
 	lei_ok(qw(q z:0.. -o), "v2:$v2");
+	like($lei_err, qr/^# ([1-9][0-9]*) written to \Q$v2\E/sm,
+		'non-zero write output to stderr');
 	lei_ok(qw(q z:0.. -o), "mboxrd:$home/before", '--only', $v2, '-j1,1');
 	open my $fh, '<', "$home/before";
 	PublicInbox::MboxReader->mboxrd($fh, sub { push @before, $_[0] });
