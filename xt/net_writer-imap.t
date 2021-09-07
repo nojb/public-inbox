@@ -239,6 +239,9 @@ EOM
 	lei_ok qw(q m:forwarded@test.example.com);
 	is_deeply(json_utf8->decode($lei_out)->[0]->{kw}, ['forwarded'],
 		'forwarded kw imported from IMAP');
+
+	lei_ok qw(q m:testmessage --no-external -o), $folder_url;
+	lei_ok qw(up), $folder_url;
 });
 
 undef $cleanup; # remove temporary folder
