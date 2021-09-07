@@ -82,7 +82,8 @@ sub call {
 				for (@$xr3) {
 					s/:[0-9]+:$x->{blob}\z// or next;
 					my $ibx = $by_eidx_key->{$_} // next;
-					my $url = $ibx->base_url or next;
+					my $url = $ALL->base_url($env) //
+							$ibx->base_url // next;
 					$url .= mid_escape($mid) . '/';
 					return redirect(302, $url);
 				}
