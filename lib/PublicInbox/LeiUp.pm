@@ -5,8 +5,14 @@
 package PublicInbox::LeiUp;
 use strict;
 use v5.10.1;
+# n.b. we use LeiInput to setup IMAP auth
+use parent qw(PublicInbox::IPC PublicInbox::LeiInput);
 use PublicInbox::LeiSavedSearch;
-use parent qw(PublicInbox::IPC);
+use PublicInbox::DS;
+use PublicInbox::PktOp;
+use PublicInbox::LeiFinmsg;
+use PublicInbox::LEI;
+my $REMOTE_RE = qr!\A(?:imap|http)s?://!i; # http(s) will be for JMAP
 
 sub up1 ($$) {
 	my ($lei, $out) = @_;
@@ -48,69 +54,86 @@ sub up1 ($$) {
 
 sub up1_redispatch {
 	my ($lei, $out, $op_p) = @_;
-	require PublicInbox::LeiFinmsg;
-	$lei->{fmsg} //= PublicInbox::LeiFinmsg->new($lei->{2});
 	my $l = bless { %$lei }, ref($lei);
 	$l->{opt} = { %{$l->{opt}} };
-	delete $l->{sock};
-	$l->{''} = $op_p; # daemon only
+	delete $l->{sock}; # do not close
+	$l->{''} = $op_p; # daemon only ($l => $lei => script/lei)
 
 	# make close($l->{1}) happy in lei->dclose
 	open my $fh, '>&', $l->{1} or return $l->child_error(0, "dup: $!");
+	local $PublicInbox::LEI::current_lei = $l;
 	$l->{1} = $fh;
 	eval {
 		$l->qerr("# updating $out");
 		up1($l, $out);
-		$l->qerr("# $out done");
 	};
-	$l->child_error(0, $@) if $@;
+	$lei->child_error(0, $@) if $@ || $l->{failed}; # lei->fail()
+}
+
+sub redispatch_all ($$) {
+	my ($self, $lei) = @_;
+	# re-dispatch into our event loop w/o creating an extra fork-level
+	$lei->{fmsg} = PublicInbox::LeiFinmsg->new($lei->{2});
+	my ($op_c, $op_p) = PublicInbox::PktOp->pair;
+	for my $o (@{$self->{local} // []}, @{$self->{remote} // []}) {
+		PublicInbox::DS::requeue(sub {
+			up1_redispatch($lei, $o, $op_p);
+		});
+	}
+	$lei->event_step_init;
+	$lei->pkt_ops($op_c->{ops} = { '' => [$lei->can('dclose'), $lei] });
 }
 
 sub lei_up {
 	my ($lei, @outs) = @_;
-	$lei->{lse} = $lei->_lei_store(1)->search;
 	my $opt = $lei->{opt};
-	my @local;
-	if (defined $opt->{all}) {
+	my $self = bless { -mail_sync => 1 }, __PACKAGE__;
+	$lei->{lse} = $lei->_lei_store(1)->write_prepare($lei)->search;
+	if (defined(my $all = $opt->{all})) {
 		return $lei->fail("--all and @outs incompatible") if @outs;
 		length($opt->{mua}//'') and return
 			$lei->fail('--all and --mua= are incompatible');
-
-		# supporting IMAP outputs is more involved due to
-		# git-credential prompts.  TODO: add this in 1.8
-		$opt->{all} eq 'local' or return
-			$lei->fail('only --all=local works at the moment');
-		my @all = PublicInbox::LeiSavedSearch::list($lei);
-		@local = grep(!m!\Aimaps?://!i, @all);
+		@outs = PublicInbox::LeiSavedSearch::list($lei);
+		if ($all eq 'local') {
+			$self->{local} = [ grep(!/$REMOTE_RE/, @outs) ];
+		} elsif ($all eq 'remote') {
+			$self->{remote} = [ grep(/$REMOTE_RE/, @outs) ];
+		} elsif ($all eq '') {
+			$self->{remote} = [ grep(/$REMOTE_RE/, @outs) ];
+			$self->{local} = [ grep(!/$REMOTE_RE/, @outs) ];
+		} else {
+			$lei->fail("only --all=$all not understood");
+		}
 	} else {
-		@local = @outs;
+		$self->{remote} = [ grep(/$REMOTE_RE/, @outs) ];
+		$self->{local} = [ grep(!/$REMOTE_RE/, @outs) ];
 	}
-	if (scalar(@outs) > 1) {
-		length($opt->{mua}//'') and return $lei->fail(<<EOM);
+	((@{$self->{local} // []} + @{$self->{remote} // []}) > 1 &&
+		length($opt->{mua} // '')) and return $lei->fail(<<EOM);
 multiple outputs and --mua= are incompatible
 EOM
-		# TODO:
-		return $lei->fail(<<EOM) if grep(m!\Aimaps?://!i, @outs);
-multiple destinations only supported for local outputs (FIXME)
-EOM
+	if ($self->{remote}) { # setup lei->{auth}
+		$self->prepare_inputs($lei, $self->{remote}) or return;
 	}
-	if (scalar(@local) > 1) {
-		$lei->_lei_store->write_prepare($lei); # share early
-		# daemon mode, re-dispatch into our event loop w/o
-		# creating an extra fork-level
-		require PublicInbox::DS;
-		require PublicInbox::PktOp;
-		my ($op_c, $op_p) = PublicInbox::PktOp->pair;
-		for my $o (@local) {
-			PublicInbox::DS::requeue(sub {
-				up1_redispatch($lei, $o, $op_p);
-			});
-		}
-		$lei->event_step_init;
-		$op_c->{ops} = { '' => [$lei->can('dclose'), $lei] };
+	if ($lei->{auth}) { # start auth worker
+		require PublicInbox::NetWriter;
+		bless $lei->{net}, 'PublicInbox::NetWriter';
+		$lei->{auth}->op_merge(my $ops = {}, $self, $lei);
+		(my $op_c, $ops) = $lei->workers_start($self, 1, $ops);
+		$lei->{wq1} = $self;
+		$lei->wait_wq_events($op_c, $ops);
+		# net_merge_all_done will fire when auth is done
 	} else {
-		up1($lei, $local[0]);
+		redispatch_all($self, $lei); # see below
 	}
+}
+
+# called in top-level lei-daemon when LeiAuth is done
+sub net_merge_all_done {
+	my ($self, $lei) = @_;
+	$lei->{net} = delete($self->{-net_new}) if $self->{-net_new};
+	$self->wq_close(1);
+	redispatch_all($self, $lei);
 }
 
 sub _complete_up {
@@ -118,5 +141,8 @@ sub _complete_up {
 	my $match_cb = $lei->complete_url_prepare(\@argv);
 	map { $match_cb->($_) } PublicInbox::LeiSavedSearch::list($lei);
 }
+
+no warnings 'once';
+*ipc_atfork_child = \&PublicInbox::LeiInput::input_only_atfork_child;
 
 1;

@@ -6,14 +6,23 @@ lei-up - update a saved search
 
 lei up [OPTIONS] OUTPUT
 
-lei up [OPTIONS] --all=TYPE
+lei up [OPTIONS] --all[=<local|remote>]
 
 =head1 DESCRIPTION
 
-Update the saved search at C<OUTPUT> or all saved searches of C<TYPE>
-(currently C<local> is the only supported value).
+Update the saved search at C<OUTPUT> or all saved searches.
 
 =head1 OPTIONS
+
+=over
+
+=item --all[=<local|remote>]
+
+C<--all> updates all saved searches (listed in L<lei-ls-search(1)>).
+C<--all=local> only updates local mailboxes, C<--all=remote> only
+updates remote mailboxes (currently C<imap://> and C<imaps://>).
+
+=back
 
 The following options, described in L<lei-q(1)>, are supported.
 

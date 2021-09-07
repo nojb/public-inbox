@@ -396,7 +396,8 @@ sub new {
 	} elsif ($fmt =~ /\Aimaps?\z/) {
 		require PublicInbox::NetWriter;
 		require PublicInbox::URIimap;
-		my $net = PublicInbox::NetWriter->new;
+		# {net} may exist from "lei up" for auth
+		my $net = $lei->{net} // PublicInbox::NetWriter->new;
 		$net->{quiet} = $lei->{opt}->{quiet};
 		my $uri = PublicInbox::URIimap->new($dst)->canonical;
 		$net->add_url($$uri);

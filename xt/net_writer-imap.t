@@ -242,6 +242,7 @@ EOM
 
 	lei_ok qw(q m:testmessage --no-external -o), $folder_url;
 	lei_ok qw(up), $folder_url;
+	lei_ok qw(up --all=remote);
 });
 
 undef $cleanup; # remove temporary folder

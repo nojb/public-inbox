@@ -30,10 +30,16 @@ sub do_auth_atfork { # used by IPC WQ workers
 	return if $wq->{-wq_worker_nr} != 0; # only first worker calls this
 	my $lei = $wq->{lei};
 	my $net = $lei->{net};
+	if ($net->{-auth_done}) { # from previous worker... (ugly)
+		$lei->{pkt_op_p}->pkt_do('net_merge_continue', $net) or
+				$lei->fail("pkt_do net_merge_continue: $!");
+		return;
+	}
 	eval { # fill auth info (may prompt user or read netrc)
 		my $mics = $net->imap_common_init($lei);
 		my $nn = $net->nntp_common_init($lei);
 		# broadcast successful auth info to lei-daemon:
+		$net->{-auth_done} = 1;
 		$lei->{pkt_op_p}->pkt_do('net_merge_continue', $net) or
 				die "pkt_do net_merge_continue: $!";
 		$net->{mics_cached} = $mics if $mics;
@@ -51,14 +57,15 @@ sub net_merge_all { # called in wq worker via wq_broadcast
 # called by top-level lei-daemon when first worker is done with auth
 # passes updated net auth info to current workers
 sub net_merge_continue {
-	my ($wq, $net_new) = @_;
+	my ($wq, $lei, $net_new) = @_;
+	$wq->{-net_new} = $net_new; # for "lei up"
 	$wq->wq_broadcast('PublicInbox::LeiAuth::net_merge_all', $net_new);
-	$wq->net_merge_all_done; # defined per-WQ
+	$wq->net_merge_all_done($lei); # defined per-WQ
 }
 
 sub op_merge { # prepares PktOp->pair ops
-	my ($self, $ops, $wq) = @_;
-	$ops->{net_merge_continue} = [ \&net_merge_continue, $wq ];
+	my ($self, $ops, $wq, $lei) = @_;
+	$ops->{net_merge_continue} = [ \&net_merge_continue, $wq, $lei ];
 }
 
 sub new { bless \(my $x), __PACKAGE__ }

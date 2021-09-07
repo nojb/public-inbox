@@ -605,16 +605,19 @@ sub incr {
 	$self->{counters}->{$field} += $nr;
 }
 
+sub pkt_ops {
+	my ($lei, $ops) = @_;
+	$ops->{'!'} = [ \&fail_handler, $lei ];
+	$ops->{'|'} = [ \&sigpipe_handler, $lei ];
+	$ops->{x_it} = [ \&x_it, $lei ];
+	$ops->{child_error} = [ \&child_error, $lei ];
+	$ops->{incr} = [ \&incr, $lei ];
+	$ops;
+}
+
 sub workers_start {
 	my ($lei, $wq, $jobs, $ops, $flds) = @_;
-	$ops = {
-		'!' => [ \&fail_handler, $lei ],
-		'|' => [ \&sigpipe_handler, $lei ],
-		'x_it' => [ \&x_it, $lei ],
-		'child_error' => [ \&child_error, $lei ],
-		'incr' => [ \&incr, $lei ],
-		($ops ? %$ops : ()),
-	};
+	$ops = pkt_ops($lei, { ($ops ? %$ops : ()) });
 	$ops->{''} //= [ $wq->can('_lei_wq_eof') || \&wq_eof, $lei ];
 	my $end = $lei->pkt_op_pair;
 	my $ident = $wq->{-wq_ident} // "lei-$lei->{cmd} worker";
