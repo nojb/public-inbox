@@ -45,6 +45,8 @@ sub call {
 	# some links may have the article number in them:
 	# /inbox.foo.bar/123456
 	my (undef, @parts) = split(m!/!, $env->{PATH_INFO});
+	@parts or return
+		[ 404, [qw(Content-Type text/plain)], ["404 Not Found\n"] ];
 	my ($ng, $article) = @parts;
 	my $pi_cfg = $self->{pi_cfg};
 	if (my $ibx = $pi_cfg->lookup_newsgroup($ng)) {
