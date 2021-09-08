@@ -73,7 +73,7 @@ lei mail_sync.sqlite3 uninitialized, see lei-import(1)
 EOM
 	}
 	$sto->write_prepare($lei);
-	my $self = bless {}, __PACKAGE__;
+	my $self = bless { missing_ok => 1 }, __PACKAGE__;
 	$lei->{opt}->{'mail-sync'} = 1; # for prepare_inputs
 	$self->prepare_inputs($lei, \@folders) or return;
 	my $j = $lei->{opt}->{jobs} || scalar(@{$self->{inputs}}) || 1;
