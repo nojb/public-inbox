@@ -226,7 +226,7 @@ our %CMD = ( # sorted in order of importance/use:
 'rm' => [ '--stdin|LOCATION...',
 	'remove a message from the index and prevent reindexing',
 	'stdin|', # /|\z/ must be first for lone dash
-	@c_opt ],
+	qw(in-format|F=s lock=s@), @c_opt ],
 'plonk' => [ '--threads|--from=IDENT',
 	'exclude mail matching From: or threads from non-Message-ID searches',
 	qw(stdin| threads|t from|f=s mid=s oid=s), @c_opt ],
