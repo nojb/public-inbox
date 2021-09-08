@@ -276,7 +276,10 @@ sub prepare_inputs { # returns undef on error
 				$may_sync and $input = 'maildir:'.
 						$lei->abs_path($input_path);
 			} else {
-				return $lei->fail("Unable to handle $input");
+				my $m = "Unable to handle $input";
+				$input =~ /\A(?:L|kw):/ and
+					$m .= ", did you mean +$input?";
+				return $lei->fail($m);
 			}
 		} elsif ($input =~ /\.(?:eml|patch)\z/i && -f $input) {
 			lc($in_fmt//'eml') eq 'eml' or return $lei->fail(<<"");
