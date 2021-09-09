@@ -43,7 +43,7 @@ EOM
 sub mic_new ($$$$) {
 	my ($self, $mic_arg, $sec, $uri) = @_;
 	my %mic_arg = %$mic_arg;
-	my $sa = $self->{imap_opt}->{$sec}->{-proxy_cfg} || $self->{-proxy_cli};
+	my $sa = $self->{cfg_opt}->{$sec}->{-proxy_cfg} || $self->{-proxy_cli};
 	if ($sa) {
 		my %opt = %$sa;
 		$opt{ConnectAddr} = delete $mic_arg{Server};
@@ -292,15 +292,15 @@ sub imap_common_init ($;$) {
 		my $to = cfg_intvl($cfg, 'imap.timeout', $$uri);
 		$mic_args->{$sec}->{Timeout} = $to if $to;
 		my $sa = socks_args($cfg->urlmatch('imap.Proxy', $$uri));
-		$self->{imap_opt}->{$sec}->{-proxy_cfg} = $sa if $sa;
+		$self->{cfg_opt}->{$sec}->{-proxy_cfg} = $sa if $sa;
 		for my $k (qw(pollInterval idleInterval)) {
 			$to = cfg_intvl($cfg, "imap.$k", $$uri) // next;
-			$self->{imap_opt}->{$sec}->{$k} = $to;
+			$self->{cfg_opt}->{$sec}->{$k} = $to;
 		}
 		my $k = 'imap.fetchBatchSize';
 		my $bs = $cfg->urlmatch($k, $$uri) // next;
 		if ($bs =~ /\A([0-9]+)\z/) {
-			$self->{imap_opt}->{$sec}->{batch_size} = $bs;
+			$self->{cfg_opt}->{$sec}->{batch_size} = $bs;
 		} else {
 			warn "$k=$bs is not an integer\n";
 		}
@@ -462,7 +462,7 @@ sub each_old_flags ($$$$) {
 	my ($self, $mic, $uri, $l_uid) = @_;
 	$l_uid ||= 1;
 	my $sec = uri_section($uri);
-	my $bs = ($self->{imap_opt}->{$sec}->{batch_size} // 1) * 10000;
+	my $bs = ($self->{cfg_opt}->{$sec}->{batch_size} // 1) * 10000;
 	my ($eml_cb, @args) = @{$self->{eml_each}};
 	$self->{quiet} or warn "# $uri syncing flags 1:$l_uid\n";
 	for (my $n = 1; $n <= $l_uid; $n += $bs) {
@@ -554,7 +554,7 @@ EOF
 		my $m = $mod ? " [(UID % $mod) == $shard]" : '';
 		warn "# $uri fetching UID $l_uid:$r_uid$m\n";
 	}
-	my $bs = $self->{imap_opt}->{$sec}->{batch_size} // 1;
+	my $bs = $self->{cfg_opt}->{$sec}->{batch_size} // 1;
 	my $req = $mic->imap4rev1 ? 'BODY.PEEK[]' : 'RFC822.PEEK';
 	my $key = $req;
 	$key =~ s/\.PEEK//;

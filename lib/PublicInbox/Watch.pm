@@ -530,9 +530,9 @@ sub watch_imap_init ($$) {
 	for my $uri (@{$self->{imap_order}}) {
 		my $sec = uri_section($uri);
 		my $mic = $mics->{$sec};
-		my $intvl = $self->{imap_opt}->{$sec}->{pollInterval};
+		my $intvl = $self->{cfg_opt}->{$sec}->{pollInterval};
 		if ($mic->has_capability('IDLE') && !$intvl) {
-			$intvl = $self->{imap_opt}->{$sec}->{idleInterval};
+			$intvl = $self->{cfg_opt}->{$sec}->{idleInterval};
 			push @$idle, [ $uri, $intvl // () ];
 		} else {
 			push @{$poll->{$intvl || 120}}, $uri;
