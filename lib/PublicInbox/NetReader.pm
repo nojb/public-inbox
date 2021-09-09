@@ -51,7 +51,7 @@ sub mic_new ($$$$) {
 		$socks{Socket} = IO::Socket::Socks->new(%opt) or die
 			"E: <$$uri> ".eval('$IO::Socket::Socks::SOCKS_ERROR');
 	}
-	PublicInbox::IMAPClient->new(%$mic_arg, %socks);
+	PublicInbox::IMAPClient->new(%$mic_arg, %socks, Keepalive => 1);
 }
 
 sub auth_anon_cb { '' }; # for Mail::IMAPClient::Authcallback
@@ -76,7 +76,6 @@ sub mic_for ($$$$) { # mic = Mail::IMAPClient
 		Port => $uri->port,
 		Server => $host,
 		Ssl => $uri->scheme eq 'imaps',
-		Keepalive => 1, # SO_KEEPALIVE
 		%$common, # may set Starttls, Compress, Debug ....
 	};
 	$mic_arg->{Ssl} = 1 if $uri->scheme eq 'imaps';
