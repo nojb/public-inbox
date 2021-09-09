@@ -353,7 +353,7 @@ sub imap_idle_once ($$$$) {
 sub watch_imap_idle_1 ($$$) {
 	my ($self, $uri, $intvl) = @_;
 	my $sec = uri_section($uri);
-	my $mic_arg = $self->{mic_arg}->{$sec} or
+	my $mic_arg = $self->{net_arg}->{$sec} or
 			die "BUG: no Mail::IMAPClient->new arg for $sec";
 	my $mic;
 	local $0 = $uri->mailbox." $sec";

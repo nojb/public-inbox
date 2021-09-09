@@ -108,7 +108,7 @@ sub mic_for ($$$$) { # mic = Mail::IMAPClient
 	my $err;
 	if ($mic->login && $mic->IsAuthenticated) {
 		# success! keep IMAPClient->new arg in case we get disconnected
-		$self->{mic_arg}->{$sec} = $mic_arg;
+		$self->{net_arg}->{$sec} = $mic_arg;
 		if ($cred) {
 			$uri->user($cred->{username}) if !defined($uri->user);
 		} elsif ($mic_arg->{Authmechanism} eq 'ANONYMOUS') {
@@ -230,7 +230,7 @@ W: see https://rt.cpan.org/Ticket/Display.html?id=129967 for updates
 		}
 	}
 
-	$self->{nn_arg}->{$sec} = $nn_arg;
+	$self->{net_arg}->{$sec} = $nn_arg;
 	$cred->run($nn ? 'approve' : 'reject') if $cred && $cred->{filled};
 	$nn;
 }
@@ -306,7 +306,6 @@ sub imap_common_init ($;$) {
 		}
 	}
 	# make sure we can connect and cache the credentials in memory
-	$self->{mic_arg} = {}; # schema://authority => IMAPClient->new args
 	my $mics = {}; # schema://authority => IMAPClient obj
 	for my $orig_uri (@{$self->{imap_order}}) {
 		my $sec = uri_section($orig_uri);
@@ -358,7 +357,6 @@ sub nntp_common_init ($;$) {
 		}
 	}
 	# make sure we can connect and cache the credentials in memory
-	$self->{nn_arg} = {}; # schema://authority => Net::NNTP->new args
 	my %nn; # schema://authority => Net::NNTP object
 	for my $uri (@{$self->{nntp_order}}) {
 		my $sec = uri_section($uri);
@@ -622,7 +620,7 @@ sub mic_get {
 		return $mic if $mic && $mic->IsConnected;
 		delete $cached->{$sec};
 	}
-	my $mic_arg = $self->{mic_arg}->{$sec} or
+	my $mic_arg = $self->{net_arg}->{$sec} or
 			die "BUG: no Mail::IMAPClient->new arg for $sec";
 	if (defined(my $cb_name = $mic_arg->{Authcallback})) {
 		if (ref($cb_name) ne 'CODE') {
@@ -660,7 +658,7 @@ sub nn_get {
 	my $cached = $self->{nn_cached} // {};
 	my $nn;
 	$nn = delete($cached->{$sec}) and return $nn;
-	my $nn_arg = $self->{nn_arg}->{$sec} or
+	my $nn_arg = $self->{net_arg}->{$sec} or
 			die "BUG: no Net::NNTP->new arg for $sec";
 	my $nntp_cfg = $self->{cfg_opt}->{$sec};
 	$nn = nn_new($nn_arg, $nntp_cfg, $uri) or return;
