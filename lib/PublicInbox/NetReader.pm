@@ -79,6 +79,7 @@ sub mic_for ($$$$) { # mic = Mail::IMAPClient
 		Keepalive => 1, # SO_KEEPALIVE
 		%$common, # may set Starttls, Compress, Debug ....
 	};
+	$mic_arg->{Ssl} = 1 if $uri->scheme eq 'imaps';
 	require PublicInbox::IMAPClient;
 	my $mic = mic_new($self, $mic_arg, $sec, $uri) or
 			die "E: <$uri> new: $@\n";
@@ -197,9 +198,9 @@ sub nn_for ($$$$) { # nn = Net::NNTP
 	my $nn_arg = {
 		Port => $uri->port,
 		Host => $host,
-		SSL => $uri->secure, # snews == nntps
 		%$common, # may Debug ....
 	};
+	$nn_arg->{SSL} = 1 if $uri->secure; # snews == nntps
 	my $sa = $self->{-proxy_cli};
 	%$nn_arg = (%$nn_arg, %$sa) if $sa;
 	my $nn = nn_new($nn_arg, $nntp_opt, $uri);
