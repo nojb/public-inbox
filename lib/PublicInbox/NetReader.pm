@@ -42,16 +42,16 @@ EOM
 
 sub mic_new ($$$$) {
 	my ($self, $mic_arg, $sec, $uri) = @_;
-	my %socks;
+	my %mic_arg = %$mic_arg;
 	my $sa = $self->{imap_opt}->{$sec}->{-proxy_cfg} || $self->{-proxy_cli};
 	if ($sa) {
 		my %opt = %$sa;
-		$opt{ConnectAddr} = delete $mic_arg->{Server};
-		$opt{ConnectPort} = delete $mic_arg->{Port};
-		$socks{Socket} = IO::Socket::Socks->new(%opt) or die
+		$opt{ConnectAddr} = delete $mic_arg{Server};
+		$opt{ConnectPort} = delete $mic_arg{Port};
+		$mic_arg{Socket} = IO::Socket::Socks->new(%opt) or die
 			"E: <$$uri> ".eval('$IO::Socket::Socks::SOCKS_ERROR');
 	}
-	PublicInbox::IMAPClient->new(%$mic_arg, %socks, Keepalive => 1);
+	PublicInbox::IMAPClient->new(%mic_arg, Keepalive => 1);
 }
 
 sub auth_anon_cb { '' }; # for Mail::IMAPClient::Authcallback
