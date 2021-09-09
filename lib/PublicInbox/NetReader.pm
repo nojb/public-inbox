@@ -58,7 +58,7 @@ sub auth_anon_cb { '' }; # for Mail::IMAPClient::Authcallback
 
 # mic_for may prompt the user and store auth info, prepares mic_get
 sub mic_for ($$$$) { # mic = Mail::IMAPClient
-	my ($self, $uri, $mic_args, $lei) = @_;
+	my ($self, $uri, $mic_common, $lei) = @_;
 	require PublicInbox::GitCredential;
 	my $cred = bless {
 		url => "$uri",
@@ -68,7 +68,7 @@ sub mic_for ($$$$) { # mic = Mail::IMAPClient
 		password => $uri->password,
 	}, 'PublicInbox::GitCredential';
 	my $sec = uri_section($uri);
-	my $common = $mic_args->{$sec} // {};
+	my $common = $mic_common->{$sec} // {};
 	# IMAPClient and Net::Netrc both mishandles `0', so we pass `127.0.0.1'
 	my $host = $cred->{host};
 	$host = '127.0.0.1' if $host eq '0';
@@ -174,7 +174,7 @@ E: <$uri> STARTTLS requested and failed
 }
 
 sub nn_for ($$$$) { # nn = Net::NNTP
-	my ($self, $uri, $nn_args, $lei) = @_;
+	my ($self, $uri, $nn_common, $lei) = @_;
 	my $sec = uri_section($uri);
 	my $nntp_cfg = $self->{cfg_opt}->{$sec} //= {};
 	my $host = $uri->host;
@@ -193,7 +193,7 @@ sub nn_for ($$$$) { # nn = Net::NNTP
 		($cred->{username}, $cred->{password}) = ($u, $p);
 		$p //= $cred->check_netrc;
 	}
-	my $common = $nn_args->{$sec} // {};
+	my $common = $nn_common->{$sec} // {};
 	my $nn_arg = {
 		Port => $uri->port,
 		Host => $host,
@@ -282,15 +282,15 @@ sub imap_common_init ($;$) {
 		die "DBD::SQLite is required for IMAP\n:$@\n";
 	require PublicInbox::URIimap;
 	my $cfg = $self->{pi_cfg} // $lei->_lei_cfg;
-	my $mic_args = {}; # scheme://authority => Mail:IMAPClient arg
+	my $mic_common = {}; # scheme://authority => Mail:IMAPClient arg
 	for my $uri (@{$self->{imap_order}}) {
 		my $sec = uri_section($uri);
 		for my $k (qw(Starttls Debug Compress)) {
 			my $bool = cfg_bool($cfg, "imap.$k", $$uri) // next;
-			$mic_args->{$sec}->{$k} = $bool;
+			$mic_common->{$sec}->{$k} = $bool;
 		}
 		my $to = cfg_intvl($cfg, 'imap.timeout', $$uri);
-		$mic_args->{$sec}->{Timeout} = $to if $to;
+		$mic_common->{$sec}->{Timeout} = $to if $to;
 		my $sa = socks_args($cfg->urlmatch('imap.Proxy', $$uri));
 		$self->{cfg_opt}->{$sec}->{-proxy_cfg} = $sa if $sa;
 		for my $k (qw(pollInterval idleInterval)) {
@@ -311,7 +311,7 @@ sub imap_common_init ($;$) {
 		my $sec = uri_section($orig_uri);
 		my $uri = PublicInbox::URIimap->new("$sec/");
 		my $mic = $mics->{$sec} //=
-				mic_for($self, $uri, $mic_args, $lei) //
+				mic_for($self, $uri, $mic_common, $lei) //
 				die "Unable to continue\n";
 		next unless $self->isa('PublicInbox::NetWriter');
 		my $dst = $orig_uri->mailbox // next;
@@ -331,10 +331,10 @@ sub nntp_common_init ($;$) {
 	($lei || eval { require PublicInbox::IMAPTracker }) or
 		die "DBD::SQLite is required for NNTP\n:$@\n";
 	my $cfg = $self->{pi_cfg} // $lei->_lei_cfg;
-	my $nn_args = {}; # scheme://authority => Net::NNTP->new arg
+	my $nn_common = {}; # scheme://authority => Net::NNTP->new arg
 	for my $uri (@{$self->{nntp_order}}) {
 		my $sec = uri_section($uri);
-		my $args = $nn_args->{$sec} //= {};
+		my $args = $nn_common->{$sec} //= {};
 
 		# Debug and Timeout are passed to Net::NNTP->new
 		my $v = cfg_bool($cfg, 'nntp.Debug', $$uri);
@@ -360,7 +360,7 @@ sub nntp_common_init ($;$) {
 	my %nn; # schema://authority => Net::NNTP object
 	for my $uri (@{$self->{nntp_order}}) {
 		my $sec = uri_section($uri);
-		$nn{$sec} //= nn_for($self, $uri, $nn_args, $lei);
+		$nn{$sec} //= nn_for($self, $uri, $nn_common, $lei);
 	}
 	\%nn; # for optional {nn_cached}
 }
