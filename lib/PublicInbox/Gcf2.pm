@@ -17,7 +17,8 @@ BEGIN {
 		die 'PERL_INLINE_DIRECTORY not defined';
 	my $f = "$inline_dir/.public-inbox.lock";
 	open $lockfh, '>', $f or die "failed to open $f: $!\n";
-	my $pc = which($ENV{PKG_CONFIG} // 'pkg-config');
+	my $pc = which($ENV{PKG_CONFIG} // 'pkg-config') //
+		die "pkg-config missing for libgit2";
 	my ($dir) = (__FILE__ =~ m!\A(.+?)/[^/]+\z!);
 	my $rdr = {};
 	open $rdr->{2}, '>', '/dev/null' or die "open /dev/null: $!";
