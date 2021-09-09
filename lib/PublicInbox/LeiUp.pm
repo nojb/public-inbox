@@ -73,7 +73,7 @@ sub up1_redispatch {
 sub redispatch_all ($$) {
 	my ($self, $lei) = @_;
 	# re-dispatch into our event loop w/o creating an extra fork-level
-	$lei->{fmsg} = PublicInbox::LeiFinmsg->new($lei->{2});
+	$lei->{fmsg} = PublicInbox::LeiFinmsg->new($lei);
 	my ($op_c, $op_p) = PublicInbox::PktOp->pair;
 	for my $o (@{$self->{local} // []}, @{$self->{remote} // []}) {
 		PublicInbox::DS::requeue(sub {

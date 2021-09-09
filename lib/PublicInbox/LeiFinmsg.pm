@@ -8,14 +8,15 @@ use strict;
 use v5.10.1;
 
 sub new {
-	my ($cls, $io) = @_;
-	bless [ $io, $$ ], $cls;
+	my ($cls, $lei) = @_;
+	bless [ @$lei{qw(2 sock)}, $$ ], $cls;
 }
 
 sub DESTROY {
 	my ($self) = @_;
-	my $io = shift @$self;
-	shift(@$self) == $$ and print $io @$self;
+	my ($stderr, $sock, $pid) = splice(@$self, 0, 3);
+	print $stderr @$self if $pid == $$;
+	# script/lei disconnects when $sock SvREFCNT drops to zero
 }
 
 1;
