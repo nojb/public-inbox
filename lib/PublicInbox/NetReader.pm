@@ -138,7 +138,7 @@ sub try_starttls ($) {
 }
 
 sub nn_new ($$$) {
-	my ($nn_arg, $nntp_opt, $uri) = @_;
+	my ($nn_arg, $nntp_cfg, $uri) = @_;
 	my $nn;
 	if (defined $nn_arg->{ProxyAddr}) {
 		require PublicInbox::NetNNTPSocks;
@@ -151,19 +151,19 @@ sub nn_new ($$$) {
 	# default to using STARTTLS if it's available, but allow
 	# it to be disabled for localhost/VPN users
 	if (!$nn_arg->{SSL} && $nn->can('starttls')) {
-		if (!defined($nntp_opt->{starttls}) &&
+		if (!defined($nntp_cfg->{starttls}) &&
 				try_starttls($nn_arg->{Host})) {
 			# soft fail by default
 			$nn->starttls or warn <<"";
 W: <$uri> STARTTLS tried and failed (not requested)
 
-		} elsif ($nntp_opt->{starttls}) {
+		} elsif ($nntp_cfg->{starttls}) {
 			# hard fail if explicitly configured
 			$nn->starttls or die <<"";
 E: <$uri> STARTTLS requested and failed
 
 		}
-	} elsif ($nntp_opt->{starttls}) {
+	} elsif ($nntp_cfg->{starttls}) {
 		$nn->can('starttls') or
 			die "E: <$uri> Net::NNTP too old for STARTTLS\n";
 		$nn->starttls or die <<"";
@@ -176,7 +176,7 @@ E: <$uri> STARTTLS requested and failed
 sub nn_for ($$$$) { # nn = Net::NNTP
 	my ($self, $uri, $nn_args, $lei) = @_;
 	my $sec = uri_section($uri);
-	my $nntp_opt = $self->{nntp_opt}->{$sec} //= {};
+	my $nntp_cfg = $self->{cfg_opt}->{$sec} //= {};
 	my $host = $uri->host;
 	# Net::NNTP and Net::Netrc both mishandle `0', so we pass `127.0.0.1'
 	$host = '127.0.0.1' if $host eq '0';
@@ -202,27 +202,27 @@ sub nn_for ($$$$) { # nn = Net::NNTP
 	$nn_arg->{SSL} = 1 if $uri->secure; # snews == nntps
 	my $sa = $self->{-proxy_cli};
 	%$nn_arg = (%$nn_arg, %$sa) if $sa;
-	my $nn = nn_new($nn_arg, $nntp_opt, $uri);
+	my $nn = nn_new($nn_arg, $nntp_cfg, $uri);
 	if ($cred) {
 		$cred->fill($lei) unless defined($p); # may prompt user here
 		if ($nn->authinfo($u, $p)) {
-			push @{$nntp_opt->{-postconn}}, [ 'authinfo', $u, $p ];
+			push @{$nntp_cfg->{-postconn}}, [ 'authinfo', $u, $p ];
 		} else {
 			warn "E: <$uri> AUTHINFO $u XXXX failed\n";
 			$nn = undef;
 		}
 	}
 
-	if ($nntp_opt->{compress}) {
+	if ($nntp_cfg->{compress}) {
 		# https://rt.cpan.org/Ticket/Display.html?id=129967
 		if ($nn->can('compress')) {
 			if ($nn->compress) {
-				push @{$nntp_opt->{-postconn}}, [ 'compress' ];
+				push @{$nntp_cfg->{-postconn}}, [ 'compress' ];
 			} else {
 				warn "W: <$uri> COMPRESS failed\n";
 			}
 		} else {
-			delete $nntp_opt->{compress};
+			delete $nntp_cfg->{compress};
 			warn <<"";
 W: <$uri> COMPRESS not supported by Net::NNTP
 W: see https://rt.cpan.org/Ticket/Display.html?id=129967 for updates
@@ -348,13 +348,13 @@ sub nntp_common_init ($;$) {
 		# Net::NNTP post-connect commands
 		for my $k (qw(starttls compress)) {
 			$v = cfg_bool($cfg, "nntp.$k", $$uri) // next;
-			$self->{nntp_opt}->{$sec}->{$k} = $v;
+			$self->{cfg_opt}->{$sec}->{$k} = $v;
 		}
 
 		# -watch internal option
 		for my $k (qw(pollInterval)) {
 			$to = cfg_intvl($cfg, "nntp.$k", $$uri) // next;
-			$self->{nntp_opt}->{$sec}->{$k} = $to;
+			$self->{cfg_opt}->{$sec}->{$k} = $to;
 		}
 	}
 	# make sure we can connect and cache the credentials in memory
@@ -662,9 +662,9 @@ sub nn_get {
 	$nn = delete($cached->{$sec}) and return $nn;
 	my $nn_arg = $self->{nn_arg}->{$sec} or
 			die "BUG: no Net::NNTP->new arg for $sec";
-	my $nntp_opt = $self->{nntp_opt}->{$sec};
-	$nn = nn_new($nn_arg, $nntp_opt, $uri) or return;
-	if (my $postconn = $nntp_opt->{-postconn}) {
+	my $nntp_cfg = $self->{cfg_opt}->{$sec};
+	$nn = nn_new($nn_arg, $nntp_cfg, $uri) or return;
+	if (my $postconn = $nntp_cfg->{-postconn}) {
 		for my $m_arg (@$postconn) {
 			my ($method, @args) = @$m_arg;
 			$nn->$method(@args) and next;

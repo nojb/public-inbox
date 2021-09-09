@@ -549,7 +549,7 @@ sub watch_nntp_init ($$) {
 	PublicInbox::NetReader::nntp_common_init($self);
 	for my $uri (@{$self->{nntp_order}}) {
 		my $sec = uri_section($uri);
-		my $intvl = $self->{nntp_opt}->{$sec}->{pollInterval};
+		my $intvl = $self->{cfg_opt}->{$sec}->{pollInterval};
 		push @{$poll->{$intvl || 120}}, $uri;
 	}
 }
