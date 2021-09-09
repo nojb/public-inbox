@@ -285,12 +285,16 @@ sub imap_common_init ($;$) {
 	my $mic_common = {}; # scheme://authority => Mail:IMAPClient arg
 	for my $uri (@{$self->{imap_order}}) {
 		my $sec = uri_section($uri);
-		for my $k (qw(Starttls Debug Compress)) {
+
+		# knobs directly for Mail::IMAPClient->new
+		for my $k (qw(Starttls Debug Compress Ignoresizeerrors)) {
 			my $bool = cfg_bool($cfg, "imap.$k", $$uri) // next;
 			$mic_common->{$sec}->{$k} = $bool;
 		}
 		my $to = cfg_intvl($cfg, 'imap.timeout', $$uri);
 		$mic_common->{$sec}->{Timeout} = $to if $to;
+
+		# knobs we use ourselves:
 		my $sa = socks_args($cfg->urlmatch('imap.Proxy', $$uri));
 		$self->{cfg_opt}->{$sec}->{-proxy_cfg} = $sa if $sa;
 		for my $k (qw(pollInterval idleInterval)) {
