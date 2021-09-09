@@ -98,8 +98,10 @@ if (1) {
 
 	$gcf->qx(qw(repack -adq));
 	ok($gcf->packed_bytes > 0, 'packed size is positive');
-	$gcf->qx(qw(rev-parse --verify bogus));
-	isnt($?, 0, '$? set on failure'.$?);
+	my $rdr;
+	open $rdr->{2}, '+>', '/dev/null' or xbail "open $!";
+	$gcf->qx([qw(rev-parse --verify bogus)], undef, $rdr);
+	isnt($?, 0, '$? set on failure: '.$?);
 }
 
 SKIP: {
