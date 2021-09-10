@@ -400,8 +400,9 @@ Error closing $lei->{ovv}->{dst}: $!
 		my $tot = $lei->{-mset_total} // 0;
 		my $nr = $lei->{-nr_write} // 0;
 		if ($l2m) {
-			$lei->qfin("# $nr written to " .
-				"$lei->{ovv}->{dst} ($tot matches)");
+			my $m = "# $nr written to " .
+				"$lei->{ovv}->{dst} ($tot matches)";
+			$nr ? $lei->qfin($m) : $lei->qerr($m);
 		} else {
 			$lei->qerr("# $tot matches");
 		}
