@@ -1,0 +1,69 @@
+=head1 NAME
+
+lei-index - index messages without importing them into lei/store
+
+=head1 SYNOPSIS
+
+lei index [OPTIONS] FOLDER
+
+lei index [OPTIONS] --stdin
+
+=head1 DESCRIPTION
+
+Similar to L<lei-import(1)>, but does not store a copy of
+messages into C<lei/store>.
+
+This command only makes sense for messages stored in Maildir
+folders.  Other folder types may be supported in the future
+(they can all be indexed, but the message isn't automatically
+retrieved by L<lei-q(1)> or L<lei-lcat(1)>).
+
+Combined with L<lei-q(1)>, C<lei index> allows Maildir users to
+have similar functionality to L<mairix(1)> by not duplicating
+messages into C<lei/store>.
+
+=head1 OPTIONS
+
+=over
+
+=item -
+
+=item --stdin
+
+Read input from standard input.  This is the default if standard
+input is a pipe or regular file and there are no arguments on
+the command-line.
+
+=item -F MAIL_FORMAT
+
+=item --in-format=MAIL_FORMAT
+
+Message input format: C<eml>, C<maildir>, C<imap>, C<imaps>, C<nntp>,
+C<nntps>, C<mboxrd>, C<mboxcl2>, C<mboxcl>, or C<mboxo>.
+
+Default: C<eml> when reading from stdin
+
+=item -q
+
+=item --quiet
+
+Suppress feedback messages.
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/> and
+L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<lei-store-format(5)>, L<lei-import(1)>

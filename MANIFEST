@@ -31,6 +31,7 @@ Documentation/lei-edit-search.pod
 Documentation/lei-forget-external.pod
 Documentation/lei-forget-search.pod
 Documentation/lei-import.pod
+Documentation/lei-index.pod
 Documentation/lei-init.pod
 Documentation/lei-lcat.pod
 Documentation/lei-ls-external.pod
