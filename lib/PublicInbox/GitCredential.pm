@@ -31,8 +31,12 @@ sub run ($$;$) {
 	close $out_r or die "`git credential $op' failed: \$!=$! \$?=$?\n";
 }
 
-sub check_netrc ($) {
-	my ($self) = @_;
+sub check_netrc {
+	my ($self, $lei) = @_;
+
+	# n.b. lei doesn't load ~/.netrc by default, public-inbox-watch does,
+	# which may've been a mistake, but we have to live with it.
+	return if ($lei && !$lei->{opt}->{netrc});
 
 	# part of the standard library, but distributions may split it out
 	eval { require Net::Netrc };

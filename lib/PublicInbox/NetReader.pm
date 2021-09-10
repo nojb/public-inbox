@@ -96,7 +96,7 @@ sub mic_for ($$$$) { # mic = Mail::IMAPClient
 		$cred = undef;
 	}
 	if ($cred) {
-		my $p = $cred->{password} // $cred->check_netrc;
+		my $p = $cred->{password} // $cred->check_netrc($lei);
 		$cred->fill($lei) unless defined($p); # may prompt user here
 		$mic->User($mic_arg->{User} = $cred->{username});
 		$mic->Password($mic_arg->{Password} = $cred->{password});
@@ -191,7 +191,7 @@ sub nn_for ($$$$) { # nn = Net::NNTP
 		}, 'PublicInbox::GitCredential';
 		($u, $p) = split(/:/, $ui, 2);
 		($cred->{username}, $cred->{password}) = ($u, $p);
-		$p //= $cred->check_netrc;
+		$p //= $cred->check_netrc($lei);
 	}
 	my $common = $nn_common->{$sec} // {};
 	my $nn_arg = {
