@@ -14,7 +14,6 @@ my @test_essential = qw(Test::Simple); # we actually use Test::More
 # package profiles
 my $profiles = {
 	# the smallest possible profile for testing
-	# TODO: trim URI::Escape from this, maybe
 	essential => [ qw(
 		git
 		perl
@@ -23,7 +22,7 @@ my $profiles = {
 		Encode
 		ExtUtils::MakeMaker
 		IO::Compress::Gzip
-		URI::Escape
+		URI
 		), @test_essential ],
 
 	# everything optional for normal use
@@ -109,7 +108,7 @@ my $non_auto = {
 		pkg => 'p5-Plack',
 		rpm => 'perl-Plack-Test',
 	},
-	'URI::Escape' => {
+	'URI' => {
 		deb => 'liburi-perl',
 		pkg => 'p5-URI',
 		rpm => 'perl-URI',

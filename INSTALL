@@ -36,9 +36,9 @@ To accept incoming mail into a public inbox, you'll likely want:
 * MTA - postfix is recommended (for public-inbox-mda)
 * SpamAssassin (spamc/spamd)   (for public-inbox-watch/public-inbox-mda)
 
-Beyond that, there is one non-standard Perl module required:
+Beyond that, there is one non-standard Perl package required:
 
-* URI::Escape                      deb: liburi-perl
+* URI                              deb: liburi-perl
                                    pkg: p5-URI
                                    rpm: perl-URI
                                    (for HTML/Atom generation)

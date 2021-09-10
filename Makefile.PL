@@ -168,7 +168,7 @@ WriteMakefile(
 		# Plack is needed for public-inbox-httpd and PublicInbox::WWW
 		# 'Plack' => 0,
 
-		'URI::Escape' => 0,
+		'URI' => 0,
 
 		# We have more test dependencies, but do not force
 		# users to install them.  See INSTALL
