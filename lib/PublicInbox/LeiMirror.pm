@@ -200,6 +200,19 @@ failed to extract epoch number from $src
 	index_cloned_inbox($self, 2);
 }
 
+# PSGI mount prefixes and manifest.js.gz prefixes don't always align...
+sub deduce_epochs ($$) {
+	my ($m, $path) = @_;
+	my ($v1_bare, @v2_epochs);
+	my $path_pfx = '';
+	do {
+		$v1_bare = $m->{$path};
+		@v2_epochs = grep(m!\A\Q$path\E/git/[0-9]+\.git\z!, keys %$m);
+	} while (!defined($v1_bare) && !@v2_epochs &&
+		$path =~ s!\A(/[^/]+)/!/! and $path_pfx .= $1);
+	($path_pfx, $v1_bare, @v2_epochs);
+}
+
 sub try_manifest {
 	my ($self) = @_;
 	my $uri = URI->new($self->{src});
@@ -229,8 +242,7 @@ sub try_manifest {
 	die "$uri: error decoding `$js': $@" if $@;
 	ref($m) eq 'HASH' or die "$uri unknown type: ".ref($m);
 
-	my $v1_bare = $m->{$path};
-	my @v2_epochs = grep(m!\A\Q$path\E/git/[0-9]+\.git\z!, keys %$m);
+	my ($path_pfx, $v1_bare, @v2_epochs) = deduce_epochs($m, $path);
 	if (@v2_epochs) {
 		# It may be possible to have v1 + v2 in parallel someday:
 		$lei->err(<<EOM) if defined $v1_bare;
@@ -238,14 +250,16 @@ sub try_manifest {
 # @v2_epochs
 # ignoring $v1_bare (use --inbox-version=1 to force v1 instead)
 EOM
-		@v2_epochs = map { $uri->path($_); $uri->clone } @v2_epochs;
+		@v2_epochs = map {
+			$uri->path($path_pfx.$_);
+			$uri->clone
+		} @v2_epochs;
 		clone_v2($self, \@v2_epochs);
-	} elsif ($v1_bare) {
+	} elsif (defined $v1_bare) {
 		clone_v1($self);
-	} elsif (my @maybe = grep(m!\Q$path\E!, keys %$m)) {
-		die "E: confused by <$uri>, possible matches:\n@maybe";
 	} else {
-		die "E: confused by <$uri>";
+		die "E: confused by <$uri>, possible matches:\n\t",
+			join(', ', sort keys %$m), "\n";
 	}
 }
 

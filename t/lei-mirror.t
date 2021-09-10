@@ -7,7 +7,8 @@ my $sock = tcp_server();
 my ($tmpdir, $for_destroy) = tmpdir();
 my $http = 'http://'.tcp_host_port($sock);
 my ($ro_home, $cfg_path) = setup_public_inboxes;
-my $cmd = [ qw(-httpd -W0), "--stdout=$tmpdir/out", "--stderr=$tmpdir/err" ];
+my $cmd = [ qw(-httpd -W0 ./t/lei-mirror.psgi),
+	"--stdout=$tmpdir/out", "--stderr=$tmpdir/err" ];
 my $td = start_script($cmd, { PI_CONFIG => $cfg_path }, { 3 => $sock });
 test_lei({ tmpdir => $tmpdir }, sub {
 	my $home = $ENV{HOME};
@@ -42,6 +43,9 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	ok(!-d "$t2-fail", 'destination not created on failure');
 	lei_ok('ls-external');
 	unlike($lei_out, qr!\Q$t2-fail\E!, 'not added to ls-external');
+
+	lei_ok('add-external', "$t1-pfx", '--mirror', "$http/pfx/t1/",
+			\'--mirror v1 w/ PSGI prefix');
 
 	my %phail = (
 		HTTPS => 'https://public-inbox.org/' . 'phail',
