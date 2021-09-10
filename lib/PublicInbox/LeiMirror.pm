@@ -16,7 +16,7 @@ sub do_finish_mirror { # dwaitpid callback
 	if ($?) {
 		$lei->child_error($?);
 	} elsif (!unlink($f)) {
-		$lei->err("unlink($f): $!");
+		$lei->err("unlink($f): $!") unless $!{ENOENT};
 	} else {
 		$lei->add_external_finish($mrr->{dst});
 		$lei->qerr("# mirrored $mrr->{src} => $mrr->{dst}");

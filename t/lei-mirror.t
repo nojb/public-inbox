@@ -47,6 +47,14 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	lei_ok('add-external', "$t1-pfx", '--mirror', "$http/pfx/t1/",
 			\'--mirror v1 w/ PSGI prefix');
 
+	my $d = "$home/404";
+	ok(!lei(qw(add-external --mirror), "$http/404", $d), 'mirror 404');
+	unlike($lei_err, qr!unlink.*?404/mirror\.done!,
+		'no unlink failure message');
+	ok(!-d $d, "`404' dir not created");
+	lei_ok('ls-external');
+	unlike($lei_out, qr!\Q$d\E!s, 'not added to ls-external');
+
 	my %phail = (
 		HTTPS => 'https://public-inbox.org/' . 'phail',
 		ONION =>
