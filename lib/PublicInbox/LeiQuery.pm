@@ -190,7 +190,7 @@ sub _complete_q {
 # analogues in git(1)? that would reduce likelyhood of conflicts with
 # our other CLI options
 # Note: some names are renamed to avoid potential conflicts,
-# see %lei2mail in lib/PublicInbox/LeiCurl.pm
+# see %lei2curl in lib/PublicInbox/LeiCurl.pm
 sub curl_opt { qw(
 	curl-config=s@
 	abstract-unix-socket=s anyauth basic cacert=s capath=s
