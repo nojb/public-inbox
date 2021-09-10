@@ -147,9 +147,9 @@ sub index_opt {
 }
 
 my @c_opt = qw(c=s@ C=s@ quiet|q);
-my @lxs_opt = (qw(remote! local! external! include|I=s@ exclude=s@ only=s@
-	import-remote! no-torsocks torsocks=s),
-	PublicInbox::LeiQuery::curl_opt());
+my @net_opt = (qw(no-torsocks torsocks=s), PublicInbox::LeiQuery::curl_opt());
+my @lxs_opt = qw(remote! local! external! include|I=s@ exclude=s@ only=s@
+	import-remote!);
 
 # we don't support -C as an alias for --find-copies since it's already
 # used for chdir
@@ -174,7 +174,7 @@ our @diff_opt = qw(unified|U=i output-indicator-new=s output-indicator-old=s
 our %CMD = ( # sorted in order of importance/use:
 'q' => [ '--stdin|SEARCH_TERMS...', 'search for messages matching terms',
 	'stdin|', # /|\z/ must be first for lone dash
-	@lxs_opt,
+	@lxs_opt, @net_opt,
 	qw(save! output|mfolder|o=s format|f=s dedupe|d=s threads|t+
 	sort|s=s reverse|r offset=i pretty jobs|j=s globoff|g augment|a
 	import-before! lock=s@ rsyncable alert=s@ mua=s verbose|v+
@@ -186,26 +186,26 @@ our %CMD = ( # sorted in order of importance/use:
 'lcat' => [ '--stdin|MSGID_OR_URL...', 'display local copy of message(s)',
 	'stdin|', # /|\z/ must be first for lone dash
 	# some of these options are ridiculous for lcat
-	@lxs_opt, qw(output|mfolder|o=s format|f=s dedupe|d=s threads|t+
+	@lxs_opt, @net_opt,
+	qw(output|mfolder|o=s format|f=s dedupe|d=s threads|t+
 	sort|s=s reverse|r offset=i jobs|j=s globoff|g augment|a
 	import-before! lock=s@ rsyncable alert=s@ mua=s verbose|v+
 	color!), @c_opt, opt_dash('limit|n=i', '[0-9]+') ],
 
 'blob' => [ 'OID', 'show a git blob, reconstructing from mail if necessary',
 	qw(git-dir=s@ cwd! verbose|v+ mail! oid-a|A=s path-a|a=s path-b|b=s),
-	@lxs_opt, @c_opt ],
+	@lxs_opt, @net_opt, @c_opt ],
 
 'rediff' => [ '--stdin|LOCATION...',
 		'regenerate a diff with different options',
 	'stdin|', # /|\z/ must be first for lone dash
 	qw(git-dir=s@ cwd! verbose|v+ color:s no-color),
-	@diff_opt, @lxs_opt, @c_opt ],
+	@diff_opt, @lxs_opt, @net_opt, @c_opt ],
 
 'add-external' => [ 'LOCATION',
 	'add/set priority of a publicinbox|extindex for extra matches',
-	qw(boost=i mirror=s no-torsocks torsocks=s inbox-version=i
-	verbose|v+), @c_opt, index_opt(),
-	PublicInbox::LeiQuery::curl_opt() ],
+	qw(boost=i mirror=s inbox-version=i verbose|v+),
+	@c_opt, index_opt(), @net_opt ],
 'ls-external' => [ '[FILTER]', 'list publicinbox|extindex locations',
 	qw(format|f=s z|0 globoff|g invert-match|v local remote), @c_opt ],
 'ls-label' => [ '', 'list labels', qw(z|0 stats:s), @c_opt ],
@@ -226,15 +226,14 @@ our %CMD = ( # sorted in order of importance/use:
 'rm' => [ '--stdin|LOCATION...',
 	'remove a message from the index and prevent reindexing',
 	'stdin|', # /|\z/ must be first for lone dash
-	qw(in-format|F=s lock=s@), @c_opt ],
+	qw(in-format|F=s lock=s@), @net_opt, @c_opt ],
 'plonk' => [ '--threads|--from=IDENT',
 	'exclude mail matching From: or threads from non-Message-ID searches',
 	qw(stdin| threads|t from|f=s mid=s oid=s), @c_opt ],
 'tag' => [ 'KEYWORDS...',
 	'set/unset keywords and/or labels on message(s)',
 	qw(stdin| in-format|F=s input|i=s@ oid=s@ mid=s@),
-	qw(no-torsocks torsocks=s), PublicInbox::LeiQuery::curl_opt(), @c_opt,
-	pass_through('-kw:foo for delete') ],
+	@net_opt, @c_opt, pass_through('-kw:foo for delete') ],
 
 'purge-mailsource' => [ 'LOCATION|--all',
 	'remove imported messages from IMAP, Maildirs, and MH',
@@ -253,25 +252,24 @@ our %CMD = ( # sorted in order of importance/use:
 
 'index' => [ 'LOCATION...', 'one-time index from URL or filesystem',
 	qw(in-format|F=s kw! offset=i recursive|r exclude=s include|I=s
-	verbose|v+ incremental!),
-	 PublicInbox::LeiQuery::curl_opt(), # mainly for --proxy=
+	verbose|v+ incremental!), @net_opt, # mainly for --proxy=
 	 @c_opt ],
 'import' => [ 'LOCATION...|--stdin',
 	'one-time import/update from URL or filesystem',
 	qw(stdin| offset=i recursive|r exclude=s include|I=s jobs=s new-only
 	lock=s@ in-format|F=s kw! verbose|v+ incremental! mail-sync!),
-	qw(no-torsocks torsocks=s), PublicInbox::LeiQuery::curl_opt(), @c_opt ],
+	@net_opt, @c_opt ],
 'forget-mail-sync' => [ 'LOCATION...',
 	'forget sync information for a mail folder', @c_opt ],
 'prune-mail-sync' => [ 'LOCATION...|--all',
 	'prune dangling sync data for a mail folder', 'all:s', @c_opt ],
 'export-kw' => [ 'LOCATION...|--all',
 	'one-time export of keywords of sync sources',
-	qw(all:s mode=s), @c_opt ],
+	qw(all:s mode=s), @net_opt, @c_opt ],
 'convert' => [ 'LOCATION...|--stdin',
 	'one-time conversion from URL or filesystem to another format',
 	qw(stdin| in-format|F=s out-format|f=s output|mfolder|o=s lock=s@ kw!),
-	qw(no-torsocks torsocks=s), PublicInbox::LeiQuery::curl_opt(), @c_opt ],
+	@net_opt, @c_opt ],
 'p2q' => [ 'FILE|COMMIT_OID|--stdin',
 	"use a patch to generate a query for `lei q --stdin'",
 	qw(stdin| want|w=s@ uri debug), @c_opt ],
