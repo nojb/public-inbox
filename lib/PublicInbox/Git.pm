@@ -16,7 +16,7 @@ use Errno qw(EINTR EAGAIN);
 use File::Glob qw(bsd_glob GLOB_NOSORT);
 use File::Spec ();
 use Time::HiRes qw(stat);
-use PublicInbox::Spawn qw(popen_rd);
+use PublicInbox::Spawn qw(popen_rd spawn);
 use PublicInbox::Tmpfile;
 use IO::Poll qw(POLLIN);
 use Carp qw(croak);
@@ -466,28 +466,13 @@ sub cat_async ($$$;$) {
 	push(@$inflight, $oid, $cb, $arg);
 }
 
-sub extract_cmt_time {
-	my ($bref, undef, undef, undef, $modified) = @_;
-
-	if ($$bref =~ /^committer .*?> ([0-9]+) [\+\-]?[0-9]+/sm) {
-		my $cmt_time = $1 + 0;
-		$$modified = $cmt_time if $cmt_time > $$modified;
-	}
-}
-
 # returns the modified time of a git repo, same as the "modified" field
 # of a grokmirror manifest
 sub modified ($) {
-	my ($self) = @_;
-	my $modified = 0;
-	my $fh = popen($self, qw(rev-parse --branches));
-	local $/ = "\n";
-	while (my $oid = <$fh>) {
-		chomp $oid;
-		cat_async($self, $oid, \&extract_cmt_time, \$modified);
-	}
-	cat_async_wait($self);
-	$modified || time;
+	# committerdate:unix is git 2.9.4+ (2017-05-05), so using raw instead
+	my $fh = popen($_[0], qw[for-each-ref --sort=-committerdate
+				--format=%(committerdate:raw) --count=1]);
+	(split(/ /, <$fh> // time))[0] + 0; # integerize for JSON
 }
 
 # for grokmirror, which doesn't read gitweb.description

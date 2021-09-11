@@ -27,7 +27,7 @@ sub inject_entry ($$$;$) {
 	$ctx->{manifest}->{$url_path} = $ent;
 }
 
-sub manifest_add ($$;$$) { # slow path w/o extindex "all"
+sub manifest_add ($$;$$) { # slow path w/o extindex "all" (or per-inbox)
 	my ($ctx, $ibx, $epoch, $default_desc) = @_;
 	my $url_path = "/$ibx->{name}";
 	my $git;
