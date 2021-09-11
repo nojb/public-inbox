@@ -19,7 +19,7 @@ sub _array ($) { ref($_[0]) eq 'ARRAY' ? $_[0] : [ $_[0] ] }
 # returns key-value pairs of config directives in a hash
 # if keys may be multi-value, the value is an array ref containing all values
 sub new {
-	my ($class, $file) = @_;
+	my ($class, $file, $errfh) = @_;
 	$file //= default_file();
 	my $self;
 	if (ref($file) eq 'SCALAR') { # used by some tests
@@ -27,7 +27,7 @@ sub new {
 		$self = config_fh_parse($fh, "\n", '=');
 		bless $self, $class;
 	} else {
-		$self = git_config_dump($class, $file);
+		$self = git_config_dump($class, $file, $errfh);
 		$self->{'-f'} = $file;
 	}
 	# caches
