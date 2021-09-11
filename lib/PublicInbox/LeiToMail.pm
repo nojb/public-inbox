@@ -410,9 +410,9 @@ sub new {
 		$lei->{net} = $net;
 		$self->{base_type} = 'imap';
 		$lei->{opt}->{save} //= \1 if $lei->{cmd} eq 'q';
-	} elsif ($fmt eq 'text') {
+	} elsif ($fmt eq 'text' || $fmt eq 'reply') {
 		require PublicInbox::LeiViewText;
-		$lei->{lvt} = PublicInbox::LeiViewText->new($lei);
+		$lei->{lvt} = PublicInbox::LeiViewText->new($lei, $fmt);
 		$self->{base_type} = 'text';
 		@conflict = qw(mua save);
 	} elsif ($fmt eq 'v2') {

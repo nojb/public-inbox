@@ -11,6 +11,20 @@ test_lei(sub {
 	lei_ok('import', 't/plack-qp.eml');
 	lei_ok([qw(lcat --stdin)], undef, { 0 => \$in, %$lei_opt });
 	like($lei_out, qr/qp\@example\.com/, 'got a result');
+
+	# test Link:, -f reply, and implicit --stdin:
+	my $prev = $lei_out;
+	$in = "\nLink: https://example.com/foo/qp\@example.com/\n";
+	lei_ok([qw(lcat -f reply)], undef, { 0 => \$in, %$lei_opt});
+	my $exp = <<'EOM';
+To: qp@example.com
+Subject: Re: QP
+In-Reply-To: <qp@example.com>
+
+On some unknown date, qp wrote:
+> hi = bye
+EOM
+	like($lei_out, qr/\AFrom [^\n]+\n\Q$exp\E/sm, '-f reply works');
 });
 
 done_testing;

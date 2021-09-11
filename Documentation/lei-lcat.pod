@@ -20,8 +20,18 @@ Message-ID or link from surrounding text (e.g., a "Link: $URL" line).
 =head1 OPTIONS
 
 The following options, described in L<lei-q(1)>, are supported.
+One deviation from L<lei-q(1)> is the default output format is
+C<-f text> when writing to stdout.
 
 =over
+
+=item --format=FORMAT
+
+=item -f FORMAT
+
+Most commonly C<text> (the default) or C<reply> to
+display the message(s) in a format suitable for trimming
+and sending as a email reply.
 
 =item --[no-]remote
 

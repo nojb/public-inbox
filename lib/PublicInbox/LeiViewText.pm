@@ -13,6 +13,8 @@ use PublicInbox::Hval;
 use PublicInbox::ViewDiff;
 use PublicInbox::Spawn qw(popen_rd);
 use Term::ANSIColor;
+use POSIX ();
+use PublicInbox::Address;
 
 sub _xs {
 	# xhtml_map works since we don't search for HTML ([&<>'"])
@@ -66,8 +68,9 @@ sub my_colored {
 sub uncolored { ${$_[0]->{obuf}} .= $_[2] }
 
 sub new {
-	my ($cls, $lei) = @_;
+	my ($cls, $lei, $fmt) = @_;
 	my $self = bless { %{$lei->{opt}}, -colored => \&uncolored }, $cls;
+	$self->{-quote_reply} = 1 if $fmt eq 'reply';
 	return $self unless $self->{color} //= -t $lei->{1};
 	my $cmd = [ qw(git config -z --includes -l) ];
 	my ($r, $pid) = popen_rd($cmd, undef, { 2 => $lei->{2} });
@@ -81,6 +84,45 @@ sub new {
 	$self->{-gitcfg} = $cfg;
 	$self->{-leicfg} = $lei->{cfg};
 	$self;
+}
+
+sub quote_hdr_buf ($$) {
+	my ($self, $eml) = @_;
+	my $hbuf = '';
+	my $to = $eml->header_raw('Reply-To') //
+		$eml->header_raw('From') //
+		$eml->header_raw('Sender');
+	my $cc = '';
+	for my $f (qw(To Cc)) {
+		for my $v ($eml->header_raw($f)) {
+			next if $v !~ /\S/;
+			$cc .= $v;
+			$to //= $v;
+		}
+	}
+	PublicInbox::View::fold_addresses($to);
+	PublicInbox::View::fold_addresses($cc);
+	_xs($to);
+	_xs($cc);
+	$hbuf .= "To: $to\n" if defined $to && $to =~ /\S/;
+	$hbuf .= "Cc: $cc\n" if $cc =~ /\S/;
+	my $s = $eml->header_str('Subject') // 'your mail';
+	_xs($s);
+	substr($s, 0, 0, 'Re: ') if $s !~ /\bRe:/i;
+	$hbuf .= "Subject: $s\n";
+	if (defined(my $irt = $eml->header_raw('Message-ID'))) {
+		_xs($irt);
+		$hbuf .= "In-Reply-To: $irt\n";
+	}
+	$self->{-colored}->($self, 'hdrdefault', $hbuf);
+	my ($n) = PublicInbox::Address::names($eml->header_str('From') //
+					$eml->header_str('Sender') //
+					$eml->header_str('Reply-To') //
+					'unknown sender');
+	my $d = $eml->header_raw('Date') // 'some unknown date';
+	_xs($d);
+	_xs($n);
+	${delete $self->{obuf}} . "\nOn $d, $n wrote:\n";
 }
 
 sub hdr_buf ($$) {
@@ -224,25 +266,43 @@ sub add_text_buf { # callback for Eml->each_part
 	}
 }
 
-# returns an arrayref suitable for $lei->out or print
+# returns a stringref suitable for $lei->out or print
 sub eml_to_text {
 	my ($self, $smsg, $eml) = @_;
 	local $Term::ANSIColor::EACHLINE = "\n";
 	$self->{obuf} = \(my $obuf = '');
 	$self->{-smsg} = $smsg;
 	$self->{-max_cols} = ($self->{columns} //= 80) - 8; # for header wrap
-	my @h = ();
-	for my $f (qw(blob pct)) {
-		push @h, "$f:$smsg->{$f}" if defined $smsg->{$f};
+	my $h = [];
+	if ($self->{-quote_reply}) {
+		my $blob = $smsg->{blob} // 'unknown-blob';
+		my $pct = $smsg->{pct} // 'unknown';
+		my $t = POSIX::asctime(gmtime($smsg->{ts} // $smsg->{ds} // 0));
+		$h->[0] = "From $blob\@$pct $t";
+	} else {
+		for my $f (qw(blob pct)) {
+			push @$h, "$f:$smsg->{$f}" if defined $smsg->{$f};
+		}
+		@$h = ("# @$h\n") if @$h;
+		for my $f (qw(kw L)) {
+			my $v = $smsg->{$f} or next;
+			push @$h, "# $f:".join(',', @$v)."\n" if @$v;
+		}
 	}
-	@h = ("# @h\n") if @h;
-	for my $f (qw(kw L)) {
-		my $v = $smsg->{$f} or next;
-		push @h, "# $f:".join(',', @$v)."\n" if @$v;
+	$h = join('', @$h);
+	$self->{-colored}->($self, 'status', $h);
+	my $quote_hdr;
+	if ($self->{-quote_reply}) {
+		$quote_hdr = ${delete $self->{obuf}};
+		$quote_hdr .= quote_hdr_buf($self, $eml);
+	} else {
+		hdr_buf($self, $eml);
 	}
-	$self->{-colored}->($self, 'status', join('', @h));
-	hdr_buf($self, $eml);
 	$eml->each_part(\&add_text_buf, $self, 1);
+	if (defined $quote_hdr) {
+		${$self->{obuf}} =~ s/^/> /sgm;
+		substr(${$self->{obuf}}, 0, 0, $quote_hdr);
+	}
 	delete $self->{obuf};
 }
 

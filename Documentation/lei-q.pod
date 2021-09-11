@@ -60,7 +60,7 @@ Default: C<-> (stdout)
 
 Format of results to stdout.  This option exists as a convenient
 way to specify the format for the default stdout destination.
-C<text>, C<json>, C<jsonl>, or C<concatjson> are all supported,
+C<reply>, C<text>, C<json>, C<jsonl>, or C<concatjson> are all supported,
 as are the various mbox variants described in L</--output>.
 
 When a format isn't specified, it's chosen based on the
@@ -72,7 +72,7 @@ preferred when not writing to stdout.
 
 =item --no-color
 
-Disable color (for C<--format=text>).
+Disable color (for C<-f reply> and C<-f text>).
 
 =item --pretty
 
@@ -240,6 +240,13 @@ Default: C<auto>
 =item --proxy=PROTO://HOST[:PORT]
 
 =back
+
+=head1 TIPS
+
+C<-f reply> is intended to aid in turning a cover letter
+into a reply (since using C<git format-patch --in-reply-to=...>
+is tedious).  Results (including "From " lines) should be edited
+and trimmed in your favorite C<$EDITOR> before sending.
 
 =head1 CONTACT
 
