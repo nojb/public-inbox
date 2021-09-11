@@ -1029,13 +1029,15 @@ sub path_to_fd {
 
 # caller needs to "-t $self->{1}" to check if tty
 sub start_pager {
-	my ($self) = @_;
+	my ($self, $new_env) = @_;
 	my $fh = popen_rd([qw(git var GIT_PAGER)]);
 	chomp(my $pager = <$fh> // '');
 	close($fh) or warn "`git var PAGER' error: \$?=$?";
 	return if $pager eq 'cat' || $pager eq '';
-	my $new_env = { LESS => 'FRX', LV => '-c' };
-	$new_env->{MORE} = 'FRX' if $^O eq 'freebsd';
+	$new_env //= {};
+	$new_env->{LESS} //= 'FRX';
+	$new_env->{LV} //= '-c';
+	$new_env->{MORE} = $new_env->{LESS} if $^O eq 'freebsd';
 	pipe(my ($r, $wpager)) or return warn "pipe: $!";
 	my $rdr = { 0 => $r, 1 => $self->{1}, 2 => $self->{2} };
 	my $pgr = [ undef, @$rdr{1, 2} ];
@@ -1050,6 +1052,19 @@ sub start_pager {
 	$self->{2} = $wpager if -t $self->{2};
 	$env->{GIT_PAGER_IN_USE} = 'true'; # we may spawn git
 	$self->{pgr} = $pgr;
+}
+
+# display a message for user before spawning full-screen $VISUAL
+sub pgr_err {
+	my ($self, @msg) = @_;
+	return $self->err(@msg) unless $self->{sock} && -t $self->{2};
+	start_pager($self, { LESS => 'RX' }); # no 'F' so we prompt
+	print { $self->{2} } @msg;
+	$self->{2}->autoflush(1);
+	my $pgr = delete($self->{pgr}) or return;
+	$self->{2} = $pgr->[2];
+	$self->{1} = $pgr->[1];
+	send($self->{sock}, 'wait', MSG_EOR); # wait for user to quit pager
 }
 
 sub stop_pager {

@@ -215,5 +215,22 @@ test_lei(sub {
 		'absolute path appears in ls-search';
 	lei_ok qw(up ../s -C), "$home/v2s", \'relative lei up';
 	lei_ok qw(up), "$home/s", \'absolute lei up';
+
+	# mess up a config file
+	my @lss = glob("$home/" .
+		'.local/share/lei/saved-searches/*/lei.saved-search');
+	my $out = xqx([qw(git config -f), $lss[0], 'lei.q.output']);
+	xsys($^X, qw(-i -p -e), "s/\\[/\\0/", $lss[0])
+		and xbail "-ipe $lss[0]: $?";
+	lei_ok qw(ls-search);
+	like($lei_err, qr/bad config line.*?\Q$lss[0]\E/,
+		'git config parse error shown w/ lei ls-search');
+	lei_ok qw(up --all), \'up works with bad config';
+	like($lei_err, qr/bad config line.*?\Q$lss[0]\E/,
+		'git config parse error shown w/ lei up');
+	xsys($^X, qw(-i -p -e), "s/\\0/\\[/", $lss[0])
+		and xbail "-ipe $lss[0]: $?";
+	lei_ok qw(ls-search);
+	is($lei_err, '', 'no errors w/ fixed config');
 });
 done_testing;

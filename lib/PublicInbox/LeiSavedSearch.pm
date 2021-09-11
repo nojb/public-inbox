@@ -14,7 +14,7 @@ use PublicInbox::Spawn qw(run_die);
 use PublicInbox::ContentHash qw(git_sha);
 use PublicInbox::MID qw(mids_for_index);
 use Digest::SHA qw(sha256_hex);
-my $LOCAL_PFX = qr!\A(?:maildir|mh|mbox.+|mmdf|v2):!i; # TODO: put in LeiToMail?
+our $LOCAL_PFX = qr!\A(?:maildir|mh|mbox.+|mmdf|v2):!i; # TODO: put in LeiToMail?
 
 # move this to PublicInbox::Config if other things use it:
 my %cquote = ("\n" => '\\n', "\t" => '\\t', "\b" => '\\b');
@@ -27,6 +27,14 @@ sub cquote_val ($) { # cf. git-config(1)
 sub ARRAY_FIELDS () { qw(only include exclude) }
 sub BOOL_FIELDS () {
 	qw(external local remote import-remote import-before threads)
+}
+
+sub cfg_dump ($$) {
+	my ($lei, $f) = @_;
+	my $ret = eval { PublicInbox::Config->git_config_dump($f, $lei->{2}) };
+	return $ret if !$@;
+	$lei->err($@);
+	undef;
 }
 
 sub lss_dir_for ($$;$) {
@@ -56,7 +64,7 @@ sub lss_dir_for ($$;$) {
 		for my $g ("$n[0]-*", '*') {
 			my @maybe = glob("$lss_dir$g/lei.saved-search");
 			for my $f (@maybe) {
-				$c = PublicInbox::Config->git_config_dump($f);
+				$c = cfg_dump($lei, $f) // next;
 				$o = $c->{'lei.q.output'} // next;
 				$o =~ s!$LOCAL_PFX!! or next;
 				@st = stat($o) or next;
@@ -80,9 +88,9 @@ sub list {
 		print $fh "\tpath = ", cquote_val($p), "\n";
 	}
 	close $fh or die "close $f: $!";
-	my $cfg = PublicInbox::Config->git_config_dump($f);
+	my $cfg = cfg_dump($lei, $f);
 	unlink($f);
-	my $out = $cfg->get_all('lei.q.output') or return ();
+	my $out = $cfg ? $cfg->get_all('lei.q.output') : [];
 	map {;
 		s!$LOCAL_PFX!!;
 		$_;
@@ -105,7 +113,7 @@ sub up { # updating existing saved search via "lei up"
 	output2lssdir($self, $lei, \$dir, \$f) or
 		return $lei->fail("--save was not used with $dst cwd=".
 					$lei->rel2abs('.'));
-	$self->{-cfg} = PublicInbox::Config->git_config_dump($f);
+	$self->{-cfg} = cfg_dump($lei, $f) // return $lei->fail;
 	$self->{-ovf} = "$dir/over.sqlite3";
 	$self->{'-f'} = $f;
 	$self->{lock_path} = "$self->{-f}.flock";
@@ -267,69 +275,12 @@ sub output2lssdir {
 	my $dir = lss_dir_for($lei, \$dst, 1);
 	my $f = "$dir/lei.saved-search";
 	if (-f $f && -r _) {
-		$self->{-cfg} = PublicInbox::Config->git_config_dump($f);
+		$self->{-cfg} = cfg_dump($lei, $f) // return;
 		$$dir_ref = $dir;
 		$$fn_ref = $f;
 		return 1;
 	}
 	undef;
-}
-
-sub edit_begin {
-	my ($self, $lei) = @_;
-	if (ref($self->{-cfg}->{'lei.q.output'})) {
-		delete $self->{-cfg}->{'lei.q.output'}; # invalid
-		$lei->err(<<EOM);
-$self->{-f} has multiple values of lei.q.output
-please remove redundant ones
-EOM
-	}
-	$lei->{-lss_for_edit} = $self;
-}
-
-sub edit_done {
-	my ($self, $lei) = @_;
-	my $cfg = PublicInbox::Config->git_config_dump($self->{'-f'});
-	my $new_out = $cfg->{'lei.q.output'} // '';
-	return $lei->fail(<<EOM) if ref $new_out;
-$self->{-f} has multiple values of lei.q.output
-please edit again
-EOM
-	return $lei->fail(<<EOM) if $new_out eq '';
-$self->{-f} needs lei.q.output
-please edit again
-EOM
-	my $old_out = $self->{-cfg}->{'lei.q.output'} // '';
-	return if $old_out eq $new_out;
-	my $old_path = $old_out;
-	my $new_path = $new_out;
-	s!$LOCAL_PFX!! for ($old_path, $new_path);
-	my $dir_old = lss_dir_for($lei, \$old_path, 1);
-	my $dir_new = lss_dir_for($lei, \$new_path);
-	return if $dir_new eq $dir_old; # no change, likely
-
-	($old_out =~ m!\Av2:!i || $new_out =~ m!\Av2:!) and
-		return $lei->fail(<<EOM);
-conversions from/to v2 inboxes not supported at this time
-EOM
-
-	return $lei->fail(<<EOM) if -e $dir_new;
-lei.q.output changed from `$old_out' to `$new_out'
-However, $dir_new exists
-EOM
-	# start the conversion asynchronously
-	my $old_sq = PublicInbox::Config::squote_maybe($old_out);
-	my $new_sq = PublicInbox::Config::squote_maybe($new_out);
-	$lei->puts("lei.q.output changed from $old_sq to $new_sq");
-	$lei->qerr("# lei convert $old_sq -o $new_sq");
-	my $v = !$lei->{opt}->{quiet};
-	$lei->{opt} = { output => $new_out, verbose => $v };
-	require PublicInbox::LeiConvert;
-	PublicInbox::LeiConvert::lei_convert($lei, $old_out);
-
-	$lei->fail(<<EOM) if -e $dir_old && !rename($dir_old, $dir_new);
-E: rename($dir_old, $dir_new) error: $!
-EOM
 }
 
 # cf. LeiDedupe->has_entries

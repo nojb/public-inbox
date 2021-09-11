@@ -164,12 +164,12 @@ sub config_fh_parse ($$$) {
 }
 
 sub git_config_dump {
-	my ($class, $file) = @_;
+	my ($class, $file, $errfh) = @_;
 	return bless {}, $class unless -e $file;
 	my $cmd = [ qw(git config -z -l --includes), "--file=$file" ];
-	my $fh = popen_rd($cmd);
+	my $fh = popen_rd($cmd, undef, { 2 => $errfh // 2 });
 	my $rv = config_fh_parse($fh, "\0", "\n");
-	close $fh or die "failed to close (@$cmd) pipe: $?";
+	close $fh or die "@$cmd failed: \$?=$?\n";
 	bless $rv, $class;
 }
 
