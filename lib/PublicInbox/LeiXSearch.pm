@@ -297,7 +297,9 @@ sub query_remote_mboxrd {
 	local $SIG{TERM} = sub { exit(0) }; # for DESTROY (File::Temp, $reap)
 	my $lei = $self->{lei};
 	my $opt = $lei->{opt};
-	my @qform = (q => $lei->{mset_opt}->{qstr}, x => 'm');
+	my $qstr = $lei->{mset_opt}->{qstr};
+	$qstr =~ s/[ \n\t]+/ /sg; # make URLs less ugly
+	my @qform = (q => $qstr, x => 'm');
 	push(@qform, t => 1) if $opt->{threads};
 	my $verbose = $opt->{verbose};
 	my ($reap_tail, $reap_curl);
