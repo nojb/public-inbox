@@ -11,6 +11,7 @@ require_git(2.6);
 require_mods(qw(json DBD::SQLite Search::Xapian
 		HTTP::Request::Common Plack::Test URI::Escape Plack::Builder));
 use_ok($_) for (qw(HTTP::Request::Common Plack::Test));
+use IO::Uncompress::Gunzip qw(gunzip);
 require PublicInbox::WWW;
 my ($ro_home, $cfg_path) = setup_public_inboxes;
 my ($tmpdir, $for_destroy) = tmpdir;
@@ -18,11 +19,11 @@ my $home = "$tmpdir/home";
 mkdir $home or BAIL_OUT $!;
 mkdir "$home/.public-inbox" or BAIL_OUT $!;
 my $pi_config = "$home/.public-inbox/config";
-cp("$ro_home/.public-inbox/config", $pi_config) or BAIL_OUT;
+cp($cfg_path, $pi_config) or BAIL_OUT;
 my $env = { HOME => $home };
 run_script([qw(-extindex --all), "$tmpdir/eidx"], $env) or BAIL_OUT;
 {
-	open my $cfgfh, '>', $pi_config or BAIL_OUT;
+	open my $cfgfh, '>>', $pi_config or BAIL_OUT;
 	$cfgfh->autoflush(1);
 	print $cfgfh <<EOM or BAIL_OUT;
 [extindex "all"]
@@ -30,6 +31,7 @@ run_script([qw(-extindex --all), "$tmpdir/eidx"], $env) or BAIL_OUT;
 	url = http://bogus.example.com/all
 [publicinbox]
 	wwwlisting = all
+	grokManifest = all
 EOM
 }
 my $www = PublicInbox::WWW->new(PublicInbox::Config->new($pi_config));
@@ -67,6 +69,20 @@ my $client = sub {
 	is($res->code, 404, 'no inboxes matched');
 	unlike($res->content, qr!no inboxes, yet!,
 		'we have inboxes, just no matches');
+
+	my $m = {};
+	for my $pfx (qw(/t1 /t2), '') {
+		$res = $cb->(GET($pfx.'/manifest.js.gz'));
+		gunzip(\($res->content) => \(my $js));
+		$m->{$pfx} = json_utf8->decode($js);
+	}
+	is_deeply([sort keys %{$m->{''}}],
+		[ sort(keys %{$m->{'/t1'}}, keys %{$m->{'/t2'}}) ],
+		't1 + t2 = all');
+	is_deeply([ sort keys %{$m->{'/t2'}} ], [ '/t2/git/0.git' ],
+		't2 manifest');
+	is_deeply([ sort keys %{$m->{'/t1'}} ], [ '/t1' ],
+		't2 manifest');
 };
 test_psgi(sub { $www->call(@_) }, $client);
 %$env = (%$env, TMPDIR => $tmpdir, PI_CONFIG => $pi_config);

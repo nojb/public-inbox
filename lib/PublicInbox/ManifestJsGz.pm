@@ -53,6 +53,7 @@ sub slow_manifest_add ($$) {
 			manifest_add($ctx, $ibx);
 		}
 	};
+	warn "E: $@" if $@;
 }
 
 sub eidx_manifest_add ($$$) {
@@ -65,6 +66,10 @@ sub eidx_manifest_add ($$$) {
 		}
 	} else {
 		warn "E: `${\$ibx->eidx_key}' not indexed by $ALL->{topdir}\n";
+		# do not use slow path for global manifest since
+		# it can become catastrophically slow.  per-inbox manifest
+		# is not too bad with dozens of epochs, so never fail that:
+		slow_manifest_add($ctx, $ibx) if $ibx == $ctx->{ibx};
 	}
 }
 
@@ -85,12 +90,8 @@ sub response {
 sub ibx_entry {
 	my ($ctx, $ibx) = @_;
 	my $ALL = $ctx->{www}->{pi_cfg}->ALL;
-	if ($ALL) { # FIXME: test this in t/
-		eidx_manifest_add($ctx, $ALL, $ibx);
-	} else {
+	$ALL ? eidx_manifest_add($ctx, $ALL, $ibx) :
 		slow_manifest_add($ctx, $ibx);
-		warn "E: $@" if $@;
-	}
 }
 
 sub hide_key { 'manifest' } # for WwwListing->list_match_i
@@ -112,8 +113,7 @@ sub psgi_triple {
 
 sub per_inbox {
 	my ($ctx) = @_;
-	# only one inbox, slow is probably OK
-	slow_manifest_add($ctx, $ctx->{ibx});
+	ibx_entry($ctx, $ctx->{ibx});
 	psgi_triple($ctx);
 }
 
