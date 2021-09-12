@@ -372,4 +372,12 @@ sub index_prepare ($$) {
 	$env;
 }
 
+sub do_chdir ($) {
+	my $chdir = $_[0] // return;
+	for my $d (@$chdir) {
+		next if $d eq ''; # same as git(1)
+		chdir $d or die "cd $d: $!";
+	}
+}
+
 1;

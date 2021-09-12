@@ -468,6 +468,8 @@ sub x_it ($$) {
 		$self->{pkt_op_p}->pkt_do('x_it', $code);
 	} elsif ($self->{sock}) { # to lei(1) client
 		send($self->{sock}, "x_it $code", MSG_EOR);
+	} elsif ($quit == \&CORE::exit) { # an admin command
+		exit($code >> 8);
 	} # else ignore if client disconnected
 }
 
@@ -511,7 +513,7 @@ sub fail ($$;$) {
 	my ($self, $buf, $exit_code) = @_;
 	$self->{failed}++;
 	err($self, $buf) if defined $buf;
-	# calls fail_handler:
+	# calls fail_handler
 	$self->{pkt_op_p}->pkt_do('!') if $self->{pkt_op_p};
 	x_it($self, ($exit_code // 1) << 8);
 	undef;
@@ -536,6 +538,8 @@ sub child_error { # passes non-fatal curl exit codes to user
 		$self->{pkt_op_p}->pkt_do('child_error', $child_error);
 	} elsif ($self->{sock}) { # to lei(1) client
 		send($self->{sock}, "child_error $child_error", MSG_EOR);
+	} else { # non-lei admin command
+		$self->{child_error} ||= $child_error;
 	} # else noop if client disconnected
 }
 

@@ -51,6 +51,7 @@ Documentation/lei.pod
 Documentation/lei_design_notes.txt
 Documentation/marketing.txt
 Documentation/mknews.perl
+Documentation/public-inbox-clone.pod
 Documentation/public-inbox-compact.pod
 Documentation/public-inbox-config.pod
 Documentation/public-inbox-convert.pod
@@ -58,6 +59,7 @@ Documentation/public-inbox-daemon.pod
 Documentation/public-inbox-edit.pod
 Documentation/public-inbox-extindex-format.pod
 Documentation/public-inbox-extindex.pod
+Documentation/public-inbox-fetch.pod
 Documentation/public-inbox-glossary.pod
 Documentation/public-inbox-httpd.pod
 Documentation/public-inbox-imapd.pod
@@ -163,6 +165,7 @@ lib/PublicInbox/ExtSearchIdx.pm
 lib/PublicInbox/FakeImport.pm
 lib/PublicInbox/FakeInotify.pm
 lib/PublicInbox/Feed.pm
+lib/PublicInbox/Fetch.pm
 lib/PublicInbox/Filter/Base.pm
 lib/PublicInbox/Filter/Gmane.pm
 lib/PublicInbox/Filter/Mirror.pm
@@ -329,10 +332,12 @@ sa_config/README
 sa_config/root/etc/spamassassin/public-inbox.pre
 sa_config/user/.spamassassin/user_prefs
 script/lei
+script/public-inbox-clone
 script/public-inbox-compact
 script/public-inbox-convert
 script/public-inbox-edit
 script/public-inbox-extindex
+script/public-inbox-fetch
 script/public-inbox-httpd
 script/public-inbox-imapd
 script/public-inbox-index

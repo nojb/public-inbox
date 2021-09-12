@@ -1,0 +1,35 @@
+#!perl -w
+# Copyright (C) all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+# Wrapper to git fetch remote public-inboxes
+use strict;
+use v5.10.1;
+use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
+my $opt = {};
+my $help = <<EOF; # the following should fit w/o scrolling in 80x24 term:
+usage: public-inbox-fetch -C DESTINATION
+
+  fetch remote public-inboxes
+
+options:
+
+  --torsocks VAL      whether or not to wrap git and curl commands with
+                      torsocks (default: `auto')
+                      Must be one of: `auto', `no' or `yes'
+  --verbose | -v      increase verbosity (may be repeated)
+    --quiet | -q      increase verbosity (may be repeated)
+    -C DIR            chdir to specified directory
+EOF
+GetOptions($opt, qw(help|h quiet|q verbose|v+ C=s@ c=s@
+	no-torsocks torsocks=s)) or die $help;
+if ($opt->{help}) { print $help; exit };
+require PublicInbox::Fetch; # loads Admin
+PublicInbox::Admin::do_chdir(delete $opt->{C});
+PublicInbox::Admin::setup_signals();
+$SIG{PIPE} = 'IGNORE';
+
+my $lei = bless {
+	env => \%ENV, opt => $opt, cmd => 'public-inbox-fetch',
+	0 => *STDIN{GLOB}, 1 => *STDOUT{GLOB}, 2 => *STDERR{GLOB},
+}, 'PublicInbox::LEI';
+PublicInbox::Fetch->do_fetch($lei, '.');

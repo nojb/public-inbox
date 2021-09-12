@@ -46,6 +46,7 @@ test_lei({ tmpdir => $tmpdir }, sub {
 
 	lei_ok('add-external', "$t1-pfx", '--mirror', "$http/pfx/t1/",
 			\'--mirror v1 w/ PSGI prefix');
+	ok(!-e "$t1-pfx/mirror.done", 'no leftover mirror.done');
 
 	my $d = "$home/404";
 	ok(!lei(qw(add-external --mirror), "$http/404", $d), 'mirror 404');
@@ -76,6 +77,34 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	} # SKIP
 	} # for
 });
+
+SKIP: {
+	undef $sock;
+	my $d = "$tmpdir/d";
+	mkdir $d or xbail "mkdir $d $!";
+	my $opt = { -C => $d, 2 => \(my $err) };
+	ok(!run_script([qw(-clone -q), "$http/404"], undef, $opt), '404 fails');
+	ok(!-d "$d/404", 'destination not created');
+	delete $opt->{2};
+
+	ok(run_script([qw(-clone -q -C), $d, "$http/t2"], undef, $opt),
+		'-clone succeeds on v2');
+	ok(-d "$d/t2/git/0.git", 'epoch cloned');
+	ok(-f "$d/t2/manifest.js.gz", 'manifest saved');
+	ok(!-e "$d/t2/mirror.done", 'no leftover mirror.done');
+	ok(run_script([qw(-fetch -q -C), "$d/t2"], undef, $opt),
+		'-fetch succeeds w/ manifest.js.gz');
+	unlink("$d/t2/manifest.js.gz") or xbail "unlink $!";
+	ok(run_script([qw(-fetch -q -C), "$d/t2"], undef, $opt),
+		'-fetch succeeds w/o manifest.js.gz');
+
+	ok(run_script([qw(-clone -q -C), $d, "$http/t1"], undef, $opt),
+		'cloning v1 works');
+	ok(-d "$d/t1", 'v1 cloned');
+	ok(!-e "$d/t1/mirror.done", 'no leftover file');
+	ok(run_script([qw(-fetch -q -C), "$d/t1"], undef, $opt),
+		'fetching v1 works');
+}
 
 ok($td->kill, 'killed -httpd');
 $td->join;

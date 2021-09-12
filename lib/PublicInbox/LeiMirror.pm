@@ -8,6 +8,7 @@ use v5.10.1;
 use parent qw(PublicInbox::IPC);
 use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
 use PublicInbox::Spawn qw(popen_rd spawn);
+use File::Temp ();
 
 sub do_finish_mirror { # dwaitpid callback
 	my ($arg, $pid) = @_;
@@ -18,7 +19,9 @@ sub do_finish_mirror { # dwaitpid callback
 	} elsif (!unlink($f)) {
 		$lei->err("unlink($f): $!") unless $!{ENOENT};
 	} else {
-		$lei->add_external_finish($mrr->{dst});
+		if ($lei->{cmd} ne 'public-inbox-clone') {
+			$lei->add_external_finish($mrr->{dst});
+		}
 		$lei->qerr("# mirrored $mrr->{src} => $mrr->{dst}");
 	}
 	$lei->dclose;
@@ -121,33 +124,38 @@ sub _try_config {
 
 sub index_cloned_inbox {
 	my ($self, $iv) = @_;
-	my $ibx = delete($self->{ibx}) // {
-		address => [ 'lei@example.com' ],
-		version => $iv,
-	};
-	$ibx->{inboxdir} = $self->{dst};
-	PublicInbox::Inbox->new($ibx);
-	PublicInbox::InboxWritable->new($ibx);
-	my $opt = {};
 	my $lei = $self->{lei};
-	for my $sw ($lei->index_opt) {
-		my ($k) = ($sw =~ /\A([\w-]+)/);
-		$opt->{$k} = $lei->{opt}->{$k};
+
+	# n.b. public-inbox-clone works w/o (SQLite || Xapian)
+	# lei is useless without Xapian + SQLite
+	if ($lei->{cmd} ne 'public-inbox-clone') {
+		my $ibx = delete($self->{ibx}) // {
+			address => [ 'lei@example.com' ],
+			version => $iv,
+		};
+		$ibx->{inboxdir} = $self->{dst};
+		PublicInbox::Inbox->new($ibx);
+		PublicInbox::InboxWritable->new($ibx);
+		my $opt = {};
+		for my $sw ($lei->index_opt) {
+			my ($k) = ($sw =~ /\A([\w-]+)/);
+			$opt->{$k} = $lei->{opt}->{$k};
+		}
+		# force synchronous dwaitpid for v2:
+		local $PublicInbox::DS::in_loop = 0;
+		my $cfg = PublicInbox::Config->new(undef, $lei->{2});
+		my $env = PublicInbox::Admin::index_prepare($opt, $cfg);
+		local %ENV = (%ENV, %$env) if $env;
+		PublicInbox::Admin::progress_prepare($opt, $lei->{2});
+		PublicInbox::Admin::index_inbox($ibx, undef, $opt);
 	}
-	# force synchronous dwaitpid for v2:
-	local $PublicInbox::DS::in_loop = 0;
-	my $cfg = PublicInbox::Config->new(undef, $lei->{2});
-	my $env = PublicInbox::Admin::index_prepare($opt, $cfg);
-	local %ENV = (%ENV, %$env) if $env;
-	PublicInbox::Admin::progress_prepare($opt, $lei->{2});
-	PublicInbox::Admin::index_inbox($ibx, undef, $opt);
 	open my $x, '>', "$self->{dst}/mirror.done"; # for do_finish_mirror
 }
 
 sub run_reap {
 	my ($lei, $cmd, $opt) = @_;
 	$lei->qerr("# @$cmd");
-	$opt->{pgid} = 0;
+	$opt->{pgid} = 0 if $lei->{sock};
 	my $pid = spawn($cmd, undef, $opt);
 	my $reap = PublicInbox::OnDestroy->new($lei->can('sigint_reap'), $pid);
 	waitpid($pid, 0) == $pid or die "waitpid @$cmd: $!";
@@ -205,12 +213,25 @@ sub deduce_epochs ($$) {
 	my ($m, $path) = @_;
 	my ($v1_bare, @v2_epochs);
 	my $path_pfx = '';
+	$path =~ s!/+\z!!;
 	do {
 		$v1_bare = $m->{$path};
 		@v2_epochs = grep(m!\A\Q$path\E/git/[0-9]+\.git\z!, keys %$m);
 	} while (!defined($v1_bare) && !@v2_epochs &&
 		$path =~ s!\A(/[^/]+)/!/! and $path_pfx .= $1);
 	($path_pfx, $v1_bare, @v2_epochs);
+}
+
+sub decode_manifest ($$$) {
+	my ($fh, $fn, $uri) = @_;
+	my $js;
+	my $gz = do { local $/; <$fh> } // die "slurp($fn): $!";
+	gunzip(\$gz => \$js, MultiStream => 1) or
+		die "gunzip($uri): $GunzipError\n";
+	my $m = eval { PublicInbox::Config->json->decode($js) };
+	die "$uri: error decoding `$js': $@\n" if $@;
+	ref($m) eq 'HASH' or die "$uri unknown type: ".ref($m);
+	$m;
 }
 
 sub try_manifest {
@@ -221,26 +242,19 @@ sub try_manifest {
 	my $path = $uri->path;
 	chop($path) eq '/' or die "BUG: $uri not canonicalized";
 	$uri->path($path . '/manifest.js.gz');
-	my $cmd = $curl->for_uri($lei, $uri);
-	$lei->qerr("# @$cmd");
-	my $opt = { 0 => $lei->{0}, 2 => $lei->{2} };
-	my ($fh, $pid) = popen_rd($cmd, undef, $opt);
-	my $reap = PublicInbox::OnDestroy->new($lei->can('sigint_reap'), $pid);
-	my $gz = do { local $/; <$fh> } // die "read(curl $uri): $!";
-	close $fh;
-	waitpid($pid, 0) == $pid or die "waitpid @$cmd: $!";
-	@$reap = ();
-	if ($?) {
-		return try_scrape($self) if ($? >> 8) == 22; # 404 missing
-		return $lei->child_error($?, "@$cmd failed");
+	my $pdir = $lei->rel2abs($self->{dst});
+	$pdir =~ s!/[^/]+/?\z!!;
+	my $ft = File::Temp->new(TEMPLATE => 'manifest-XXXX',
+				UNLINK => 1, DIR => $pdir);
+	my $fn = $ft->filename;
+	my $cmd = $curl->for_uri($lei, $uri, '-R', '-o', $fn);
+	my $opt = { 0 => $lei->{0}, 1 => $lei->{1}, 2 => $lei->{2} };
+	my $cerr = run_reap($lei, $cmd, $opt);
+	if ($cerr) {
+		return try_scrape($self) if ($cerr >> 8) == 22; # 404 missing
+		return $lei->child_error($cerr, "@$cmd failed");
 	}
-	my $js;
-	gunzip(\$gz => \$js, MultiStream => 1) or
-		die "gunzip($uri): $GunzipError";
-	my $m = eval { PublicInbox::Config->json->decode($js) };
-	die "$uri: error decoding `$js': $@" if $@;
-	ref($m) eq 'HASH' or die "$uri unknown type: ".ref($m);
-
+	my $m = decode_manifest($ft, $fn, $uri);
 	my ($path_pfx, $v1_bare, @v2_epochs) = deduce_epochs($m, $path);
 	if (@v2_epochs) {
 		# It may be possible to have v1 + v2 in parallel someday:
@@ -254,6 +268,9 @@ EOM
 			$uri->clone
 		} @v2_epochs;
 		clone_v2($self, \@v2_epochs);
+		my $fin = "$self->{dst}/manifest.js.gz";
+		rename($fn, $fin) or die "E: rename($fn, $fin): $!";
+		$ft->unlink_on_destroy(0);
 	} elsif (defined $v1_bare) {
 		clone_v1($self);
 	} else {

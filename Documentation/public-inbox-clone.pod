@@ -1,0 +1,71 @@
+=head1 NAME
+
+public-inbox-clone - "git clone --mirror" wrapper
+
+=head1 SYNOPSIS
+
+public-inbox-clone INBOX_URL [INBOX_DIR]
+
+=head1 DESCRIPTION
+
+public-inbox-clone is a wrapper around C<git clone --mirror> for
+making the initial clone of a remote HTTP(S) public-inbox.  It
+allows cloning multi-epoch v2 inboxes with a single command and
+zero configuration.
+
+It does not run L<public-inbox-init(1)> nor
+L<public-inbox-index(1)>.  Those commands must be run separately
+if serving/searching the mirror is required.  As-is,
+public-inbox-clone is suitable for creating a git-only backup.
+
+public-inbox-clone does not use nor require any extra
+configuration files (not even C<~/.public-inbox/config>).
+
+L<public-inbox-fetch(1)> may be used to keep C<INBOX_DIR>
+up-to-date.
+
+For v2 inboxes, it will create a C<$INBOX_DIR/manifest.js.gz>
+file to speed up subsequent L<public-inbox-fetch(1)>.
+
+=head1 OPTIONS
+
+=over
+
+=item -q
+
+=item --quiet
+
+Quiets down progress messages, also passed to L<git-fetch(1)>.
+
+=item -v
+
+=item --verbose
+
+Increases verbosity, also passed to L<git-fetch(1)>.
+
+=item --torsocks=auto|no|yes
+
+=item --no-torsocks
+
+Whether to wrap L<git(1)> and L<curl(1)> commands with torsocks.
+
+Default: C<auto>
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/> and
+L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<public-inbox-fetch(1)>, L<public-inbox-init(1)>, L<public-inbox-index(1)>

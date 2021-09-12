@@ -1,0 +1,58 @@
+#!perl -w
+# Copyright (C) all contributors <meta@public-inbox.org>
+# License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+# Wrapper to git clone remote public-inboxes
+use strict;
+use v5.10.1;
+use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
+my $opt = {};
+my $help = <<EOF; # the following should fit w/o scrolling in 80x24 term:
+usage: public-inbox-clone INBOX_URL [DESTINATION]
+
+  clone remote public-inboxes
+
+options:
+
+  --torsocks VAL      whether or not to wrap git and curl commands with
+                      torsocks (default: `auto')
+                      Must be one of: `auto', `no' or `yes'
+  --verbose | -v      increase verbosity (may be repeated)
+    --quiet | -q      increase verbosity (may be repeated)
+    -C DIR            chdir to specified directory
+EOF
+GetOptions($opt, qw(help|h quiet|q verbose|v+ C=s@ c=s@
+		no-torsocks torsocks=s)) or die $help;
+if ($opt->{help}) { print $help; exit };
+require PublicInbox::Admin; # loads Config
+PublicInbox::Admin::do_chdir(delete $opt->{C});
+PublicInbox::Admin::setup_signals();
+$SIG{PIPE} = 'IGNORE';
+
+my ($url, $dst, $extra) = @ARGV;
+die $help if !defined($url) || defined($extra);
+defined($dst) or ($dst) = ($url =~ m!/([^/]+)/?\z!);
+index($dst, "\n") >= 0 and die "`\\n' not allowed in `$dst'";
+
+# n.b. this is still a truckload of code...
+require URI;
+require PublicInbox::LEI;
+require PublicInbox::LeiExternal;
+require PublicInbox::LeiMirror;
+require PublicInbox::LeiCurl;
+require PublicInbox::Lock;
+
+$url = PublicInbox::LeiExternal::ext_canonicalize($url);
+my $lei = bless {
+	env => \%ENV, opt => $opt, cmd => 'public-inbox-clone',
+	0 => *STDIN{GLOB}, 2 => *STDERR{GLOB},
+}, 'PublicInbox::LEI';
+open $lei->{1}, '+<&=', 1 or die "dup: $!";
+open $lei->{3}, '.' or die "open . $!";
+my $mrr = bless {
+	lei => $lei,
+	src => $url,
+	dst => $dst,
+}, 'PublicInbox::LeiMirror';
+$mrr->do_mirror;
+$mrr->can('do_finish_mirror')->([$mrr, $lei], $$);
+exit(($lei->{child_error} // 0) >> 8);
