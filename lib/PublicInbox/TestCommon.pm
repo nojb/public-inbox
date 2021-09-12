@@ -521,7 +521,8 @@ SKIP: {
 	local $lei_cwdfh;
 	opendir $lei_cwdfh, '.' or xbail "opendir .: $!";
 	require_git(2.6, 1) or skip('git 2.6+ required for lei test', 2);
-	require_mods(qw(json DBD::SQLite Search::Xapian), 2);
+	my $mods = $test_opt->{mods} // [ 'lei' ];
+	require_mods(@$mods, 2);
 	require PublicInbox::Config;
 	require File::Path;
 	local %ENV = %ENV;
@@ -534,10 +535,11 @@ SKIP: {
 	require PublicInbox::Spawn;
 	state $lei_daemon = PublicInbox::Spawn->can('send_cmd4') ||
 				eval { require Socket::MsgHdr; 1 };
-	# XXX fix and move this inside daemon-only before 1.7 release
-	skip <<'EOM', 1 unless $lei_daemon;
-Socket::MsgHdr missing or Inline::C is unconfigured/missing
-EOM
+	unless ($lei_daemon) {
+		skip('Inline::C unconfigured/missing '.
+'(mkdir -p ~/.cache/public-inbox/inline-c) OR Socket::MsgHdr missing',
+			1);
+	}
 	$lei_opt = { 1 => \$lei_out, 2 => \$lei_err };
 	my ($daemon_pid, $for_destroy, $daemon_xrd);
 	my $tmpdir = $test_opt->{tmpdir};

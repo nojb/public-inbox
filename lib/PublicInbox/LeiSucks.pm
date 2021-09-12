@@ -11,7 +11,6 @@ use Digest::SHA ();
 use Config;
 use POSIX ();
 use PublicInbox::Config;
-use PublicInbox::Search;
 
 sub lei_sucks {
 	my ($lei, @argv) = @_;
@@ -41,7 +40,8 @@ sub lei_sucks {
 	} else {
 		push @out, "Unable to load DBI / DBD::SQLite: $@\n";
 	}
-	if (PublicInbox::Search::load_xapian()) {
+	if (eval { require PublicInbox::Search } &&
+			PublicInbox::Search::load_xapian()) {
 		push @out, 'Xapian '.
 			join('.', map {
 				$PublicInbox::Search::Xap->can($_)->();

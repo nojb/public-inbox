@@ -176,4 +176,8 @@ test_lei(sub {
 	$test_fail->();
 });
 
+test_lei({ mods => [] }, sub {
+	lei_ok('sucks', \'no optional modules required');
+});
+
 done_testing;
