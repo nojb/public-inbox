@@ -103,7 +103,7 @@ sub _try_config {
 	my $f = "$ce-$$.tmp";
 	open(my $fh, '+>', $f) or return $lei->err("open $f: $! (non-fatal)");
 	my $opt = { 0 => $lei->{0}, 1 => $fh, 2 => $lei->{2} };
-	my $cerr = run_reap($lei, $cmd, $opt) // return;
+	my $cerr = run_reap($lei, $cmd, $opt);
 	if (($cerr >> 8) == 22) { # 404 missing
 		unlink($f) if -s $fh == 0;
 		return;
@@ -150,9 +150,9 @@ sub run_reap {
 	$opt->{pgid} = 0;
 	my $pid = spawn($cmd, undef, $opt);
 	my $reap = PublicInbox::OnDestroy->new($lei->can('sigint_reap'), $pid);
-	my $err = waitpid($pid, 0) == $pid ? undef : "waitpid @$cmd: $!";
+	waitpid($pid, 0) == $pid or die "waitpid @$cmd: $!";
 	@$reap = (); # cancel reap
-	$err ? $lei->err($err) : $?
+	$?
 }
 
 sub clone_v1 {
@@ -163,7 +163,7 @@ sub clone_v1 {
 	my $pfx = $curl->torsocks($lei, $uri) or return;
 	my $cmd = [ @$pfx, clone_cmd($lei, my $opt = {}),
 			$uri->as_string, $self->{dst} ];
-	my $cerr = run_reap($lei, $cmd, $opt) // return;
+	my $cerr = run_reap($lei, $cmd, $opt);
 	return $lei->child_error($cerr, "@$cmd failed") if $cerr;
 	_try_config($self);
 	index_cloned_inbox($self, 1);
@@ -193,7 +193,7 @@ failed to extract epoch number from $src
 	my @cmd = clone_cmd($lei, my $opt = {});
 	while (my $pair = shift(@src_edst)) {
 		my $cmd = [ @$pfx, @cmd, @$pair ];
-		my $cerr = run_reap($lei, $cmd, $opt) // return;
+		my $cerr = run_reap($lei, $cmd, $opt);
 		return $lei->child_error($cerr, "@$cmd failed") if $cerr;
 	}
 	undef $on_destroy; # unlock
@@ -228,9 +228,8 @@ sub try_manifest {
 	my $reap = PublicInbox::OnDestroy->new($lei->can('sigint_reap'), $pid);
 	my $gz = do { local $/; <$fh> } // die "read(curl $uri): $!";
 	close $fh;
-	my $err = waitpid($pid, 0) == $pid ? undef : "waitpid @$cmd: $!";
+	waitpid($pid, 0) == $pid or die "waitpid @$cmd: $!";
 	@$reap = ();
-	return $lei->err($err) if $err;
 	if ($?) {
 		return try_scrape($self) if ($? >> 8) == 22; # 404 missing
 		return $lei->child_error($?, "@$cmd failed");
