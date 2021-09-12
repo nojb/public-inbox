@@ -109,7 +109,7 @@ sub _try_config {
 		return;
 	}
 	return $lei->err("# @$cmd failed (non-fatal)") if $cerr;
-	rename($f, $ce) or return $lei->err("link($f, $ce): $! (non-fatal)");
+	rename($f, $ce) or return $lei->err("rename($f, $ce): $! (non-fatal)");
 	my $cfg = PublicInbox::Config->git_config_dump($f, $lei->{2});
 	my $ibx = $self->{ibx} = {};
 	for my $sec (grep(/\Apublicinbox\./, @{$cfg->{-section_order}})) {
