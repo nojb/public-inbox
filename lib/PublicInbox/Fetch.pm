@@ -35,49 +35,13 @@ sub remote_url ($$) {
 	my $fh = popen_rd($cmd, undef, { -C => $dir, 2 => $lei->{2} });
 	my $url = <$fh>;
 	close $fh or return;
-	chomp $url;
+	$url =~ s!/*\n!!s;
 	$url;
 }
 
-sub do_fetch {
-	my ($cls, $lei, $cd) = @_;
-	my $ibx_ver;
-	my $curl = PublicInbox::LeiCurl->new($lei) or return;
-	my $dir = PublicInbox::Admin::resolve_inboxdir($cd, \$ibx_ver);
-	if ($ibx_ver == 1) {
-		my $url = remote_url($lei, $dir) //
-			die "E: $dir missing remote.origin.url\n";
-		my $uri = URI->new($url);
-		my $torsocks = $curl->torsocks($lei, $uri);
-		my $opt = { -C => $dir };
-		my $cmd = [ @$torsocks, fetch_cmd($lei, $opt) ];
-		my $cerr = PublicInbox::LeiMirror::run_reap($lei, $cmd, $opt);
-		$lei->child_error($cerr, "@$cmd failed") if $cerr;
-		return;
-	}
-	# v2:
-	opendir my $dh, "$dir/git" or die "opendir $dir/git: $!";
-	my @epochs = sort { $b <=> $a } map { substr($_, 0, -4) + 0 }
-				grep(/\A[0-9]+\.git\z/, readdir($dh));
-	my ($git_url, $epoch);
-	for my $nr (@epochs) { # try newest epoch, first
-		my $edir = "$dir/git/$nr.git";
-		if (defined(my $url = remote_url($lei, $edir))) {
-			$git_url = $url;
-			$epoch = $nr;
-			last;
-		} else {
-			warn "W: $edir missing remote.origin.url\n";
-		}
-	}
-	$git_url or die "Unable to determine git URL\n";
-	my $inbox_url = $git_url;
-	$inbox_url =~ s!/git/$epoch(?:\.git)?/?\z!! or
-		$inbox_url =~ s!/$epoch(?:\.git)?/?\z!! or die <<EOM;
-Unable to infer inbox URL from <$git_url>
-EOM
-	$lei->qerr("# inbox URL: $inbox_url/");
-	my $muri = URI->new("$inbox_url/manifest.js.gz");
+sub do_manifest ($$$) {
+	my ($lei, $dir, $ibx_uri) = @_;
+	my $muri = URI->new("$ibx_uri/manifest.js.gz");
 	my $ft = File::Temp->new(TEMPLATE => 'manifest-XXXX',
 				UNLINK => 1, DIR => $dir);
 	my $fn = $ft->filename;
@@ -91,13 +55,16 @@ EOM
 		$lei->err($@) if $@;
 		push @opt, '-z', $mf if defined($m0);
 	}
-	my $curl_cmd = $curl->for_uri($lei, $muri, @opt);
+	my $curl_cmd = $lei->{curl}->for_uri($lei, $muri, @opt);
 	my $opt = {};
 	$opt->{$_} = $lei->{$_} for (0..2);
 	my $cerr = PublicInbox::LeiMirror::run_reap($lei, $curl_cmd, $opt);
-	return $lei->child_error($cerr, "@$curl_cmd failed") if $cerr;
-	return if !-s $ft; # 304 Not Modified via curl -z
-
+	if ($cerr) {
+		return [ 404 ] if ($cerr >> 8) == 22; # 404 Missing
+		$lei->child_error($cerr, "@$curl_cmd failed");
+		return;
+	}
+	return [ 304 ] if !-s $ft; # 304 Not Modified via curl -z
 	my $m1 = PublicInbox::LeiMirror::decode_manifest($ft, $fn, $muri);
 	my $mdiff = { %$m1 };
 
@@ -110,36 +77,96 @@ EOM
 		my $t1 = $cur->{modified} // next;
 		delete($mdiff->{$k}) if $f0 eq $f1 && $t0 == $t1;
 	}
-	my $ibx_uri = URI->new("$inbox_url/");
 	my ($path_pfx, $v1_bare, @v2_epochs) =
 		PublicInbox::LeiMirror::deduce_epochs($mdiff, $ibx_uri->path);
-	defined($v1_bare) and die <<EOM;
+	[ 200, $path_pfx, $v1_bare, \@v2_epochs, $muri, $ft, $mf ];
+}
+
+sub do_fetch {
+	my ($cls, $lei, $cd) = @_;
+	my $ibx_ver;
+	$lei->{curl} //= PublicInbox::LeiCurl->new($lei) or return;
+	my $dir = PublicInbox::Admin::resolve_inboxdir($cd, \$ibx_ver);
+	my ($ibx_uri, @git_dir, @epochs);
+	if ($ibx_ver == 1) {
+		my $url = remote_url($lei, $dir) //
+			die "E: $dir missing remote.origin.url\n";
+		$ibx_uri = URI->new($url);
+	} else { # v2:
+		opendir my $dh, "$dir/git" or die "opendir $dir/git: $!";
+		@epochs = sort { $b <=> $a } map { substr($_, 0, -4) + 0 }
+					grep(/\A[0-9]+\.git\z/, readdir($dh));
+		my ($git_url, $epoch);
+		for my $nr (@epochs) { # try newest epoch, first
+			my $edir = "$dir/git/$nr.git";
+			if (defined(my $url = remote_url($lei, $edir))) {
+				$git_url = $url;
+				$epoch = $nr;
+				last;
+			} else {
+				warn "W: $edir missing remote.origin.url\n";
+			}
+		}
+		$git_url or die "Unable to determine git URL\n";
+		my $inbox_url = $git_url;
+		$inbox_url =~ s!/git/$epoch(?:\.git)?/?\z!! or
+			$inbox_url =~ s!/$epoch(?:\.git)?/?\z!! or die <<EOM;
+Unable to infer inbox URL from <$git_url>
+EOM
+		$ibx_uri = URI->new($inbox_url);
+	}
+	$lei->qerr("# inbox URL: $ibx_uri/");
+	my $res = do_manifest($lei, $dir, $ibx_uri) or return;
+	my ($code, $path_pfx, $v1_bare, $v2_epochs, $muri, $ft, $mf) = @$res;
+	return if $code == 304;
+	if ($code == 404) {
+		# any pre-manifest.js.gz instances running? Just fetch all
+		# existing ones and unconditionally try cloning the next
+		$v2_epochs = [ map {;
+				"$dir/git/$_.git";
+				} @epochs ];
+		push @$v2_epochs, "$dir/git/".($epochs[-1] + 1) if @epochs;
+	} else {
+		$code == 200 or die "BUG unexpected code $code\n";
+	}
+	if ($ibx_ver == 2) {
+		defined($v1_bare) and warn <<EOM;
 E: got v1 `$v1_bare' when expecting v2 epoch(s) in <$muri>, WTF?
 EOM
-	my @epoch_nr = sort { $a <=> $b }
-		map { my ($nr) = (m!/([0-9]+)\.git\z!g) } @v2_epochs;
-
+		@git_dir = map { "$dir/git/$_.git" } sort { $a <=> $b }
+			map { my ($nr) = (m!/([0-9]+)\.git\z!g) } @$v2_epochs;
+	} else {
+		$v1_bare eq $dir or warn "$v1_bare != $dir";
+		$git_dir[0] = $v1_bare // $dir;
+	}
 	# n.b. this expects all epochs are from the same host
-	my $torsocks = $curl->torsocks($lei, $muri);
-	for my $nr (@epoch_nr) {
-		my $dir = "$dir/git/$nr.git";
+	my $torsocks = $lei->{curl}->torsocks($lei, $muri);
+	for my $d (@git_dir) {
 		my $cmd;
-		my $opt = {};
-		if (-d $dir) {
-			$opt->{-C} = $dir;
+		my $opt = {}; # for spawn
+		if (-d $d) {
+			$opt->{-C} = $d;
 			$cmd = [ @$torsocks, fetch_cmd($lei, $opt) ];
 		} else {
 			my $e_uri = $ibx_uri->clone;
-			$e_uri->path($ibx_uri->path."git/$nr.git");
+			my ($epath) = ($d =~ m!/(git/[0-9]+\.git)\z!);
+			$e_uri->path($ibx_uri->path.$epath);
 			$cmd = [ @$torsocks,
 				PublicInbox::LeiMirror::clone_cmd($lei, $opt),
-				$$e_uri, $dir ];
+				$$e_uri, $d];
 		}
 		my $cerr = PublicInbox::LeiMirror::run_reap($lei, $cmd, $opt);
-		return $lei->child_error($cerr, "@$cmd failed") if $cerr;
+		# do not bail on clone failure if we didn't have a manifest
+		if ($cerr && ($code == 200 || -d $d)) {
+			$lei->child_error($cerr, "@$cmd failed");
+			return;
+		}
 	}
-	rename($fn, $mf) or die "E: rename($fn, $mf): $!\n";
-	$ft->unlink_on_destroy(0);
+	if ($ft) {
+		my $fn = $ft->filename;
+		rename($fn, $mf) or die "E: rename($fn, $mf): $!\n";
+		$ft->unlink_on_destroy(0);
+	}
 }
 
 1;

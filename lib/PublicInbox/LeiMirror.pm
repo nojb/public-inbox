@@ -295,15 +295,15 @@ EOM
 			$uri->clone
 		} @v2_epochs;
 		clone_v2($self, \@v2_epochs);
-		my $fin = "$self->{dst}/manifest.js.gz";
-		rename($fn, $fin) or die "E: rename($fn, $fin): $!";
-		$ft->unlink_on_destroy(0);
 	} elsif (defined $v1_bare) {
 		clone_v1($self);
 	} else {
 		die "E: confused by <$uri>, possible matches:\n\t",
 			join(', ', sort keys %$m), "\n";
 	}
+	my $fin = "$self->{dst}/manifest.js.gz";
+	rename($fn, $fin) or die "E: rename($fn, $fin): $!";
+	$ft->unlink_on_destroy(0);
 }
 
 sub start_clone_url {
