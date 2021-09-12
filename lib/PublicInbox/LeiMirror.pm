@@ -181,7 +181,7 @@ sub index_cloned_inbox {
 
 sub run_reap {
 	my ($lei, $cmd, $opt) = @_;
-	$lei->qerr("# @$cmd");
+	$lei->qerr("# @$cmd" . ($opt->{-C} ? " (in $opt->{-C})" : ''));
 	$opt->{pgid} = 0 if $lei->{sock};
 	my $pid = spawn($cmd, undef, $opt);
 	my $reap = PublicInbox::OnDestroy->new($lei->can('sigint_reap'), $pid);

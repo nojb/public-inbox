@@ -53,7 +53,6 @@ sub do_manifest ($$$) {
 			PublicInbox::LeiMirror::decode_manifest($fh, $mf, $mf)
 		};
 		$lei->err($@) if $@;
-		push @opt, '-z', $mf if defined($m0);
 	}
 	my $curl_cmd = $lei->{curl}->for_uri($lei, $muri, @opt);
 	my $opt = {};
@@ -64,11 +63,11 @@ sub do_manifest ($$$) {
 		$lei->child_error($cerr, "@$curl_cmd failed");
 		return;
 	}
-	return [ 304 ] if !-s $ft; # 304 Not Modified via curl -z
 	my $m1 = PublicInbox::LeiMirror::decode_manifest($ft, $fn, $muri);
 	my $mdiff = { %$m1 };
 
-	# filter out unchanged entries
+	# filter out unchanged entries.  We check modified, too, since
+	# fingerprints are SHA-1, so there's a teeny chance they'll collide
 	while (my ($k, $v0) = each %{$m0 // {}}) {
 		my $cur = $m1->{$k} // next;
 		my $f0 = $v0->{fingerprint} // next;
@@ -77,6 +76,7 @@ sub do_manifest ($$$) {
 		my $t1 = $cur->{modified} // next;
 		delete($mdiff->{$k}) if $f0 eq $f1 && $t0 == $t1;
 	}
+	return unless keys %$mdiff;
 	my (undef, $v1_path, @v2_epochs) =
 		PublicInbox::LeiMirror::deduce_epochs($mdiff, $ibx_uri->path);
 	[ 200, $v1_path, \@v2_epochs, $muri, $ft, $mf ];
@@ -118,7 +118,6 @@ EOM
 	$lei->qerr("# inbox URL: $ibx_uri/");
 	my $res = do_manifest($lei, $dir, $ibx_uri) or return;
 	my ($code, $v1_path, $v2_epochs, $muri, $ft, $mf) = @$res;
-	return if $code == 304;
 	if ($code == 404) {
 		# any pre-manifest.js.gz instances running? Just fetch all
 		# existing ones and unconditionally try cloning the next
