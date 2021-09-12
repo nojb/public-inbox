@@ -110,6 +110,14 @@ SKIP: {
 	ok(!-e "$d/t1/mirror.done", 'no leftover file');
 	ok(run_script([qw(-fetch -q -C), "$d/t1"], undef, $opt),
 		'fetching v1 works');
+	unlink("$d/t1/manifest.js.gz") or xbail "unlink $!";
+	my $before = [ glob("$d/t1/*") ];
+	ok(run_script([qw(-fetch -q -C), "$d/t1"], undef, $opt),
+		'fetching v1 works w/o manifest.js.gz');
+	unlink("$d/t1/FETCH_HEAD"); # git internal
+	ok(unlink("$d/t1/manifest.js.gz"), 'manifest created');
+	my $after = [ glob("$d/t1/*") ];
+	is_deeply($before, $after, 'no new files created');
 }
 
 ok($td->kill, 'killed -httpd');

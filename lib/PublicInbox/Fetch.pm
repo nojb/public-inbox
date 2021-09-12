@@ -77,9 +77,9 @@ sub do_manifest ($$$) {
 		my $t1 = $cur->{modified} // next;
 		delete($mdiff->{$k}) if $f0 eq $f1 && $t0 == $t1;
 	}
-	my ($path_pfx, $v1_bare, @v2_epochs) =
+	my (undef, $v1_path, @v2_epochs) =
 		PublicInbox::LeiMirror::deduce_epochs($mdiff, $ibx_uri->path);
-	[ 200, $path_pfx, $v1_bare, \@v2_epochs, $muri, $ft, $mf ];
+	[ 200, $v1_path, \@v2_epochs, $muri, $ft, $mf ];
 }
 
 sub do_fetch {
@@ -117,7 +117,7 @@ EOM
 	}
 	$lei->qerr("# inbox URL: $ibx_uri/");
 	my $res = do_manifest($lei, $dir, $ibx_uri) or return;
-	my ($code, $path_pfx, $v1_bare, $v2_epochs, $muri, $ft, $mf) = @$res;
+	my ($code, $v1_path, $v2_epochs, $muri, $ft, $mf) = @$res;
 	return if $code == 304;
 	if ($code == 404) {
 		# any pre-manifest.js.gz instances running? Just fetch all
@@ -130,14 +130,13 @@ EOM
 		$code == 200 or die "BUG unexpected code $code\n";
 	}
 	if ($ibx_ver == 2) {
-		defined($v1_bare) and warn <<EOM;
-E: got v1 `$v1_bare' when expecting v2 epoch(s) in <$muri>, WTF?
+		defined($v1_path) and warn <<EOM;
+E: got v1 `$v1_path' when expecting v2 epoch(s) in <$muri>, WTF?
 EOM
 		@git_dir = map { "$dir/git/$_.git" } sort { $a <=> $b }
 			map { my ($nr) = (m!/([0-9]+)\.git\z!g) } @$v2_epochs;
 	} else {
-		$v1_bare eq $dir or warn "$v1_bare != $dir";
-		$git_dir[0] = $v1_bare // $dir;
+		$git_dir[0] = $dir;
 	}
 	# n.b. this expects all epochs are from the same host
 	my $torsocks = $lei->{curl}->torsocks($lei, $muri);
@@ -150,6 +149,8 @@ EOM
 		} else {
 			my $e_uri = $ibx_uri->clone;
 			my ($epath) = ($d =~ m!/(git/[0-9]+\.git)\z!);
+			defined($epath) or
+				die "BUG: $d is not an epoch to clone\n";
 			$e_uri->path($ibx_uri->path.$epath);
 			$cmd = [ @$torsocks,
 				PublicInbox::LeiMirror::clone_cmd($lei, $opt),

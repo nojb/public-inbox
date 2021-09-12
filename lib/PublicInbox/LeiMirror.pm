@@ -238,15 +238,15 @@ failed to extract epoch number from $src
 # PSGI mount prefixes and manifest.js.gz prefixes don't always align...
 sub deduce_epochs ($$) {
 	my ($m, $path) = @_;
-	my ($v1_bare, @v2_epochs);
+	my ($v1_ent, @v2_epochs);
 	my $path_pfx = '';
 	$path =~ s!/+\z!!;
 	do {
-		$v1_bare = $m->{$path};
+		$v1_ent = $m->{$path};
 		@v2_epochs = grep(m!\A\Q$path\E/git/[0-9]+\.git\z!, keys %$m);
-	} while (!defined($v1_bare) && !@v2_epochs &&
+	} while (!defined($v1_ent) && !@v2_epochs &&
 		$path =~ s!\A(/[^/]+)/!/! and $path_pfx .= $1);
-	($path_pfx, $v1_bare, @v2_epochs);
+	($path_pfx, $v1_ent ? $path : undef, @v2_epochs);
 }
 
 sub decode_manifest ($$$) {
@@ -282,20 +282,20 @@ sub try_manifest {
 		return $lei->child_error($cerr, "@$cmd failed");
 	}
 	my $m = decode_manifest($ft, $fn, $uri);
-	my ($path_pfx, $v1_bare, @v2_epochs) = deduce_epochs($m, $path);
+	my ($path_pfx, $v1_path, @v2_epochs) = deduce_epochs($m, $path);
 	if (@v2_epochs) {
 		# It may be possible to have v1 + v2 in parallel someday:
-		$lei->err(<<EOM) if defined $v1_bare;
-# `$v1_bare' appears to be a v1 inbox while v2 epochs exist:
+		$lei->err(<<EOM) if defined $v1_path;
+# `$v1_path' appears to be a v1 inbox while v2 epochs exist:
 # @v2_epochs
-# ignoring $v1_bare (use --inbox-version=1 to force v1 instead)
+# ignoring $v1_path (use --inbox-version=1 to force v1 instead)
 EOM
 		@v2_epochs = map {
 			$uri->path($path_pfx.$_);
 			$uri->clone
 		} @v2_epochs;
 		clone_v2($self, \@v2_epochs);
-	} elsif (defined $v1_bare) {
+	} elsif (defined $v1_path) {
 		clone_v1($self);
 	} else {
 		die "E: confused by <$uri>, possible matches:\n\t",
