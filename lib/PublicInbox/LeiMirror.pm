@@ -9,6 +9,7 @@ use parent qw(PublicInbox::IPC);
 use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
 use PublicInbox::Spawn qw(popen_rd spawn);
 use File::Temp ();
+use Fcntl qw(SEEK_SET);
 
 sub do_finish_mirror { # dwaitpid callback
 	my ($arg, $pid) = @_;
@@ -87,6 +88,27 @@ sub clone_cmd {
 	@cmd;
 }
 
+sub _get_txt { # non-fatal
+	my ($self, $endpoint, $file) = @_;
+	my $uri = URI->new($self->{src});
+	my $lei = $self->{lei};
+	my $path = $uri->path;
+	chop($path) eq '/' or die "BUG: $uri not canonicalized";
+	$uri->path("$path/$endpoint");
+	my $cmd = $self->{curl}->for_uri($lei, $uri, '--compressed');
+	my $ce = "$self->{dst}/$file";
+	my $ft = File::Temp->new(TEMPLATE => "$file-XXXX",
+				UNLINK => 1, DIR => $self->{dst});
+	my $opt = { 0 => $lei->{0}, 1 => $ft, 2 => $lei->{2} };
+	my $cerr = run_reap($lei, $cmd, $opt);
+	return "$uri missing" if ($cerr >> 8) == 22;
+	return "# @$cmd failed (non-fatal)" if $cerr;
+	my $f = $ft->filename;
+	rename($f, $ce) or return "rename($f, $ce): $! (non-fatal)";
+	$ft->unlink_on_destroy(0);
+	undef; # success
+}
+
 # tries the relatively new /$INBOX/_/text/config/raw endpoint
 sub _try_config {
 	my ($self) = @_;
@@ -96,24 +118,10 @@ sub _try_config {
 		File::Path::mkpath($dst);
 		-d $dst or die "mkpath($dst): $!\n";
 	}
-	my $uri = URI->new($self->{src});
-	my $lei = $self->{lei};
-	my $path = $uri->path;
-	chop($path) eq '/' or die "BUG: $uri not canonicalized";
-	$uri->path($path . '/_/text/config/raw');
-	my $cmd = $self->{curl}->for_uri($lei, $uri, '--compressed');
-	my $ce = "$dst/inbox.config.example";
-	my $f = "$ce-$$.tmp";
-	open(my $fh, '+>', $f) or return $lei->err("open $f: $! (non-fatal)");
-	my $opt = { 0 => $lei->{0}, 1 => $fh, 2 => $lei->{2} };
-	my $cerr = run_reap($lei, $cmd, $opt);
-	if (($cerr >> 8) == 22) { # 404 missing
-		unlink($f) if -s $fh == 0;
-		return;
-	}
-	return $lei->err("# @$cmd failed (non-fatal)") if $cerr;
-	rename($f, $ce) or return $lei->err("rename($f, $ce): $! (non-fatal)");
-	my $cfg = PublicInbox::Config->git_config_dump($f, $lei->{2});
+	my $err = _get_txt($self, qw(_/text/config/raw inbox.config.example));
+	return $self->{lei}->err($err) if $err;
+	my $f = "$self->{dst}/inbox.config.example";
+	my $cfg = PublicInbox::Config->git_config_dump($f, $self->{lei}->{2});
 	my $ibx = $self->{ibx} = {};
 	for my $sec (grep(/\Apublicinbox\./, @{$cfg->{-section_order}})) {
 		for (qw(address newsgroup nntpmirror)) {
@@ -122,9 +130,28 @@ sub _try_config {
 	}
 }
 
+sub set_description ($) {
+	my ($self) = @_;
+	my $f = "$self->{dst}/description";
+	open my $fh, '+>>', $f or die "open($f): $!";
+	seek($fh, 0, SEEK_SET) or die "seek($f): $!";
+	chomp(my $d = do { local $/; <$fh> } // die "read($f): $!");
+	if ($d eq '($INBOX_DIR/description missing)' ||
+			$d =~ /^Unnamed repository/ || $d !~ /\S/) {
+		seek($fh, 0, SEEK_SET) or die "seek($f): $!";
+		truncate($fh, 0) or die "truncate($f): $!";
+		print $fh "mirror of $self->{src}\n" or die "print($f): $!";
+		close $fh or die "close($f): $!";
+	}
+}
+
 sub index_cloned_inbox {
 	my ($self, $iv) = @_;
 	my $lei = $self->{lei};
+	my $err = _get_txt($self, qw(description description));
+	$lei->err($err) if $err; # non fatal
+	eval { set_description($self) };
+	warn $@ if $@;
 
 	# n.b. public-inbox-clone works w/o (SQLite || Xapian)
 	# lei is useless without Xapian + SQLite

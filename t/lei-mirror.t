@@ -2,6 +2,7 @@
 # Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict; use v5.10.1; use PublicInbox::TestCommon;
+use PublicInbox::Inbox;
 require_mods(qw(-httpd lei));
 my $sock = tcp_server();
 my ($tmpdir, $for_destroy) = tmpdir();
@@ -15,6 +16,8 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	my $t1 = "$home/t1-mirror";
 	lei_ok('add-external', $t1, '--mirror', "$http/t1/", \'--mirror v1');
 	ok(-f "$t1/public-inbox/msgmap.sqlite3", 't1-mirror indexed');
+	is(PublicInbox::Inbox::try_cat("$t1/description"),
+		"mirror of $http/t1/\n", 'description set');
 
 	lei_ok('ls-external');
 	like($lei_out, qr!\Q$t1\E!, 't1 added to ls-externals');
@@ -22,6 +25,9 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	my $t2 = "$home/t2-mirror";
 	lei_ok('add-external', $t2, '--mirror', "$http/t2/", \'--mirror v2');
 	ok(-f "$t2/msgmap.sqlite3", 't2-mirror indexed');
+	ok(-f "$t2/description", 't2 description');
+	is(PublicInbox::Inbox::try_cat("$t2/description"),
+		"mirror of $http/t2/\n", 'description set');
 
 	lei_ok('ls-external');
 	like($lei_out, qr!\Q$t2\E!, 't2 added to ls-externals');
@@ -108,5 +114,22 @@ SKIP: {
 
 ok($td->kill, 'killed -httpd');
 $td->join;
+
+{
+	require_ok 'PublicInbox::LeiMirror';
+	my $mrr = { src => 'https://example.com/src/', dst => $tmpdir };
+	my $exp = "mirror of https://example.com/src/\n";
+	my $f = "$tmpdir/description";
+	PublicInbox::LeiMirror::set_description($mrr);
+	is(PublicInbox::Inbox::try_cat($f), $exp, 'description set on ENOENT');
+
+	my $fh;
+	(open($fh, '>', $f) and close($fh)) or xbail $!;
+	PublicInbox::LeiMirror::set_description($mrr);
+	is(PublicInbox::Inbox::try_cat($f), $exp, 'description set on empty');
+	(open($fh, '>', $f) and print $fh "x\n" and close($fh)) or xbail $!;
+	is(PublicInbox::Inbox::try_cat($f), "x\n",
+		'description preserved if non-default');
+}
 
 done_testing;
