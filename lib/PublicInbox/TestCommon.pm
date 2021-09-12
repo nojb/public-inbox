@@ -605,7 +605,8 @@ sub setup_public_inboxes () {
 		run_script([qw(-init --skip-docdata), "-V$V",
 				'--newsgroup', "t.v$V", "t$V",
 				"$test_home/t$V", "http://example.com/t$V",
-				"t$V\@example.com" ]) or BAIL_OUT "init v$V";
+				"t$V\@example.com" ]) or xbail "init v$V";
+		unlink "$test_home/t$V/description" or xbail "unlink $!";
 	}
 	require PublicInbox::Config;
 	require PublicInbox::InboxWritable;

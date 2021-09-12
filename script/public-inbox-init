@@ -246,3 +246,9 @@ if (defined $perm) {
 rename $pi_config_tmp, $pi_config or
 	die "failed to rename `$pi_config_tmp' to `$pi_config': $!\n";
 undef $auto_unlink; # trigger ->DESTROY
+
+my $f = "$inboxdir/description";
+if (sysopen $fh, $f, O_CREAT|O_EXCL|O_WRONLY) {
+	print $fh "public inbox for $address[0]\n" or die "print($f): $!";
+	close $fh or die "close($f): $!";
+}

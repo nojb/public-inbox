@@ -99,6 +99,9 @@ sub quiet_fail {
 	$err = '';
 	ok(run_script($cmd, $env, $rdr), 'initializes non-existent hierarchy');
 	ok(-d "$tmpdir/a/b/c/d", 'directory created');
+	is(PublicInbox::Inbox::try_cat("$tmpdir/a/b/c/d/description"),
+		"public inbox for abcd\@example.com\n", 'description set');
+
 	open my $fh, '>', "$tmpdir/d" or BAIL_OUT "open: $!";
 	close $fh;
 	$cmd = [ '-init', 'd-f-conflict', "$tmpdir/d/f/conflict",
