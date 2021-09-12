@@ -148,7 +148,7 @@ EOM
 			$cmd = [ @$torsocks, fetch_cmd($lei, $opt) ];
 		} else {
 			my $e_uri = $ibx_uri->clone;
-			my ($epath) = ($d =~ m!/(git/[0-9]+\.git)\z!);
+			my ($epath) = ($d =~ m!(/git/[0-9]+\.git)\z!);
 			defined($epath) or
 				die "BUG: $d is not an epoch to clone\n";
 			$e_uri->path($ibx_uri->path.$epath);

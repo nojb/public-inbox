@@ -65,20 +65,16 @@ $v2w->done;
 $ibx->cleanup;
 
 my $sock = tcp_server();
-my $cmd = [ '-httpd', '-W0', "--stdout=$tmpdir/out", "--stderr=$tmpdir/err" ];
-my $td = start_script($cmd, undef, { 3 => $sock });
+my @cmd = ('-httpd', '-W0', "--stdout=$tmpdir/out", "--stderr=$tmpdir/err");
+my $td = start_script(\@cmd, undef, { 3 => $sock });
 my ($host, $port) = tcp_host_port($sock);
 $sock = undef;
 
-my @cmd;
-foreach my $i (0..$epoch_max) {
-	my $sfx = $i == 0 ? '.git' : '';
-	@cmd = (qw(git clone --mirror -q),
-		"http://$host:$port/v2/$i$sfx",
-		"$tmpdir/m/git/$i.git");
+@cmd = (qw(-clone -q), "http://$host:$port/v2/", "$tmpdir/m");
+run_script(\@cmd) or xbail '-clone';
 
-	is(xsys(@cmd), 0, "cloned $i.git");
-	ok(-d "$tmpdir/m/git/$i.git", "mirror $i OK");
+for my $i (0..$epoch_max) {
+	ok(-d "$tmpdir/m/git/$i.git", "epoch $i cloned");
 }
 
 @cmd = ("-init", '-j1', '-V2', 'm', "$tmpdir/m", 'http://example.com/m',
@@ -93,7 +89,6 @@ my $mibx = { inboxdir => "$tmpdir/m", address => 'alt@example.com' };
 $mibx = PublicInbox::Inbox->new($mibx);
 is_deeply([$mibx->mm->minmax], [$ibx->mm->minmax], 'index synched minmax');
 
-$v2w->{rotate_bytes} = $old_rotate_bytes;
 for my $i (10..15) {
 	$mime->header_set('Message-ID', "<$i\@example.com>");
 	$mime->header_set('Subject', "subject = $i");
@@ -102,12 +97,17 @@ for my $i (10..15) {
 $v2w->done;
 $ibx->cleanup;
 
+my @new_epochs;
 my $fetch_each_epoch = sub {
-	foreach my $i (0..$epoch_max) {
-		my $dir = "$tmpdir/m/git/$i.git";
-		is(xsys('git', "--git-dir=$dir", 'fetch', '-q'), 0,
-			'fetch successful');
+	my $mf = "$tmpdir/m/manifest.js.gz";
+	if (my @st = stat($mf)) {
+		utime($st[8], $st[9] - 1, $mf) or xbail "utime $mf: $!";
 	}
+	my %before = map { $_ => 1 } glob("$tmpdir/m/git/*");
+	run_script([qw(-fetch -q)], undef, {-C => "$tmpdir/m"}) or
+		xbail '-fetch fail';
+	my @after = grep { !$before{$_} } glob("$tmpdir/m/git/*");
+	push @new_epochs, @after;
 };
 
 $fetch_each_epoch->();
@@ -233,6 +233,7 @@ EOF
 	$mset = $mibx->search->reopen->mset('m:2big@a');
 	is(scalar($mset->items), 0, 'large message not re-indexed');
 }
+ok(scalar(@new_epochs), 'new epochs were created and fetched');
 
 ok($td->kill, 'killed httpd');
 $td->join;
