@@ -101,7 +101,6 @@ SKIP: {
 	is(xsys('git', "--git-dir=$alt", qw(config gitweb.owner),
 		"lorelei \xc4\x80"), 0,
 		'set gitweb user');
-	ok(unlink("$bare->{git_dir}/description"), 'removed bare/description');
 	open $fh, '>', $cfgfile or xbail "open $cfgfile: $!";
 	$fh->autoflush(1);
 	print $fh <<"" or xbail "print $!";

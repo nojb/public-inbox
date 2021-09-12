@@ -451,9 +451,6 @@ sub add {
 }
 
 my @INIT_FILES = ('HEAD' => undef, # filled in at runtime
-		'description' => <<EOD,
-Unnamed repository; edit this file 'description' to name the repository.
-EOD
 		'config' => <<EOC);
 [core]
 	repositoryFormatVersion = 0
