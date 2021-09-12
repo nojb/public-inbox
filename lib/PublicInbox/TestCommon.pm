@@ -144,7 +144,7 @@ sub require_mods {
 			eval "require $mod";
 		}
 		if ($@) {
-			diag "require $mod: $@";
+			diag "require $mod: $@" if $mod =~ /Gcf2/;
 			push @need, $mod;
 		} elsif ($mod eq 'IO::Socket::SSL' &&
 			# old versions of IO::Socket::SSL aren't supported
