@@ -55,13 +55,14 @@ sub up1 ($$) {
 sub up1_redispatch {
 	my ($lei, $out, $op_p) = @_;
 	my $l = bless { %$lei }, ref($lei);
-	$l->{opt} = { %{$l->{opt}} };
+	$l->{opt} = { %{$l->{opt}} }; # deep copy
 	delete $l->{sock}; # do not close
 	$l->{''} = $op_p; # daemon only ($l => $lei => script/lei)
 
 	# make close($l->{1}) happy in lei->dclose
 	open my $fh, '>&', $l->{1} or return $l->child_error(0, "dup: $!");
 	local $PublicInbox::LEI::current_lei = $l;
+	local %ENV = %{$l->{env}};
 	$l->{1} = $fh;
 	eval {
 		$l->qerr("# updating $out");
