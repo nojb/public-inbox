@@ -18,7 +18,7 @@ BEGIN {
 		run_script start_script key2sub xsys xsys_e xqx eml_load tick
 		have_xapian_compact json_utf8 setup_public_inboxes create_inbox
 		tcp_host_port test_lei lei lei_ok $lei_out $lei_err $lei_opt
-		test_httpd xbail);
+		test_httpd xbail require_cmd);
 	require Test::More;
 	my @methods = grep(!/\W/, @Test::More::EXPORT);
 	eval(join('', map { "*$_=\\&Test::More::$_;" } @methods));
@@ -85,6 +85,18 @@ sub tcp_connect {
 	) or BAIL_OUT "failed to connect to $addr: $!";
 	$s->autoflush(1);
 	$s;
+}
+
+sub require_cmd ($;$) {
+	my ($cmd, $maybe) = @_;
+	require PublicInbox::Spawn;
+	my $bin = PublicInbox::Spawn::which($cmd);
+	return $bin if $bin;
+	$maybe ? 0 : plan(skip_all => "$cmd missing from PATH for $0");
+}
+
+sub have_xapian_compact () {
+	require_cmd($ENV{XAPIAN_COMPACT} || 'xapian-compact', 1);
 }
 
 sub require_git ($;$) {
@@ -465,12 +477,6 @@ sub start_script {
 		}
 	}
 	PublicInboxTestProcess->new($pid, $tail_pid);
-}
-
-sub have_xapian_compact () {
-	require PublicInbox::Spawn;
-	# $ENV{XAPIAN_COMPACT} is used by PublicInbox/Xapcmd.pm, too
-	PublicInbox::Spawn::which($ENV{XAPIAN_COMPACT} || 'xapian-compact');
 }
 
 # favor lei() or lei_ok() over $lei for new code

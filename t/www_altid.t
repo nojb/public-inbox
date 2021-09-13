@@ -1,12 +1,10 @@
 #!perl -w
 # Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-use strict;
-use v5.10.1;
-use PublicInbox::TestCommon;
+use strict; use v5.10.1; use PublicInbox::TestCommon;
 use PublicInbox::Config;
-use PublicInbox::Spawn qw(which spawn);
-which('sqlite3') or plan skip_all => 'sqlite3 binary missing';
+use PublicInbox::Spawn qw(spawn);
+require_cmd('sqlite3');
 require_mods(qw(DBD::SQLite HTTP::Request::Common Plack::Test URI::Escape
 	Plack::Builder IO::Uncompress::Gunzip));
 use_ok($_) for qw(Plack::Test HTTP::Request::Common);

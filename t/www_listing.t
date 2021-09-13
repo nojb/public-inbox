@@ -2,11 +2,7 @@
 # Copyright (C) 2019-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 # manifest.js.gz generation and grok-pull integration test
-use strict;
-use v5.10.1;
-use Test::More;
-use PublicInbox::Spawn qw(which);
-use PublicInbox::TestCommon;
+use strict; use v5.10.1; use PublicInbox::TestCommon;
 use PublicInbox::Import;
 use IO::Uncompress::Gunzip qw(gunzip);
 require_mods(qw(json URI::Escape Plack::Builder Digest::SHA HTTP::Tiny));
@@ -134,7 +130,7 @@ SKIP: {
 	tiny_test($json, $host, $port, 1);
 	undef $sock;
 
-	my $grok_pull = which('grok-pull') or
+	my $grok_pull = require_cmd('grok-pull', 1) or
 		skip('grok-pull not available', 12);
 	my ($grok_version) = (xqx([$grok_pull, "--version"])
 			=~ /(\d+)\.(?:\d+)(?:\.(\d+))?/);

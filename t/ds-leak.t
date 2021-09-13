@@ -3,14 +3,11 @@
 # License: GPL-1.0+ or Artistic-1.0-Perl
 #  <https://www.gnu.org/licenses/gpl-1.0.txt>
 #  <https://dev.perl.org/licenses/artistic.html>
-use strict;
-use warnings;
-use Test::More;
-use PublicInbox::TestCommon;
+use strict; use v5.10.1; use PublicInbox::TestCommon;
 use_ok 'PublicInbox::DS';
 
 if ('close-on-exec for epoll and kqueue') {
-	use PublicInbox::Spawn qw(spawn which);
+	use PublicInbox::Spawn qw(spawn);
 	my $pid;
 	my $evfd_re = qr/(?:kqueue|eventpoll)/i;
 
@@ -32,7 +29,7 @@ if ('close-on-exec for epoll and kqueue') {
 	is($l, undef, 'cloexec works and sleep(1) is running');
 
 	SKIP: {
-		my $lsof = which('lsof') or skip 'lsof missing', 1;
+		my $lsof = require_cmd('lsof', 1) or skip 'lsof missing', 1;
 		my $rdr = { 2 => \(my $null) };
 		my @of = grep(/$evfd_re/, xqx([$lsof, '-p', $pid], {}, $rdr));
 		my $err = $?;

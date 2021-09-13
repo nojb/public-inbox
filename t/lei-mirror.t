@@ -4,6 +4,7 @@
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 use PublicInbox::Inbox;
 require_mods(qw(-httpd lei));
+require_cmd('curl');
 my $sock = tcp_server();
 my ($tmpdir, $for_destroy) = tmpdir();
 my $http = 'http://'.tcp_host_port($sock);

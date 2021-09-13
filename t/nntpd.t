@@ -1,10 +1,7 @@
 #!perl -w
 # Copyright (C) 2015-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-use strict;
-use v5.10.1;
-use PublicInbox::TestCommon;
-use PublicInbox::Spawn qw(which);
+use strict; use v5.10.1; use PublicInbox::TestCommon;
 require_mods(qw(DBD::SQLite));
 use PublicInbox::Eml;
 use Socket qw(IPPROTO_TCP TCP_NODELAY);
@@ -17,7 +14,7 @@ use Digest::SHA;
 my $version = $ENV{PI_TEST_VERSION} || 1;
 require_git('2.6') if $version == 2;
 use_ok 'PublicInbox::Msgmap';
-my $lsof = which('lsof');
+my $lsof = require_cmd('lsof', 1);
 my $fast_idle = eval { require Linux::Inotify2; 1 } //
 		eval { require IO::KQueue; 1 };
 

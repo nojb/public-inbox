@@ -7,7 +7,6 @@ use Test::More;
 use Time::HiRes ();
 use PublicInbox::TestCommon;
 use PublicInbox::Config;
-use PublicInbox::Spawn qw(which);
 require_mods(qw(-imapd Mail::IMAPClient));
 my $imap_client = 'Mail::IMAPClient';
 my $can_compress = $imap_client->can('compress');

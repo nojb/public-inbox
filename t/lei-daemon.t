@@ -3,7 +3,6 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 use Socket qw(AF_UNIX SOCK_SEQPACKET MSG_EOR pack_sockaddr_un);
-use PublicInbox::Spawn qw(which);
 
 test_lei({ daemon_only => 1 }, sub {
 	my $send_cmd = PublicInbox::Spawn->can('send_cmd4') // do {

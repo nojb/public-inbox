@@ -3,7 +3,6 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 use Fcntl qw(SEEK_SET);
-use PublicInbox::Spawn qw(which);
 require_git 2.6;
 require_mods(qw(json DBD::SQLite Search::Xapian));
 use POSIX qw(WTERMSIG WIFSIGNALED SIGPIPE);
@@ -17,9 +16,10 @@ my $test_external_remote = sub {
 	my ($url, $k) = @_;
 SKIP: {
 	skip "$k unset", 1 if !$url;
-	state $curl = which('curl');
-	$curl or skip 'no curl', 1;
-	which('torsocks') or skip 'no torsocks', 1 if $url =~ m!\.onion/!;
+	require_cmd 'curl', 1 or skip 'curl missing', 1;
+	if ($url =~ m!\.onion/!) {
+		require_cmd 'torsocks', 1 or skip 'no torsocks', 1;
+	}
 	my $mid = '20140421094015.GA8962@dcvr.yhbt.net';
 	my @cmd = ('q', '--only', $url, '-q', "m:$mid");
 	lei_ok(@cmd, \"query $url");

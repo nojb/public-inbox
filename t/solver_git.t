@@ -7,7 +7,7 @@ use PublicInbox::TestCommon;
 use Cwd qw(abs_path);
 require_git(2.6);
 use PublicInbox::ContentHash qw(git_sha);
-use PublicInbox::Spawn qw(popen_rd which);
+use PublicInbox::Spawn qw(popen_rd);
 require_mods(qw(DBD::SQLite Search::Xapian Plack::Util));
 my $git_dir = xqx([qw(git rev-parse --git-dir)], undef, {2 => \(my $null)});
 $? == 0 or plan skip_all => "$0 must be run from a git working tree";
@@ -270,7 +270,7 @@ EOF
 		my $url = "http://$h:$p";
 		local $ENV{PLACK_TEST_EXTERNALSERVER_URI} = $url;
 		Plack::Test::ExternalServer::test_psgi(client => $client);
-		skip 'no curl', 1 unless which('curl');
+		require_cmd('curl', 1) or skip 'no curl', 1;
 
 		mkdir "$tmpdir/ext" // xbail "mkdir $!";
 		test_lei({tmpdir => "$tmpdir/ext"}, sub {

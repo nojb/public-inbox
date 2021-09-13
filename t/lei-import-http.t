@@ -2,9 +2,8 @@
 # Copyright (C) 2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict; use v5.10.1; use PublicInbox::TestCommon;
-use PublicInbox::Spawn qw(which);
 require_mods(qw(lei -httpd));
-which('curl') or plan skip_all => "curl required for $0";
+require_cmd('curl');
 my ($ro_home, $cfg_path) = setup_public_inboxes;
 my ($tmpdir, $for_destroy) = tmpdir;
 my $sock = tcp_server;

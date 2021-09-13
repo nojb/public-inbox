@@ -1,11 +1,8 @@
 #!perl -w
 # Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-use strict;
-use Test::More;
+use strict; use v5.10.1; use PublicInbox::TestCommon;
 use File::Temp 0.19;
-use PublicInbox::TestCommon;
-use PublicInbox::Spawn qw(which);
 use_ok 'PublicInbox::NDC_PP';
 
 SKIP: {
@@ -13,8 +10,9 @@ SKIP: {
 	skip 'test is Linux-only', $nr if $^O ne 'linux';
 	my $dir = $ENV{BTRFS_TESTDIR};
 	skip 'BTRFS_TESTDIR not defined', $nr unless defined $dir;
-	skip 'chattr(1) not installed', $nr unless which('chattr');
-	my $lsattr = which('lsattr') or skip 'lsattr(1) not installed', $nr;
+	require_cmd('chattr', 1) or skip 'chattr(1) not installed', $nr;
+	my $lsattr = require_cmd('lsattr', 1) or
+		skip 'lsattr(1) not installed', $nr;
 	my $tmp = File::Temp->newdir('nodatacow-XXXX', DIR => $dir);
 	my $dn = $tmp->dirname;
 

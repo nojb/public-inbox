@@ -1,12 +1,7 @@
 #!/usr/bin/perl -w
 # Copyright (C) 2019-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-use strict;
-use warnings;
-use Test::More;
-use PublicInbox::Spawn qw(which);
-use PublicInbox::TestCommon;
-use IO::Handle; # ->autoflush
+use strict; use v5.10.1; use PublicInbox::TestCommon; use IO::Handle; # ->autoflush
 use Fcntl qw(:seek);
 eval { require highlight } or
 	plan skip_all => "failed to load highlight.pm for $0";
@@ -30,7 +25,7 @@ my $orig = $str;
 	is($$ref, $$lref, 'do_hl_lang matches do_hl');
 
 	SKIP: {
-		my $w3m = which('w3m') or
+		my $w3m = require_cmd('w3m', 1) or
 			skip('w3m(1) missing to check output', 1);
 		my $cmd = [ $w3m, qw(-T text/html -dump -config /dev/null) ];
 		my $in = '<pre>' . $$ref . '</pre>';

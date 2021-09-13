@@ -1,19 +1,17 @@
 # Copyright (C) 2018-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
-use Test::More;
+use v5.10.1;
 use PublicInbox::TestCommon;
 use File::Path qw(remove_tree);
 use Cwd qw(abs_path);
 require_git(2.6);
+require_cmd('curl');
 local $ENV{HOME} = abs_path('t');
 
 # Integration tests for HTTP cloning + mirroring
 require_mods(qw(Plack::Util Plack::Builder
 		HTTP::Date HTTP::Status Search::Xapian DBD::SQLite));
-use IO::Socket;
-use POSIX qw(dup2);
 use_ok 'PublicInbox::V2Writable';
 use PublicInbox::InboxWritable;
 use PublicInbox::Eml;

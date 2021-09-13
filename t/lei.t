@@ -3,11 +3,9 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 use File::Path qw(rmtree);
-use PublicInbox::Spawn qw(which);
 
 # this only tests the basic help/config/init/completion bits of lei;
 # actual functionality is tested in other t/lei-*.t tests
-my $curl = which('curl');
 my $home;
 my $home_trash = [];
 my $cleanup = sub { rmtree([@$home_trash, @_]) };
@@ -156,7 +154,7 @@ my $test_fail = sub {
 	lei_ok('sucks', \'yes, but hopefully less every day');
 	like($lei_out, qr/loaded features/, 'loaded features shown');
 SKIP: {
-	skip 'no curl', 3 unless which('curl');
+	skip 'no curl', 3 unless require_cmd('curl', 1);
 	lei(qw(q --only http://127.0.0.1:99999/bogus/ t:m));
 	is($? >> 8, 3, 'got curl exit for bogus URL');
 	lei(qw(q --only http://127.0.0.1:99999/bogus/ t:m -o), "$home/junk");

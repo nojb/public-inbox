@@ -2,12 +2,9 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 # note: our HTTP server should be standalone and capable of running
 # generic PSGI/Plack apps.
-use strict;
-use warnings;
-use Test::More;
+use strict; use v5.10.1; use PublicInbox::TestCommon;
 use Time::HiRes qw(gettimeofday tv_interval);
-use PublicInbox::Spawn qw(which spawn popen_rd);
-use PublicInbox::TestCommon;
+use PublicInbox::Spawn qw(spawn popen_rd);
 require_mods(qw(Plack::Util Plack::Builder HTTP::Date HTTP::Status));
 use Digest::SHA qw(sha1_hex);
 use IO::Handle ();
@@ -303,7 +300,7 @@ my $check_self = sub {
 };
 
 SKIP: {
-	my $curl = which('curl') or skip('curl(1) missing', 4);
+	my $curl = require_cmd('curl', 1) or skip('curl(1) missing', 4);
 	my $base = 'http://'.tcp_host_port($sock);
 	my $url = "$base/sha1";
 	my ($r, $w);
@@ -606,7 +603,7 @@ SKIP: {
 
 SKIP: {
 	skip 'only testing lsof(8) output on Linux', 1 if $^O ne 'linux';
-	my $lsof = which('lsof') or skip 'no lsof in PATH', 1;
+	my $lsof = require_cmd('lsof', 1) or skip 'no lsof in PATH', 1;
 	my $null_in = '';
 	my $rdr = { 2 => \(my $null_err), 0 => \$null_in };
 	my @lsof = xqx([$lsof, '-p', $td->{pid}], undef, $rdr);
