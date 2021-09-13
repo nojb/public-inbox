@@ -464,11 +464,11 @@ sub x_it ($$) {
 	# make sure client sees stdout before exit
 	$self->{1}->autoflush(1) if $self->{1};
 	stop_pager($self);
-	if ($self->{pkt_op_p}) { # to top lei-daemon
+	if ($self->{pkt_op_p}) { # worker => lei-daemon
 		$self->{pkt_op_p}->pkt_do('x_it', $code);
-	} elsif ($self->{sock}) { # to lei(1) client
+	} elsif ($self->{sock}) { # lei->daemon => lei(1) client
 		send($self->{sock}, "x_it $code", MSG_EOR);
-	} elsif ($quit == \&CORE::exit) { # an admin command
+	} elsif ($quit == \&CORE::exit) { # an admin (one-shot) command
 		exit($code >> 8);
 	} # else ignore if client disconnected
 }
@@ -1065,9 +1065,7 @@ sub pgr_err {
 	start_pager($self, { LESS => 'RX' }); # no 'F' so we prompt
 	print { $self->{2} } @msg;
 	$self->{2}->autoflush(1);
-	my $pgr = delete($self->{pgr}) or return;
-	$self->{2} = $pgr->[2];
-	$self->{1} = $pgr->[1];
+	stop_pager($self);
 	send($self->{sock}, 'wait', MSG_EOR); # wait for user to quit pager
 }
 
@@ -1075,8 +1073,8 @@ sub stop_pager {
 	my ($self) = @_;
 	my $pgr = delete($self->{pgr}) or return;
 	$self->{2} = $pgr->[2];
-	# do not restore original stdout, just close it so we error out
 	close(delete($self->{1})) if $self->{1};
+	$self->{1} = $pgr->[1];
 }
 
 sub accept_dispatch { # Listener {post_accept} callback
