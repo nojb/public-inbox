@@ -54,16 +54,21 @@ sub up1 ($$) {
 
 sub up1_redispatch {
 	my ($lei, $out, $op_p) = @_;
-	my $l = bless { %$lei }, ref($lei);
-	$l->{opt} = { %{$l->{opt}} }; # deep copy
-	delete $l->{sock}; # do not close
-	$l->{''} = $op_p; # daemon only ($l => $lei => script/lei)
-
-	# make close($l->{1}) happy in lei->dclose
-	open my $fh, '>&', $l->{1} or return $l->child_error(0, "dup: $!");
+	my $l;
+	if (defined($lei->{opt}->{mua})) { # single output
+		$l = $lei;
+	} else { # multiple outputs
+		$l = bless { %$lei }, ref($lei);
+		$l->{opt} = { %{$l->{opt}} }; # deep copy
+		delete $l->{sock}; # do not close
+		# make close($l->{1}) happy in lei->dclose
+		open my $fh, '>&', $l->{1} or
+			return $l->child_error(0, "dup: $!");
+		$l->{1} = $fh;
+	}
 	local $PublicInbox::LEI::current_lei = $l;
 	local %ENV = %{$l->{env}};
-	$l->{1} = $fh;
+	$l->{''} = $op_p; # daemon only ($l => $lei => script/lei)
 	eval {
 		$l->qerr("# updating $out");
 		up1($l, $out);
@@ -92,7 +97,7 @@ sub lei_up {
 	$lei->{lse} = $lei->_lei_store(1)->write_prepare($lei)->search;
 	if (defined(my $all = $opt->{all})) {
 		return $lei->fail("--all and @outs incompatible") if @outs;
-		length($opt->{mua}//'') and return
+		defined($opt->{mua}) and return
 			$lei->fail('--all and --mua= are incompatible');
 		@outs = PublicInbox::LeiSavedSearch::list($lei);
 		if ($all eq 'local') {
@@ -110,7 +115,7 @@ sub lei_up {
 		$self->{local} = [ grep(!/$REMOTE_RE/, @outs) ];
 	}
 	((@{$self->{local} // []} + @{$self->{remote} // []}) > 1 &&
-		length($opt->{mua} // '')) and return $lei->fail(<<EOM);
+		defined($opt->{mua})) and return $lei->fail(<<EOM);
 multiple outputs and --mua= are incompatible
 EOM
 	if ($self->{remote}) { # setup lei->{auth}

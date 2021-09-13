@@ -34,6 +34,10 @@ test_lei(sub {
 	open $fh, "$ENV{HOME}/b" or xbail "open: $!";
 	$uc = do { local $/; <$fh> };
 	is($uc, $exp, 'uncompressed both match');
+
+	lei_ok [ 'up', "$ENV{HOME}/b", "--mua=touch $ENV{HOME}/c" ],
+		undef, { run_mode => 0 };
+	ok(-f "$ENV{HOME}/c", '--mua works with single output');
 });
 
 done_testing;
