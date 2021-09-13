@@ -572,8 +572,11 @@ sub prepare_external {
 		die "`\\n' not allowed in `$loc'\n" if index($loc, "\n") >= 0;
 		require PublicInbox::Inbox; # v2, v1
 		$loc = bless { inboxdir => $loc }, 'PublicInbox::Inbox';
+	} elsif (!-e $loc) {
+		warn "W: $loc gone, perhaps run: lei forget-external $loc\n";
+		return;
 	} else {
-		warn "W: ignoring $loc, unable to determine type\n";
+		warn "W: $loc ignored, unable to determine external type\n";
 		return;
 	}
 	push @{$self->{locals}}, $loc;
