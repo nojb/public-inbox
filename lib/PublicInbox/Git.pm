@@ -27,9 +27,7 @@ our $PIPE_BUFSIZ = 65536; # Linux default
 our $in_cleanup;
 our $RDTIMEO = 60_000; # milliseconds
 
-use constant MAX_INFLIGHT =>
-	(($^O eq 'linux' ? 4096 : POSIX::_POSIX_PIPE_BUF()) * 3)
-	/
+use constant MAX_INFLIGHT => (POSIX::PIPE_BUF * 3) /
 	65; # SHA-256 hex size + "\n" in preparation for git using non-SHA1
 
 my %GIT_ESC = (

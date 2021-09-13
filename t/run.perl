@@ -18,7 +18,7 @@ use PublicInbox::Spawn;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 use Errno qw(EINTR);
 use Fcntl qw(:seek);
-use POSIX qw(_POSIX_PIPE_BUF WNOHANG);
+use POSIX qw(WNOHANG);
 use File::Temp ();
 my $jobs = 1;
 my $repeat = 1;
@@ -199,7 +199,7 @@ for (my $i = $repeat; $i != 0; $i--) {
 	pipe(my ($rd, $wr)) or DIE "pipe: $!";
 
 	# fill the queue before forking so children can start earlier
-	my $n = (_POSIX_PIPE_BUF / UINT_SIZE);
+	my $n = (POSIX::PIPE_BUF / UINT_SIZE);
 	if ($n >= $#todo) {
 		print $wr join('', map { pack('I', $_) } (0..$#todo)) or DIE;
 		undef $wr;
