@@ -254,5 +254,8 @@ for (my $i = $repeat; $i != 0; $i--) {
 print $OLDOUT "1..".($repeat * scalar(@tests))."\n" if $repeat >= 0;
 if ($lei_env && $$ == $owner_pid) {
 	my $opt = { 1 => $OLDOUT, 2 => $OLDERR };
+	my $cur_daemon_pid;
+	run_script([qw(lei daemon-pid)], $lei_env, { 1 => \$cur_daemon_pid });
 	run_script([qw(lei daemon-kill)], $lei_env, $opt);
+	DIE "lei daemon restarted\n" if $cur_daemon_pid != $lei_daemon_pid;
 }
