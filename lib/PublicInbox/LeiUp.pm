@@ -11,7 +11,6 @@ use PublicInbox::LeiSavedSearch;
 use PublicInbox::DS;
 use PublicInbox::PktOp;
 use PublicInbox::LeiFinmsg;
-use PublicInbox::LEI;
 my $REMOTE_RE = qr!\A(?:imap|http)s?://!i; # http(s) will be for JMAP
 
 sub up1 ($$) {
@@ -60,19 +59,16 @@ sub up1_redispatch {
 	} else { # multiple outputs
 		$l = bless { %$lei }, ref($lei);
 		$l->{opt} = { %{$l->{opt}} }; # deep copy
+		delete $l->{opt}->{all};
 		delete $l->{sock}; # do not close
 		# make close($l->{1}) happy in lei->dclose
 		open my $fh, '>&', $l->{1} or
 			return $l->child_error(0, "dup: $!");
 		$l->{1} = $fh;
-	}
-	local $PublicInbox::LEI::current_lei = $l;
-	local %ENV = %{$l->{env}};
-	$l->{''} = $op_p; # daemon only ($l => $lei => script/lei)
-	eval {
 		$l->qerr("# updating $out");
-		up1($l, $out);
-	};
+	}
+	$l->{''} = $op_p; # daemon only ($l => $lei => script/lei)
+	eval { $l->dispatch('up', $out) };
 	$lei->child_error(0, $@) if $@ || $l->{failed}; # lei->fail()
 }
 
@@ -94,7 +90,6 @@ sub lei_up {
 	my ($lei, @outs) = @_;
 	my $opt = $lei->{opt};
 	my $self = bless { -mail_sync => 1 }, __PACKAGE__;
-	$lei->{lse} = $lei->_lei_store(1)->write_prepare($lei)->search;
 	if (defined(my $all = $opt->{all})) {
 		return $lei->fail("--all and @outs incompatible") if @outs;
 		defined($opt->{mua}) and return
@@ -110,10 +105,14 @@ sub lei_up {
 		} else {
 			$lei->fail("only --all=$all not understood");
 		}
+	} elsif ($lei->{lse}) {
+		scalar(@outs) == 1 or die "BUG: lse set w/ >1 out[@outs]";
+		return up1($lei, $outs[0]);
 	} else {
 		$self->{remote} = [ grep(/$REMOTE_RE/, @outs) ];
 		$self->{local} = [ grep(!/$REMOTE_RE/, @outs) ];
 	}
+	$lei->{lse} = $lei->_lei_store(1)->write_prepare($lei)->search;
 	((@{$self->{local} // []} + @{$self->{remote} // []}) > 1 &&
 		defined($opt->{mua})) and return $lei->fail(<<EOM);
 multiple outputs and --mua= are incompatible

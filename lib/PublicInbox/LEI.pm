@@ -769,6 +769,8 @@ sub lazy_cb ($$$) {
 
 sub dispatch {
 	my ($self, $cmd, @argv) = @_;
+	fchdir($self) or return;
+	local %ENV = %{$self->{env}};
 	local $current_lei = $self; # for __WARN__
 	$self->{2}->autoflush(1); # keep stdout buffered until x_it|DESTROY
 	return _help($self, 'no command given') unless defined($cmd);
@@ -1104,14 +1106,9 @@ sub accept_dispatch { # Listener {post_accept} callback
 	my ($argc, @argv) = split(/\0/, $buf, -1);
 	undef $buf;
 	my %env = map { split(/=/, $_, 2) } splice(@argv, $argc);
-	if (chdir($self->{3})) {
-		local %ENV = %env;
-		$self->{env} = \%env;
-		eval { dispatch($self, @argv) };
-		send($sock, $@, MSG_EOR) if $@;
-	} else {
-		send($sock, "fchdir: $!", MSG_EOR); # implicit close
-	}
+	$self->{env} = \%env;
+	eval { dispatch($self, @argv) };
+	send($sock, $@, MSG_EOR) if $@;
 }
 
 sub dclose {
@@ -1181,7 +1178,6 @@ sub cfg2lei ($) {
 	open($lei->{1}, '>>&', \*STDOUT) or die "dup 1: $!";
 	open($lei->{2}, '>>&', \*STDERR) or die "dup 2: $!";
 	open($lei->{3}, '/') or die "open /: $!";
-	chdir($lei->{3}) or die "chdir /': $!";
 	my ($x, $y);
 	socketpair($x, $y, AF_UNIX, SOCK_SEQPACKET, 0) or die "socketpair: $!";
 	$lei->{sock} = $x;
@@ -1199,7 +1195,6 @@ sub dir_idle_handler ($) { # PublicInbox::DirIdle callback
 		for my $f (keys %{$MDIR2CFGPATH->{$mdir} // {}}) {
 			my $cfg = $PATH2CFG{$f} // next;
 			eval {
-				local %ENV = %{$cfg->{-env}};
 				my $lei = cfg2lei($cfg);
 				$lei->dispatch('note-event',
 						"maildir:$mdir", $nc, $bn, $fn);
