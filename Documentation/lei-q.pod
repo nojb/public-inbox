@@ -43,7 +43,7 @@ Destination for results (e.g., C</tmp/results-Maildir>,
 C<imaps://user@mail.example.com/INBOX.test>, or
 C<mboxcl2:/tmp/results-mboxcl2>).  The prefix may be a supported protocol:
 C<imap://> or C<imaps://>.  URLs requiring
-authentication must use L<netrc(5)> and/or L<git-credential(1)> to
+authentication use L<git-credential(1)> to
 fill in the username and password.
 
 A prefix can specify the format of the output: C<maildir>,

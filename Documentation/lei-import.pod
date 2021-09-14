@@ -13,7 +13,7 @@ lei import [OPTIONS] (--stdin|-)
 Import messages into the local storage of L<lei(1)>.  C<LOCATION> is a
 source of messages: a directory (Maildir), a file, or a URL
 (C<imap://>, C<imaps://>, C<nntp://>, or C<nntps://>).  URLs requiring
-authentication must use L<netrc(5)> and/or L<git-credential(1)> to
+authentication use L<git-credential(1)> to
 fill in the username and password.
 
 For a regular file, the location must have a C<E<lt>formatE<gt>:>

@@ -82,7 +82,7 @@ C<imap://> and C<imaps://> URLs:
 
 This may be specified multiple times to combine several mailboxes
 into a single public-inbox.  URLs requiring authentication
-will require L<netrc(5)> and/or L<git-credential(1)> to fill
+will require L<netrc(5)> and/or L<git-credential(1)> (preferred) to fill
 in the username and password.
 
 Default: none
