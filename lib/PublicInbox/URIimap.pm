@@ -86,7 +86,8 @@ sub uidvalidity { # read/write
 		$$self = uri_join($scheme, $auth, $path, $query, $frag);
 	}
 	$path =~ s!\A/+!!;
-	$path =~ m!\A[^;/]+;UIDVALIDITY=([1-9][0-9]*)\b!i ? ($1 + 0) : undef;
+	$path =~ m!\A[^;]+;UIDVALIDITY=([1-9][0-9]*)\b!i ?
+		($1 + 0) : undef;
 }
 
 sub uid {
@@ -97,11 +98,11 @@ sub uid {
 			$path =~ s!/;UID=[^;/]*\b!!i;
 		} else {
 			$path =~ s!/;UID=[^;/]*\b!/;UID=$val!i or
-				$path .= ";UID=$val";
+				$path .= "/;UID=$val";
 		}
 		$$self = uri_join($scheme, $auth, $path, $query);
 	}
-	$path =~ m!\A/[^/;]+(?:;UIDVALIDITY=[^;/]+)?/;UID=([1-9][0-9]*)\b!i ?
+	$path =~ m!\A/[^;]+(?:;UIDVALIDITY=[^;/]+)?/;UID=([1-9][0-9]*)\b!i ?
 		($1 + 0) : undef;
 }
 

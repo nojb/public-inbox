@@ -132,5 +132,22 @@ is($cred->{username}, undef, 'user is undef in array context');
 is($cred->{password}, undef, 'password is undef in array context');
 $uri = PublicInbox::URIimap->new('imap://u@example.com/slash/separator');
 is($uri->mailbox, 'slash/separator', "`/' separator accepted");
+is($uri->uidvalidity(6), 6, "UIDVALIDITY set with `/' separator");
+is($$uri, 'imap://u@example.com/slash/separator;UIDVALIDITY=6',
+	"URI correct after adding UIDVALIDITY w/ `/' separator");
+
+$uri = PublicInbox::URIimap->new('imap://u@example.com/a/b;UIDVALIDITY=3');
+is($uri->uidvalidity, 3, "UIDVALIDITY w/ `/' separator");
+is($uri->mailbox, 'a/b', "mailbox w/ `/' separator + UIDVALIDITY");
+is($uri->uidvalidity(4), 4, "UIDVALIDITY set w/ `/' separator");
+is($$uri, 'imap://u@example.com/a/b;UIDVALIDITY=4',
+	"URI correct after replacing UIDVALIDITY w/ `/' separator");
+is($uri->uid(5), 5, "set /;UID= w/ `/' separator");
+
+$uri = PublicInbox::URIimap->new('imap://u@example.com/a/b/;UID=9');
+is($uri->uid, 9, "UID read with `/' separator w/o UIDVALIDITY");
+is($uri->uid(8), 8, "UID set with `/' separator w/o UIDVALIDITY");
+is($$uri, 'imap://u@example.com/a/b/;UID=8',
+	"URI correct after replacing UID w/ `/' separator");
 
 done_testing;
