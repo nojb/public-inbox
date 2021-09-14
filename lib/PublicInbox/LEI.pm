@@ -1347,7 +1347,8 @@ sub lazy_start {
 	open STDERR, '>&STDIN' or die "redirect stderr failed: $!";
 	open STDOUT, '>&STDIN' or die "redirect stdout failed: $!";
 	# $daemon pipe to `lei' closed, main loop begins:
-	PublicInbox::DS->EventLoop;
+	eval { PublicInbox::DS->EventLoop };
+	warn "event loop error: $@\n" if $@;
 	dump_and_clear_log();
 	exit($exit_code // 0);
 }
