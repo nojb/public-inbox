@@ -130,5 +130,7 @@ $uri = PublicInbox::URIimap->new('imap://[::1]:36281/');
 my $cred = bless { username => $uri->user, password => $uri->password };
 is($cred->{username}, undef, 'user is undef in array context');
 is($cred->{password}, undef, 'password is undef in array context');
+$uri = PublicInbox::URIimap->new('imap://u@example.com/slash/separator');
+is($uri->mailbox, 'slash/separator', "`/' separator accepted");
 
 done_testing;

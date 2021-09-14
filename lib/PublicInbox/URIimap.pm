@@ -63,7 +63,7 @@ sub path {
 	my ($self) = @_;
 	my (undef, undef, $path) = uri_split($$self);
 	$path =~ s!\A/+!!;
-	$path =~ s![/;].*\z!!; # [;UIDVALIDITY=nz-number]/;UID=nz-number
+	$path =~ s!/?;.*\z!!; # [;UIDVALIDITY=nz-number]/;UID=nz-number
 	$path eq '' ? undef : $path;
 }
 

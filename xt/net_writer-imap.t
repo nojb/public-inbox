@@ -19,7 +19,8 @@ require_mods('Mail::IMAPClient');
 require_ok 'PublicInbox::NetWriter';
 my $host = (split(/\./, hostname))[0];
 my ($base) = ($0 =~ m!\b([^/]+)\.[^\.]+\z!);
-my $folder = "INBOX.$base-$host-".strftime('%Y%m%d%H%M%S', gmtime(time)).
+my $SEP = $ENV{IMAP_SEPARATOR} || '.';
+my $folder = "INBOX$SEP$base-$host-".strftime('%Y%m%d%H%M%S', gmtime(time)).
 		"-$$-".sprintf('%x', int(rand(0xffffffff)));
 my $nwr = PublicInbox::NetWriter->new;
 chop($imap_url) if substr($imap_url, -1) eq '/';
