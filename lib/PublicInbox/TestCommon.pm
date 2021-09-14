@@ -567,7 +567,10 @@ SKIP: {
 		}
 		local $ENV{XDG_RUNTIME_DIR} = $daemon_xrd;
 		$cb->();
-		unless ($persist) {
+		if ($persist) { # remove before ~/.local gets removed
+			File::Path::rmtree([glob("$home/*")]);
+			File::Path::rmtree("$home/.config");
+		} else {
 			lei_ok(qw(daemon-pid), \"daemon-pid after $t");
 			chomp($daemon_pid = $lei_out);
 			if (!$daemon_pid) {
