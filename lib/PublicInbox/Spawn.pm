@@ -18,11 +18,14 @@ package PublicInbox::Spawn;
 use strict;
 use parent qw(Exporter);
 use Symbol qw(gensym);
+use Fcntl qw(LOCK_EX SEEK_SET);
+use IO::Handle ();
 use PublicInbox::ProcessPipe;
 our @EXPORT_OK = qw(which spawn popen_rd run_die nodatacow_dir);
 our @RLIMITS = qw(RLIMIT_CPU RLIMIT_CORE RLIMIT_DATA);
 
-my $all_libc = <<'ALL_LIBC'; # all *nix systems we support
+BEGIN {
+	my $all_libc = <<'ALL_LIBC'; # all *nix systems we support
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -249,7 +252,7 @@ ALL_LIBC
 # directories.  Disabling COW disables checksumming, so we only do this
 # for regeneratable files, and not canonical git storage (git doesn't
 # checksum refs, only data under $GIT_DIR/objects).
-my $set_nodatacow = $^O eq 'linux' ? <<'SET_NODATACOW' : '';
+	my $set_nodatacow = $^O eq 'linux' ? <<'SET_NODATACOW' : '';
 #include <sys/ioctl.h>
 #include <sys/vfs.h>
 #include <linux/magic.h>
@@ -296,52 +299,61 @@ void nodatacow_dir(const char *dir)
 }
 SET_NODATACOW
 
-my $inline_dir = $ENV{PERL_INLINE_DIRECTORY} //= (
-		$ENV{XDG_CACHE_HOME} //
-		( ($ENV{HOME} // '/nonexistent').'/.cache' )
-	).'/public-inbox/inline-c';
-
-$set_nodatacow = $all_libc = undef unless -d $inline_dir && -w _;
-if (defined $all_libc) {
-	# Inline 0.64 or later has locking in multi-process env,
-	# but we support 0.5 on Debian wheezy
-	use Fcntl qw(:flock);
-	eval {
+	my $inline_dir = $ENV{PERL_INLINE_DIRECTORY} //= (
+			$ENV{XDG_CACHE_HOME} //
+			( ($ENV{HOME} // '/nonexistent').'/.cache' )
+		).'/public-inbox/inline-c';
+	warn "$inline_dir exists, not writable\n" if -e $inline_dir && !-w _;
+	$set_nodatacow = $all_libc = undef unless -d _ && -w _;
+	if (defined $all_libc) {
 		my $f = "$inline_dir/.public-inbox.lock";
-		open my $fh, '>', $f or die "failed to open $f: $!\n";
-		flock($fh, LOCK_EX) or die "LOCK_EX failed on $f: $!\n";
-		eval 'use Inline C => $all_libc.$set_nodatacow';
-			# . ', BUILD_NOISY => 1';
+		open my $oldout, '>&', \*STDOUT or die "dup(1): $!";
+		open my $olderr, '>&', \*STDERR or die "dup(2): $!";
+		open my $fh, '+>', $f or die "open($f): $!";
+		open STDOUT, '>&', $fh or die "1>$f: $!";
+		open STDERR, '>&', $fh or die "2>$f: $!";
+		STDERR->autoflush(1);
+		STDOUT->autoflush(1);
+
+		# CentOS 7.x ships Inline 0.53, 0.64+ has built-in locking
+		flock($fh, LOCK_EX) or die "LOCK_EX($f): $!";
+		eval <<'EOM';
+use Inline C => $all_libc.$set_nodatacow, BUILD_NOISY => 1;
+EOM
 		my $err = $@;
-		my $ndc_err;
+		my $ndc_err = '';
 		if ($err && $set_nodatacow) { # missing Linux kernel headers
-			$ndc_err = $err;
+			$ndc_err = "with set_nodatacow: <\n$err\n>\n";
 			undef $set_nodatacow;
-			eval 'use Inline C => $all_libc';
+			eval <<'EOM';
+use Inline C => $all_libc, BUILD_NOISY => 1;
+EOM
+		};
+		$err = $@;
+		open(STDERR, '>&', $olderr) or warn "restore stderr: $!";
+		open(STDOUT, '>&', $oldout) or warn "restore stdout: $!";
+		if ($err) {
+			seek($fh, 0, SEEK_SET);
+			my @msg = <$fh>;
+			warn "Inline::C build failed:\n",
+				$ndc_err, $err, "\n", @msg;
+			$set_nodatacow = $all_libc = undef;
+		} elsif ($ndc_err) {
+			warn "Inline::C build succeeded w/o set_nodatacow\n",
+				"error $ndc_err";
 		}
-		flock($fh, LOCK_UN) or die "LOCK_UN failed on $f: $!\n";
-		die $err if $err;
-		warn $ndc_err if $ndc_err;
-	};
-	if ($@) {
-		warn "Inline::C failed for vfork: $@\n";
-		$set_nodatacow = $all_libc = undef;
 	}
-}
-
-unless ($all_libc) {
-	require PublicInbox::SpawnPP;
-	*pi_fork_exec = \&PublicInbox::SpawnPP::pi_fork_exec
-}
-unless ($set_nodatacow) {
-	require PublicInbox::NDC_PP;
-	no warnings 'once';
-	*nodatacow_fd = \&PublicInbox::NDC_PP::nodatacow_fd;
-	*nodatacow_dir = \&PublicInbox::NDC_PP::nodatacow_dir;
-}
-
-undef $set_nodatacow;
-undef $all_libc;
+	unless ($all_libc) {
+		require PublicInbox::SpawnPP;
+		*pi_fork_exec = \&PublicInbox::SpawnPP::pi_fork_exec
+	}
+	unless ($set_nodatacow) {
+		require PublicInbox::NDC_PP;
+		no warnings 'once';
+		*nodatacow_fd = \&PublicInbox::NDC_PP::nodatacow_fd;
+		*nodatacow_dir = \&PublicInbox::NDC_PP::nodatacow_dir;
+	}
+} # /BEGIN
 
 sub which ($) {
 	my ($file) = @_;

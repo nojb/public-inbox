@@ -7,16 +7,16 @@ package PublicInbox::Gcf2;
 use strict;
 use v5.10.1;
 use PublicInbox::Spawn qw(which popen_rd); # may set PERL_INLINE_DIRECTORY
-use Fcntl qw(LOCK_EX);
+use Fcntl qw(LOCK_EX SEEK_SET);
 use IO::Handle; # autoflush
-my (%CFG, $c_src, $lockfh);
 BEGIN {
+	my (%CFG, $c_src);
 	# PublicInbox::Spawn will set PERL_INLINE_DIRECTORY
 	# to ~/.cache/public-inbox/inline-c if it exists
 	my $inline_dir = $ENV{PERL_INLINE_DIRECTORY} //
 		die 'PERL_INLINE_DIRECTORY not defined';
 	my $f = "$inline_dir/.public-inbox.lock";
-	open $lockfh, '>', $f or die "failed to open $f: $!\n";
+	open my $fh, '+>', $f or die "open($f): $!";
 	my $pc = which($ENV{PKG_CONFIG} // 'pkg-config') //
 		die "pkg-config missing for libgit2";
 	my ($dir) = (__FILE__ =~ m!\A(.+?)/[^/]+\z!);
@@ -37,26 +37,39 @@ BEGIN {
 		if (open(my $fh, '<', $f)) {
 			chomp($l, $c);
 			local $/;
-			defined($c_src = <$fh>) or die "read $f: $!\n";
+			defined($c_src = <$fh>) or die "read $f: $!";
 			$CFG{LIBS} = $l;
 			$CFG{CCFLAGSEX} = $c;
 			last;
 		} else {
-			die "E: $f: $!\n";
+			die "E: $f: $!";
 		}
 	}
 	die "E: libgit2 not installed\n" unless $c_src;
 
-	# CentOS 7.x ships Inline 0.53, 0.64+ has built-in locking
-	flock($lockfh, LOCK_EX) or die "LOCK_EX failed on $f: $!\n";
-}
+	open my $oldout, '>&', \*STDOUT or die "dup(1): $!";
+	open my $olderr, '>&', \*STDERR or die "dup(2): $!";
+	open STDOUT, '>&', $fh or die "1>$f: $!";
+	open STDERR, '>&', $fh or die "2>$f: $!";
+	STDERR->autoflush(1);
+	STDOUT->autoflush(1);
 
-# we use Capitalized and ALLCAPS for compatibility with old Inline::C
-use Inline C => Config => %CFG, BOOT => 'git_libgit2_init();';
-use Inline C => $c_src;
-undef $c_src;
-undef %CFG;
-undef $lockfh;
+	# CentOS 7.x ships Inline 0.53, 0.64+ has built-in locking
+	flock($fh, LOCK_EX) or die "LOCK_EX($f): $!\n";
+	# we use Capitalized and ALLCAPS for compatibility with old Inline::C
+	eval <<'EOM';
+use Inline C => Config => %CFG, BOOT => q[git_libgit2_init();];
+use Inline C => $c_src, BUILD_NOISY => 1;
+EOM
+	my $err = $@;
+	open(STDERR, '>&', $olderr) or warn "restore stderr: $!";
+	open(STDOUT, '>&', $oldout) or warn "restore stdout: $!";
+	if ($err) {
+		seek($fh, 0, SEEK_SET);
+		my @msg = <$fh>;
+		die "Inline::C Gcf2 build failed:\n", $err, "\n", @msg;
+	}
+}
 
 sub add_alt ($$) {
 	my ($gcf2, $objdir) = @_;
