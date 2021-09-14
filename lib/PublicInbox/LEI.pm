@@ -1500,12 +1500,15 @@ sub lms { # read-only LeiMailSync
 
 sub sto_done_request { # only call this from lei-daemon process (not workers)
 	my ($lei, $sock) = @_;
-	if ($sock //= $lei->{sock}) {
-		$LIVE_SOCK{"$sock"} = $sock;
-		$lei->{sto}->ipc_do('done', "$sock"); # issue, async wait
-	} else { # forcibly wait
-		my $wait = $lei->{sto}->ipc_do('done');
-	}
+	eval {
+		if ($sock //= $lei->{sock}) { # issue, async wait
+			$LIVE_SOCK{"$sock"} = $sock;
+			$lei->{sto}->ipc_do('done', "$sock");
+		} else { # forcibly wait
+			my $wait = $lei->{sto}->ipc_do('done');
+		}
+	};
+	$lei->err($@) if $@;
 }
 
 sub sto_done_complete { # called in lei-daemon when LeiStore->done is complete
