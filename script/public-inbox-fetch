@@ -16,12 +16,13 @@ options:
   --torsocks VAL      whether or not to wrap git and curl commands with
                       torsocks (default: `auto')
                       Must be one of: `auto', `no' or `yes'
+  --exit-code         exit with 127 if no updates
   --verbose | -v      increase verbosity (may be repeated)
     --quiet | -q      increase verbosity (may be repeated)
     -C DIR            chdir to specified directory
 EOF
 GetOptions($opt, qw(help|h quiet|q verbose|v+ C=s@ c=s@
-	no-torsocks torsocks=s)) or die $help;
+	no-torsocks torsocks=s exit-code)) or die $help;
 if ($opt->{help}) { print $help; exit };
 require PublicInbox::Fetch; # loads Admin
 PublicInbox::Admin::do_chdir(delete $opt->{C});
@@ -33,3 +34,4 @@ my $lei = bless {
 	0 => *STDIN{GLOB}, 1 => *STDOUT{GLOB}, 2 => *STDERR{GLOB},
 }, 'PublicInbox::LEI';
 PublicInbox::Fetch->do_fetch($lei, '.');
+exit(($lei->{child_error} // 0) >> 8);

@@ -98,8 +98,9 @@ $ibx->cleanup;
 my @new_epochs;
 my $fetch_each_epoch = sub {
 	my %before = map { $_ => 1 } glob("$tmpdir/m/git/*");
-	run_script([qw(-fetch -q)], undef, {-C => "$tmpdir/m"}) or
+	run_script([qw(-fetch --exit-code -q)], undef, {-C => "$tmpdir/m"}) or
 		xbail '-fetch fail';
+	is($?, 0, '--exit-code 0 after fetch updated');
 	my @after = grep { !$before{$_} } glob("$tmpdir/m/git/*");
 	push @new_epochs, @after;
 };

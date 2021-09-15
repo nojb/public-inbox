@@ -4,7 +4,7 @@ public-inbox-fetch - "git fetch" wrapper for v2 inbox mirrors
 
 =head1 SYNOPSIS
 
-public-inbox-fetch -C INBOX_DIR
+public-inbox-fetch [--exit-code] -C INBOX_DIR
 
 =head1 DESCRIPTION
 
@@ -31,6 +31,15 @@ file to speed up future invocations.
 
 Quiets down progress messages, also passed to L<git-fetch(1)>.
 
+=item --exit-code
+
+Exit with C<127> if no updates are done.  This can be used in
+shell scripts to avoid invoking L<public-inbox-index(1)> when
+there are no updates:
+
+	public-inbox-fetch -q --exit-code && public-inbox-index
+	test $? -eq 0 || exit $?
+
 =item -v
 
 =item --verbose
@@ -44,6 +53,23 @@ Increases verbosity, also passed to L<git-fetch(1)>.
 Whether to wrap L<git(1)> and L<curl(1)> commands with torsocks.
 
 Default: C<auto>
+
+=back
+
+=head1 EXIT CODES
+
+=over
+
+=item 127
+
+no updates when L</--exit-code> is used above
+
+=back
+
+public-inbox-fetch will also exit with curl L<curl(1)/EXIT CODES>
+as documented in the L<curl(1)> manpage (e.g. C<7> when curl cannot
+reach a host).  Likewise, L<git-fetch(1)> failures are also
+propagated to the user.
 
 =head1 CONTACT
 
@@ -60,4 +86,4 @@ License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
 
 =head1 SEE ALSO
 
-L<public-inbox-index(1)>
+L<public-inbox-index(1)>, L<curl(1)>

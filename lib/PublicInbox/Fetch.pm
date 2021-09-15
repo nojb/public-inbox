@@ -75,10 +75,20 @@ sub do_manifest ($$$) {
 		my $t1 = $cur->{modified} // next;
 		delete($mdiff->{$k}) if $f0 eq $f1 && $t0 == $t1;
 	}
-	return unless keys %$mdiff;
+	unless (keys %$mdiff) {
+		$lei->child_error(127 << 8) if $lei->{opt}->{'exit-code'};
+		return;
+	}
 	my (undef, $v1_path, @v2_epochs) =
 		PublicInbox::LeiMirror::deduce_epochs($mdiff, $ibx_uri->path);
 	[ 200, $v1_path, \@v2_epochs, $muri, $ft, $mf ];
+}
+
+sub get_fingerprint2 {
+	my ($git_dir) = @_;
+	require Digest::SHA;
+	my $rd = popen_rd([qw(git show-ref)], undef, { -C => $git_dir });
+	Digest::SHA::sha256(do { local $/; <$rd> });
 }
 
 sub do_fetch {
@@ -136,11 +146,14 @@ EOM
 	}
 	# n.b. this expects all epochs are from the same host
 	my $torsocks = $lei->{curl}->torsocks($lei, $muri);
+	my $fp2 = $lei->{opt}->{'exit-code'} ? [] : undef;
+	my $xit = 127;
 	for my $d (@git_dir) {
 		my $cmd;
 		my $opt = {}; # for spawn
 		if (-d $d) {
 			$opt->{-C} = $d;
+			$fp2->[0] = get_fingerprint2($d) if $fp2;
 			$cmd = [ @$torsocks, fetch_cmd($lei, $opt) ];
 		} else {
 			my $e_uri = $ibx_uri->clone;
@@ -152,12 +165,17 @@ EOM
 				PublicInbox::LeiMirror::clone_cmd($lei, $opt),
 				$$e_uri, $d];
 			push @new_epoch, substr($epath, 5, -4) + 0;
+			$xit = 0;
 		}
 		my $cerr = PublicInbox::LeiMirror::run_reap($lei, $cmd, $opt);
 		# do not bail on clone failure if we didn't have a manifest
 		if ($cerr && ($code == 200 || -d $d)) {
 			$lei->child_error($cerr, "@$cmd failed");
 			return;
+		}
+		if ($fp2 && $xit) {
+			$fp2->[1] = get_fingerprint2($d);
+			$xit = 0 if $fp2->[0] ne $fp2->[1];
 		}
 	}
 	for my $i (@new_epoch) { $mg->epoch_cfg_set($i) }
@@ -166,6 +184,7 @@ EOM
 		rename($fn, $mf) or die "E: rename($fn, $mf): $!\n";
 		$ft->unlink_on_destroy(0);
 	}
+	$lei->child_error($xit << 8) if $fp2 && $xit;
 }
 
 1;
