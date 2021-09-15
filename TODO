@@ -32,7 +32,7 @@ all need to be considered for everything we introduce)
   archive locations to avoid SPOF.
 
 * optional Cache::FastMmap support so production deployments won't
-  need Varnish (Varnish doesn't protect NNTP or IMAP, either)
+  need Varnish (Varnish doesn't protect NNTP nor IMAP, either)
 
 * dogfood and take advantage of new kernel APIs (while maintaining
   portability to older Linux, free BSDs and maybe Hurd).
@@ -111,7 +111,8 @@ all need to be considered for everything we introduce)
 
 * code repository integration (cgit: done, TODO: gitweb, etc...)
 
-* migration path to v2 without breaking v1 "git fetch" cronjobs
+* migration path to v2 (making it transparent for "git fetch"
+  may not be possible, but "public-inbox-fetch" will handle it)
 
 * imperfect scraper importers for obfuscated list archives
   (e.g. obfuscated Mailman stuff, Google Groups, etc...)
@@ -124,22 +125,14 @@ all need to be considered for everything we introduce)
   as extensions.  If JMAP, it should have HTTP(S) analogues to
   various IMAP extensions.
 
-* search across multiple inboxes, or admin-definable groups of inboxes
-
-  This will require a new detached Xapian index that can be used in
-  parallel with existing per-inbox indices.  Using ->add_database
-  with hundreds of shards is unusable in current Xapian as of
-  August 2020 (acknowledged by Xapian upstream).
-
 * scalability to tens/hundreds of thousands of inboxes
-
-  - pagination for WwwListing
 
   - inotify-based manifest.js.gz updates
 
   ...
 
 * lei - see %CMD in lib/PublicInbox/LEI.pm
+  (there's a truckload here..)
 
 * make "git cat-file --batch" detect unlinked packfiles so we don't
   have to restart processes (very long-term)
