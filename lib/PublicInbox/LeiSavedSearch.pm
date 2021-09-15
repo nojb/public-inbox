@@ -39,21 +39,21 @@ sub cfg_dump ($$) {
 
 sub lss_dir_for ($$;$) {
 	my ($lei, $dstref, $on_fs) = @_;
-	my @n;
+	my $pfx;
 	if ($$dstref =~ m,\Aimaps?://,i) { # already canonicalized
 		require PublicInbox::URIimap;
 		my $uri = PublicInbox::URIimap->new($$dstref)->canonical;
 		$$dstref = $$uri;
-		@n = ($uri->mailbox);
+		$pfx = $uri->mailbox;
 	} else {
 		# can't use Cwd::abs_path since dirname($$dstref) may not exist
 		$$dstref = $lei->rel2abs($$dstref);
 		$$dstref =~ tr!/!/!s;
-		@n = ($$dstref =~ m{([^/]+)/*\z}); # basename
+		$pfx = $$dstref;
 	}
-	push @n, sha256_hex($$dstref);
+	($pfx) = ($pfx =~ m{([^/]+)/*\z}); # basename
 	my $lss_dir = $lei->share_path . '/saved-searches/';
-	my $d = $lss_dir . join('-', @n);
+	my $d = "$lss_dir$pfx-".sha256_hex($$dstref);
 
 	# fall-back to looking up by st_ino + st_dev in case we're in
 	# a symlinked or bind-mounted path
@@ -61,7 +61,7 @@ sub lss_dir_for ($$;$) {
 		my @cur = stat(_);
 		my $want = pack('dd', @cur[1,0]); # st_ino + st_dev
 		my ($c, $o, @st);
-		for my $g ("$n[0]-*", '*') {
+		for my $g ("$pfx-*", '*') {
 			my @maybe = glob("$lss_dir$g/lei.saved-search");
 			for my $f (@maybe) {
 				$c = cfg_dump($lei, $f) // next;
