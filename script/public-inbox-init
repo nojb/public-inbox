@@ -36,7 +36,7 @@ PublicInbox::Admin::require_or_die('-base');
 my ($version, $indexlevel, $skip_epoch, $skip_artnum, $jobs, $show_help);
 my $skip_docdata;
 my $ng = '';
-my @c_extra;
+my (@c_extra, @chdir);
 my %opts = (
 	'V|version=i' => \$version,
 	'L|index-level|indexlevel=s' => \$indexlevel,
@@ -47,6 +47,7 @@ my %opts = (
 	'skip-docdata' => \$skip_docdata,
 	'help|h' => \$show_help,
 	'c=s@' => \@c_extra,
+	'C=s@' => \@chdir,
 );
 my $usage_cb = sub {
 	print STDERR $help;
@@ -59,6 +60,7 @@ my $inboxdir = shift @ARGV or $usage_cb->();
 my $http_url = shift @ARGV or $usage_cb->();
 my (@address) = @ARGV;
 @address or $usage_cb->();
++PublicInbox::Admin::do_chdir(\@chdir);
 
 @c_extra = map {
 	my ($k, $v) = split(/=/, $_, 2);

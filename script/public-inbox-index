@@ -42,7 +42,7 @@ GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i prune
 		batch_size|batch-size=s
 		sequential-shard|seq-shard
 		no-update-extindex update-extindex|E=s@
-		fast-noop|F skip-docdata all help|h))
+		fast-noop|F skip-docdata all C=s@ help|h))
 	or die $help;
 if ($opt->{help}) { print $help; exit 0 };
 die "--jobs must be >= 0\n" if defined $opt->{jobs} && $opt->{jobs} < 0;
@@ -56,6 +56,7 @@ if ($opt->{reindex} && delete($opt->{'fast-noop'})) {
 # require lazily to speed up --help
 require PublicInbox::Admin;
 PublicInbox::Admin::require_or_die('-index');
+PublicInbox::Admin::do_chdir(delete $opt->{C});
 
 my $cfg = PublicInbox::Config->new; # Config is loaded by Admin
 $opt->{-use_cwd} = 1;

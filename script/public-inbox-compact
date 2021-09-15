@@ -17,7 +17,7 @@ options:
 
 See public-inbox-compact(1) man page for full documentation.
 EOF
-GetOptions($opt, qw(all help|h),
+GetOptions($opt, qw(all C=s@ help|h),
 	# compact options:
 	qw(jobs|j=i quiet|q blocksize|b=s no-full|n fuller|F),
 ) or die $help;
@@ -25,6 +25,7 @@ if ($opt->{help}) { print $help; exit 0 };
 
 require PublicInbox::Admin;
 PublicInbox::Admin::require_or_die('-index');
+PublicInbox::Admin::do_chdir(delete $opt->{C});
 PublicInbox::Admin::progress_prepare($opt);
 
 require PublicInbox::InboxWritable;

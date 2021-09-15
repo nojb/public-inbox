@@ -33,7 +33,7 @@ my $opt = {
 	quiet => -1, compact => 0, maxsize => undef, fsync => 1,
 	reindex => 1, # we always reindex
 };
-GetOptions($opt, qw(jobs|j=i index! help|h),
+GetOptions($opt, qw(jobs|j=i index! help|h C=s@),
 		# index options
 		qw(verbose|v+ rethread compact|c+ fsync|sync!
 		indexlevel|index-level|L=s max_size|max-size=s
@@ -41,13 +41,14 @@ GetOptions($opt, qw(jobs|j=i index! help|h),
 		sequential-shard|seq-shard
 		)) or die $help;
 if ($opt->{help}) { print $help; exit 0 };
+require PublicInbox::Admin;
+PublicInbox::Admin::do_chdir(delete $opt->{C});
 my $old_dir = shift(@ARGV) // '';
 my $new_dir = shift(@ARGV) // '';
 die $help if (scalar(@ARGV) || $new_dir eq '' || $old_dir eq '');
 die "$new_dir exists\n" if -d $new_dir;
 die "$old_dir not a directory\n" unless -d $old_dir;
 
-require PublicInbox::Admin;
 require PublicInbox::Config;
 require PublicInbox::InboxWritable;
 
@@ -62,7 +63,6 @@ if (delete $old->{-unconfigured}) {
 }
 die "Only conversion from v1 inboxes is supported\n" if $old->version >= 2;
 
-require PublicInbox::Admin;
 my $detected = PublicInbox::Admin::detect_indexlevel($old);
 $old->{indexlevel} //= $detected;
 my $env;

@@ -30,7 +30,7 @@ GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i
 		indexlevel|index-level|L=s max_size|max-size=s
 		batch_size|batch-size=s
 		dedupe:s@ gc commit-interval=i watch scan! dry-run|n
-		all help|h))
+		all C=s@ help|h))
 	or die $help;
 if ($opt->{help}) { print $help; exit 0 };
 die "--jobs must be >= 0\n" if defined $opt->{jobs} && $opt->{jobs} < 0;
@@ -40,6 +40,7 @@ STDERR->autoflush(1);
 local $SIG{USR1} = 'IGNORE'; # to be overridden in eidx_sync
 # require lazily to speed up --help
 require PublicInbox::Admin;
+PublicInbox::Admin::do_chdir(delete $opt->{C});
 my $cfg = PublicInbox::Config->new;
 my $eidx_dir = shift(@ARGV);
 unless (defined $eidx_dir) {

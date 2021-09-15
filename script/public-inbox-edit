@@ -33,9 +33,10 @@ See public-inbox-edit(1) man page for full documentation.
 EOF
 
 my $opt = { verbose => 1, all => 0, -min_inbox_version => 2, raw => 0 };
-my @opt = qw(mid|m=s file|F=s raw);
+my @opt = qw(mid|m=s file|F=s raw C=s@);
 GetOptions($opt, @PublicInbox::AdminEdit::OPT, @opt) or die $help;
 if ($opt->{help}) { print $help; exit 0 };
+PublicInbox::Admin::do_chdir(delete $opt->{C});
 
 my $cfg = PublicInbox::Config->new;
 my $editor = $ENV{MAIL_EDITOR}; # e.g. "mutt -f"

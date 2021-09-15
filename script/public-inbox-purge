@@ -26,9 +26,10 @@ See public-inbox-purge(1) man page for full documentation.
 EOF
 
 my $opt = { verbose => 1, all => 0, -min_inbox_version => 2 };
-GetOptions($opt, @PublicInbox::AdminEdit::OPT) or die $help;
+GetOptions($opt, @PublicInbox::AdminEdit::OPT, 'C=s@') or die $help;
 if ($opt->{help}) { print $help; exit 0 };
 
+PublicInbox::Admin::do_chdir(delete $opt->{C});
 my @ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt);
 PublicInbox::AdminEdit::check_editable(\@ibxs);
 
