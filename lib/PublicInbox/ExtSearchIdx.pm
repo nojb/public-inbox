@@ -21,6 +21,7 @@ use Carp qw(croak carp);
 use Sys::Hostname qw(hostname);
 use POSIX qw(strftime);
 use File::Glob qw(bsd_glob GLOB_NOSORT);
+use PublicInbox::MultiGit;
 use PublicInbox::Search;
 use PublicInbox::SearchIdx qw(prepare_stack is_ancestor is_bad_blob);
 use PublicInbox::OverIdx;
@@ -1133,88 +1134,60 @@ sub idx_init { # similar to V2Writable
 
 	$self->git->cleanup;
 	my $mode = 0644;
-	my $ALL = $self->git->{git_dir}; # ALL.git
-	my $old = -d $ALL;
+	my $ALL = $self->git->{git_dir}; # topdir/ALL.git
+	my ($has_new, $alt, $seen);
 	if ($opt->{-private}) { # LeiStore
+		my $local = "$self->{topdir}/local"; # lei/store
+		$self->{mg} //= PublicInbox::MultiGit->new($self->{topdir},
+							'ALL.git', 'local');
 		$mode = 0600;
-		if (!$old) {
-			umask 077; # don't bother restoring
+		unless (-d $ALL) {
+			umask 077; # don't bother restoring for lei
 			PublicInbox::Import::init_bare($ALL);
 			$self->git->qx(qw(config core.sharedRepository 0600));
 		}
-	} else {
-		PublicInbox::Import::init_bare($ALL) unless $old;
-	}
-	my $info_dir = "$ALL/objects/info";
-	my $alt = "$info_dir/alternates";
-	my (@old, @new, %seen); # seen: st_dev + st_ino
-	if (-e $alt) {
-		open(my $fh, '<', $alt) or die "open $alt: $!";
-		$mode = (stat($fh))[2] & 07777;
-		while (my $line = <$fh>) {
-			chomp(my $d = $line);
-
-			# expand relative path (/local/ stuff)
-			substr($d, 0, 3) eq '../' and
-				$d = "$ALL/objects/$d";
-			if (my @st = stat($d)) {
-				next if $seen{"$st[0]\0$st[1]"}++;
-			} else {
-				warn "W: stat($d) failed (from $alt): $!\n";
-				next if $opt->{-idx_gc};
-			}
-			push @old, $line;
-		}
+		($alt, $seen) = $self->{mg}->read_alternates(\$mode);
+		$has_new = $self->{mg}->merge_epochs($alt, $seen);
+	} else { # extindex has no epochs
+		$self->{mg} //= PublicInbox::MultiGit->new($self->{topdir},
+							'ALL.git');
+		($alt, $seen) = $self->{mg}->read_alternates(\$mode,
+							$opt->{-idx_gc});
+		PublicInbox::Import::init_bare($ALL);
 	}
 
-	# for LeiStore, and possibly some mirror-only state
-	if (opendir(my $dh, my $local = "$self->{topdir}/local")) {
-		# highest numbered epoch first
-		for my $n (sort { $b <=> $a } map { substr($_, 0, -4) + 0 }
-				grep(/\A[0-9]+\.git\z/, readdir($dh))) {
-			my $d = "$local/$n.git/objects"; # absolute path
-			if (my @st = stat($d)) {
-				next if $seen{"$st[0]\0$st[1]"}++;
-				# favor relative paths for rename-friendliness
-				push @new, "../../local/$n.git/objects\n";
-			} else {
-				warn "W: stat($d) failed: $!\n";
-			}
-		}
-	}
 	# git-multi-pack-index(1) can speed up "git cat-file" startup slightly
-	my $dh;
 	my $git_midx = 0;
 	my $pd = "$ALL/objects/pack";
-	if (!mkdir($pd) && $!{EEXIST} && opendir($dh, $pd)) {
-		# drop stale symlinks
+	if (opendir(my $dh, $pd)) { # drop stale symlinks
 		while (defined(my $dn = readdir($dh))) {
 			if ($dn =~ /\.(?:idx|pack|promisor|bitmap|rev)\z/) {
 				my $f = "$pd/$dn";
 				unlink($f) if -l $f && !-e $f;
 			}
 		}
-		undef $dh;
+	} elsif ($!{ENOENT}) {
+		mkdir($pd) or die "mkdir($pd): $!";
+	} else {
+		die "opendir($pd): $!";
 	}
+	my $new = '';
 	for my $ibx (@{ibx_sorted($self, 'active')}) {
 		# create symlinks for multi-pack-index
 		$git_midx += symlink_packs($ibx, $pd);
 		# add new lines to our alternates file
-		my $line = $ibx->git->{git_dir} . "/objects\n";
-		chomp(my $d = $line);
+		my $d = $ibx->git->{git_dir} . '/objects';
+		next if exists $alt->{$d};
 		if (my @st = stat($d)) {
-			next if $seen{"$st[0]\0$st[1]"}++;
+			next if $seen->{"$st[0]\0$st[1]"}++;
 		} else {
 			warn "W: stat($d) failed (from $ibx->{inboxdir}): $!\n";
 			next if $opt->{-idx_gc};
 		}
-		push @new, $line;
+		$new .= "$d\n";
 	}
-	if (scalar @new) {
-		push @old, @new;
-		my $o = \@old;
-		PublicInbox::V2Writable::write_alternates($info_dir, $mode, $o);
-	}
+	($has_new || $new ne '') and
+		$self->{mg}->write_alternates($mode, $alt, $new);
 	$git_midx and $self->with_umask(sub {
 		my @cmd = ('multi-pack-index');
 		push @cmd, '--no-progress' if ($opt->{quiet}//0) > 1;
@@ -1226,7 +1199,7 @@ sub idx_init { # similar to V2Writable
 	$self->with_umask(\&_idx_init, $self, $opt);
 	$self->{oidx}->begin_lazy;
 	$self->{oidx}->eidx_prep;
-	$self->{midx}->create_xdb if @new;
+	$self->{midx}->create_xdb if $new ne '';
 }
 
 sub _watch_commit { # PublicInbox::DS::add_timer callback

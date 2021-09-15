@@ -308,7 +308,7 @@ ok($@, 'V2Writable fails on non-existent dir');
 	open $fh, '<', $alt or die $!;
 	my $before = do { local $/; <$fh> };
 
-	ok($v2w->git_init(3), 'init a new epoch');
+	ok($v2w->{mg}->add_epoch(3), 'init a new epoch');
 	open $fh, '<', $alt or die $!;
 	my $after = do { local $/; <$fh> };
 	ok(index($after, $before) > 0,

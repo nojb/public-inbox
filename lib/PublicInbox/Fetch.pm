@@ -6,12 +6,11 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::IPC);
 use URI ();
-use PublicInbox::Spawn qw(popen_rd);
+use PublicInbox::Spawn qw(popen_rd run_die);
 use PublicInbox::Admin;
 use PublicInbox::LEI;
 use PublicInbox::LeiCurl;
 use PublicInbox::LeiMirror;
-use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
 use File::Temp ();
 
 sub new { bless {}, __PACKAGE__ }
@@ -87,15 +86,15 @@ sub do_fetch {
 	my $ibx_ver;
 	$lei->{curl} //= PublicInbox::LeiCurl->new($lei) or return;
 	my $dir = PublicInbox::Admin::resolve_inboxdir($cd, \$ibx_ver);
-	my ($ibx_uri, @git_dir, @epochs);
+	my ($ibx_uri, @git_dir, @epochs, $mg, @new_epoch);
 	if ($ibx_ver == 1) {
 		my $url = remote_url($lei, $dir) //
 			die "E: $dir missing remote.origin.url\n";
 		$ibx_uri = URI->new($url);
 	} else { # v2:
-		opendir my $dh, "$dir/git" or die "opendir $dir/git: $!";
-		@epochs = sort { $b <=> $a } map { substr($_, 0, -4) + 0 }
-					grep(/\A[0-9]+\.git\z/, readdir($dh));
+		require PublicInbox::MultiGit;
+		$mg = PublicInbox::MultiGit->new($dir, 'all.git', 'git');
+		my @epochs = $mg->git_epochs;
 		my ($git_url, $epoch);
 		for my $nr (@epochs) { # try newest epoch, first
 			my $edir = "$dir/git/$nr.git";
@@ -121,9 +120,7 @@ EOM
 	if ($code == 404) {
 		# any pre-manifest.js.gz instances running? Just fetch all
 		# existing ones and unconditionally try cloning the next
-		$v2_epochs = [ map {;
-				"$dir/git/$_.git";
-				} @epochs ];
+		$v2_epochs = [ map { "$dir/git/$_.git" } @epochs ];
 		push @$v2_epochs, "$dir/git/".($epochs[-1] + 1) if @epochs;
 	} else {
 		$code == 200 or die "BUG unexpected code $code\n";
@@ -154,6 +151,7 @@ EOM
 			$cmd = [ @$torsocks,
 				PublicInbox::LeiMirror::clone_cmd($lei, $opt),
 				$$e_uri, $d];
+			push @new_epoch, substr($epath, 5, -4) + 0;
 		}
 		my $cerr = PublicInbox::LeiMirror::run_reap($lei, $cmd, $opt);
 		# do not bail on clone failure if we didn't have a manifest
@@ -162,6 +160,7 @@ EOM
 			return;
 		}
 	}
+	for my $i (@new_epoch) { $mg->epoch_cfg_set($i) }
 	if ($ft) {
 		my $fn = $ft->filename;
 		rename($fn, $mf) or die "E: rename($fn, $mf): $!\n";

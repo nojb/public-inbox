@@ -228,10 +228,13 @@ EOF
 	is(scalar($mset->items), 0, 'large message not re-indexed');
 }
 ok(scalar(@new_epochs), 'new epochs were created and fetched');
+for my $d (@new_epochs) {
+	is(xqx(['git', "--git-dir=$d", 'config', qw(include.path)]),
+		"../../all.git/config\n",
+		'include.path set');
+}
 
 ok($td->kill, 'killed httpd');
 $td->join;
 
-done_testing();
-
-1;
+done_testing;

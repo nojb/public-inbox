@@ -1,13 +1,13 @@
 # Copyright (C) 2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
-# "lei add-external --mirror" support
+# "lei add-external --mirror" support (also "public-inbox-clone");
 package PublicInbox::LeiMirror;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::IPC);
 use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
-use PublicInbox::Spawn qw(popen_rd spawn);
+use PublicInbox::Spawn qw(popen_rd spawn run_die);
 use File::Temp ();
 use Fcntl qw(SEEK_SET);
 
@@ -209,7 +209,6 @@ sub clone_v2 {
 	my $lei = $self->{lei};
 	my $curl = $self->{curl} //= PublicInbox::LeiCurl->new($lei) or return;
 	my $pfx //= $curl->torsocks($lei, $v2_uris->[0]) or return;
-	my @epochs;
 	my $dst = $self->{dst};
 	my @src_edst;
 	for my $uri (@$v2_uris) {
@@ -220,17 +219,21 @@ failed to extract epoch number from $src
 
 		my $nr = $1 + 0;
 		$edst .= "/git/$nr.git";
-		push @src_edst, [ $src, $edst ];
+		push @src_edst, $src, $edst;
 	}
 	my $lk = bless { lock_path => "$dst/inbox.lock" }, 'PublicInbox::Lock';
 	_try_config($self);
 	my $on_destroy = $lk->lock_for_scope($$);
 	my @cmd = clone_cmd($lei, my $opt = {});
-	while (my $pair = shift(@src_edst)) {
-		my $cmd = [ @$pfx, @cmd, @$pair ];
+	while (my ($src, $edst) = splice(@src_edst, 0, 2)) {
+		my $cmd = [ @$pfx, @cmd, $src, $edst ];
 		my $cerr = run_reap($lei, $cmd, $opt);
 		return $lei->child_error($cerr, "@$cmd failed") if $cerr;
 	}
+	require PublicInbox::MultiGit;
+	my $mg = PublicInbox::MultiGit->new($dst, 'all.git', 'git');
+	$mg->fill_alternates;
+	for my $i ($mg->git_epochs) { $mg->epoch_cfg_set($i) }
 	undef $on_destroy; # unlock
 	index_cloned_inbox($self, 2);
 }

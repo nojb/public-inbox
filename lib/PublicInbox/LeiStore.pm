@@ -27,7 +27,6 @@ use PublicInbox::MDA;
 use PublicInbox::Spawn qw(spawn);
 use PublicInbox::MdirReader;
 use PublicInbox::LeiToMail;
-use List::Util qw(max);
 use File::Temp ();
 use POSIX ();
 use IO::Handle (); # ->autoflush
@@ -48,19 +47,6 @@ sub packing_factor { $PublicInbox::V2Writable::PACKING_FACTOR }
 
 sub rotate_bytes {
 	$_[0]->{rotate_bytes} // ((1024 * 1024 * 1024) / $_[0]->packing_factor)
-}
-
-sub git_pfx { "$_[0]->{priv_eidx}->{topdir}/local" };
-
-sub git_epoch_max  {
-	my ($self) = @_;
-	if (opendir(my $dh, $self->git_pfx)) {
-		max(map {
-			substr($_, 0, -4) + 0; # drop ".git" suffix
-		} grep(/\A[0-9]+\.git\z/, readdir($dh))) // 0;
-	} else {
-		$!{ENOENT} ? 0 : die("opendir ${\$self->git_pfx}: $!\n");
-	}
 }
 
 sub git_ident ($) {
@@ -91,22 +77,16 @@ sub importer {
 		$im->done;
 		undef $im;
 		$self->checkpoint;
-		$max = $self->git_epoch_max + 1;
+		$max = $self->{priv_eidx}->{mg}->git_epochs + 1;
 	}
 	my (undef, $tl) = eidx_init($self); # acquire lock
-	my $pfx = $self->git_pfx;
-	$max //= $self->git_epoch_max;
+	$max //= $self->{priv_eidx}->{mg}->git_epochs;
 	while (1) {
-		my $latest = "$pfx/$max.git";
-		my $old = -e $latest;
-		PublicInbox::Import::init_bare($latest);
+		my $latest = $self->{priv_eidx}->{mg}->add_epoch($max);
 		my $git = PublicInbox::Git->new($latest);
-		if (!$old) {
-			$git->qx(qw(config core.sharedRepository 0600));
-			$self->done; # unlock
-			# re-acquire lock, update alternates for new epoch
-			(undef, $tl) = eidx_init($self);
-		}
+		$self->done; # unlock
+		# re-acquire lock, update alternates for new epoch
+		(undef, $tl) = eidx_init($self);
 		my $packed_bytes = $git->packed_bytes;
 		my $unpacked_bytes = $packed_bytes / $self->packing_factor;
 		if ($unpacked_bytes >= $self->rotate_bytes) {

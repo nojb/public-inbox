@@ -12,6 +12,7 @@ use PublicInbox::IPC;
 use PublicInbox::Eml;
 use PublicInbox::Git;
 use PublicInbox::Import;
+use PublicInbox::MultiGit;
 use PublicInbox::MID qw(mids references);
 use PublicInbox::ContentHash qw(content_hash content_digest git_sha);
 use PublicInbox::InboxWritable;
@@ -72,16 +73,14 @@ sub new {
 	$v2ibx = PublicInbox::InboxWritable->new($v2ibx);
 	my $dir = $v2ibx->assert_usable_dir;
 	unless (-d $dir) {
-		if ($creat) {
-			require File::Path;
-			File::Path::mkpath($dir);
-		} else {
-			die "$dir does not exist\n";
-		}
+		die "$dir does not exist\n" if !$creat;
+		require File::Path;
+		File::Path::mkpath($dir);
 	}
 	my $xpfx = "$dir/xap" . PublicInbox::Search::SCHEMA_VERSION;
 	my $self = {
 		ibx => $v2ibx,
+		mg => PublicInbox::MultiGit->new($dir, 'all.git', 'git'),
 		im => undef, #  PublicInbox::Import
 		parallel => 1,
 		transact_bytes => 0,
@@ -110,7 +109,7 @@ sub init_inbox {
 	$self->{mm}->skip_artnum($skip_artnum) if defined $skip_artnum;
 	my $max = $self->{ibx}->max_git_epoch;
 	$max = $skip_epoch if (defined($skip_epoch) && !defined($max));
-	$self->git_init($max // 0);
+	$self->{mg}->add_epoch($max // 0);
 	$self->done;
 }
 
@@ -641,70 +640,6 @@ sub done {
 	die $err if $err;
 }
 
-sub write_alternates ($$$) {
-	my ($info_dir, $mode, $out) = @_;
-	my $fh = File::Temp->new(TEMPLATE => 'alt-XXXX', DIR => $info_dir);
-	my $tmp = $fh->filename;
-	print $fh @$out or die "print $tmp: $!\n";
-	chmod($mode, $fh) or die "fchmod $tmp: $!\n";
-	close $fh or die "close $tmp $!\n";
-	my $alt = "$info_dir/alternates";
-	rename($tmp, $alt) or die "rename $tmp => $alt: $!\n";
-	$fh->unlink_on_destroy(0);
-}
-
-sub fill_alternates ($$) {
-	my ($self, $epoch) = @_;
-
-	my $pfx = "$self->{ibx}->{inboxdir}/git";
-	my $all = "$self->{ibx}->{inboxdir}/all.git";
-	PublicInbox::Import::init_bare($all) unless -d $all;
-	my $info_dir = "$all/objects/info";
-	my $alt = "$info_dir/alternates";
-	my (%alt, $new);
-	my $mode = 0644;
-	if (-e $alt) {
-		open(my $fh, '<', $alt) or die "open < $alt: $!\n";
-		$mode = (stat($fh))[2] & 07777;
-
-		# we assign a sort score to every alternate and favor
-		# the newest (highest numbered) one because loose objects
-		# require scanning epochs and only the latest epoch is
-		# expected to see loose objects
-		my $score;
-		my $other = 0; # in case admin adds non-epoch repos
-		%alt = map {;
-			if (m!\A\Q../../\E([0-9]+)\.git/objects\z!) {
-				$score = $1 + 0;
-			} else {
-				$score = --$other;
-			}
-			$_ => $score;
-		} split(/\n+/, do { local $/; <$fh> });
-	}
-
-	foreach my $i (0..$epoch) {
-		my $dir = "../../git/$i.git/objects";
-		if (!exists($alt{$dir}) && -d "$pfx/$i.git") {
-			$alt{$dir} = $i;
-			$new = 1;
-		}
-	}
-	return unless $new;
-	write_alternates($info_dir, $mode,
-		[join("\n", sort { $alt{$b} <=> $alt{$a} } keys %alt), "\n"]);
-}
-
-sub git_init {
-	my ($self, $epoch) = @_;
-	my $git_dir = "$self->{ibx}->{inboxdir}/git/$epoch.git";
-	PublicInbox::Import::init_bare($git_dir);
-	run_die([qw(git config), "--file=$git_dir/config",
-		qw(include.path ../../all.git/config)]);
-	fill_alternates($self, $epoch);
-	$git_dir
-}
-
 sub importer {
 	my ($self) = @_;
 	my $im = $self->{im};
@@ -716,8 +651,8 @@ sub importer {
 			$im->done;
 			$im = undef;
 			$self->checkpoint;
-			my $git_dir = $self->git_init(++$self->{epoch_max});
-			my $git = PublicInbox::Git->new($git_dir);
+			my $dir = $self->{mg}->add_epoch(++$self->{epoch_max});
+			my $git = PublicInbox::Git->new($dir);
 			return $self->import_init($git, 0);
 		}
 	}
@@ -737,8 +672,8 @@ sub importer {
 		}
 	}
 	$self->{epoch_max} = $epoch;
-	$latest = $self->git_init($epoch);
-	$self->import_init(PublicInbox::Git->new($latest), 0);
+	my $dir = $self->{mg}->add_epoch($epoch);
+	$self->import_init(PublicInbox::Git->new($dir), 0);
 }
 
 sub import_init {
@@ -1335,7 +1270,7 @@ sub index_sync {
 	local $self->{ibx}->{indexlevel} = 'basic' if $seq;
 
 	$self->idx_init($opt); # acquire lock
-	fill_alternates($self, $epoch_max);
+	$self->{mg}->fill_alternates;
 	$self->{oidx}->rethread_prepare($opt);
 	my $sync = {
 		need_checkpoint => \(my $bool = 0),

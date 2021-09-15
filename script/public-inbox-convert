@@ -179,7 +179,7 @@ if (my $old_mm = $old->mm) {
 	$v2w->idx_init($opt);
 	$v2w->{mm}->{dbh}->sqlite_backup_from_file($old_mm);
 
-	my $epoch0 = PublicInbox::Git->new($v2w->git_init(0));
+	my $epoch0 = PublicInbox::Git->new($v2w->{mg}->add_epoch(0));
 	chop(my $cmt = $epoch0->qx(qw(rev-parse --verify), $head));
 	$v2w->last_epoch_commit(0, $cmt);
 }

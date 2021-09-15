@@ -95,7 +95,20 @@ SKIP: {
 
 	ok(run_script([qw(-clone -q -C), $d, "$http/t2"], undef, $opt),
 		'-clone succeeds on v2');
-	ok(-d "$d/t2/git/0.git", 'epoch cloned');
+	ok(-f "$d/t2/git/0.git/config", 'epoch cloned');
+
+	# writeBitmaps is the default for bare repos in git 2.22+,
+	# so we may stop setting it ourselves.
+	0 and is(xqx(['git', "--git-dir=$d/t2/git/0.git", 'config',
+		qw(--bool repack.writeBitmaps)]), "true\n",
+		'write bitmaps set (via include.path=all.git/config');
+
+	is(xqx(['git', "--git-dir=$d/t2/git/0.git", 'config',
+		qw(include.path)]), "../../all.git/config\n",
+		'include.path set');
+
+	ok(-s "$d/t2/all.git/objects/info/alternates",
+		'all.git alternates created');
 	ok(-f "$d/t2/manifest.js.gz", 'manifest saved');
 	ok(!-e "$d/t2/mirror.done", 'no leftover mirror.done');
 	ok(run_script([qw(-fetch -C), "$d/t2"], undef, $opt),
