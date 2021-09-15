@@ -91,7 +91,7 @@ sub get_fingerprint2 {
 	Digest::SHA::sha256(do { local $/; <$rd> });
 }
 
-sub do_fetch {
+sub do_fetch { # main entry point
 	my ($cls, $lei, $cd) = @_;
 	my $ibx_ver;
 	$lei->{curl} //= PublicInbox::LeiCurl->new($lei) or return;
@@ -124,6 +124,7 @@ Unable to infer inbox URL from <$git_url>
 EOM
 		$ibx_uri = URI->new($inbox_url);
 	}
+	PublicInbox::LeiMirror::write_makefile($dir, $ibx_ver);
 	$lei->qerr("# inbox URL: $ibx_uri/");
 	my $res = do_manifest($lei, $dir, $ibx_uri) or return;
 	my ($code, $v1_path, $v2_epochs, $muri, $ft, $mf) = @$res;

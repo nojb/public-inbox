@@ -9,7 +9,7 @@ use parent qw(PublicInbox::IPC);
 use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
 use PublicInbox::Spawn qw(popen_rd spawn run_die);
 use File::Temp ();
-use Fcntl qw(SEEK_SET);
+use Fcntl qw(SEEK_SET O_CREAT O_EXCL O_WRONLY);
 
 sub do_finish_mirror { # dwaitpid callback
 	my ($arg, $pid) = @_;
@@ -201,6 +201,7 @@ sub clone_v1 {
 	my $cerr = run_reap($lei, $cmd, $opt);
 	return $lei->child_error($cerr, "@$cmd failed") if $cerr;
 	_try_config($self);
+	write_makefile($self->{dst}, 1);
 	index_cloned_inbox($self, 1);
 }
 
@@ -234,6 +235,7 @@ failed to extract epoch number from $src
 	my $mg = PublicInbox::MultiGit->new($dst, 'all.git', 'git');
 	$mg->fill_alternates;
 	for my $i ($mg->git_epochs) { $mg->epoch_cfg_set($i) }
+	write_makefile($self->{dst}, 2);
 	undef $on_destroy; # unlock
 	index_cloned_inbox($self, 2);
 }
@@ -354,6 +356,63 @@ sub ipc_atfork_child {
 	$self->{lei}->_lei_atfork_child;
 	$SIG{TERM} = sub { exit(128 + 15) }; # trigger OnDestroy $reap
 	$self->SUPER::ipc_atfork_child;
+}
+
+sub write_makefile {
+	my ($dir, $ibx_ver) = @_;
+	my $f = "$dir/Makefile";
+	if (sysopen my $fh, $f, O_CREAT|O_EXCL|O_WRONLY) {
+		print $fh <<EOM or die "print($f) $!";
+# This is a v$ibx_ver public-inbox, see the public-inbox-v$ibx_ver-format(5)
+# manpage for more information on the format.  This Makefile is
+# intended as a familiar wrapper for users unfamiliar with
+# public-inbox-* commands.
+#
+# See the respective manpages for public-inbox-fetch(1),
+# public-inbox-index(1), etc for more information on
+# some of the commands used by this Makefile.
+#
+# This Makefile will not be modified nor read by public-inbox,
+# so you may edit it freely with your own convenience targets
+# and notes.  public-inbox-fetch will recreate it if removed.
+EOM
+		print $fh <<'EOM' or die "print($f): $!";
+# the default target:
+help :
+	@echo Common targets:
+	@echo '    make fetch        - fetch from remote git repostorie(s)'
+	@echo '    make update       - fetch and update index '
+	@echo
+	@echo Rarely needed targets:
+	@echo '    make reindex      - may be needed for new features/bugfixes'
+	@echo '    make compact      - rewrite Xapian storage to save space'
+
+fetch :
+	public-inbox-fetch
+update :
+	@if ! public-inbox-fetch --exit-code; \
+	then \
+		c=$$?; \
+		test $$c -eq 127 && exit 0; \
+		exit $$c; \
+	elif test -f msgmap.sqlite3 || test -f public-inbox/msgmap.sqlite3; \
+	then \
+		public-inbox-index; \
+	else \
+		echo 'public-inbox index not initialized'; \
+		echo 'see public-inbox-index(1) man page'; \
+	fi
+reindex :
+	public-inbox-index --reindex
+compact :
+	public-inbox-compact
+
+.PHONY : help fetch update reindex compact
+EOM
+		close $fh or die "close($f): $!";
+	} else {
+		die "open($f): $!" unless $!{EEXIST};
+	}
 }
 
 1;

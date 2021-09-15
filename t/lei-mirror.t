@@ -19,6 +19,7 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	ok(-f "$t1/public-inbox/msgmap.sqlite3", 't1-mirror indexed');
 	is(PublicInbox::Inbox::try_cat("$t1/description"),
 		"mirror of $http/t1/\n", 'description set');
+	ok(-f "$t1/Makefile", 'convenience Makefile added (v1)');
 
 	lei_ok('ls-external');
 	like($lei_out, qr!\Q$t1\E!, 't1 added to ls-externals');
@@ -27,6 +28,7 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	lei_ok('add-external', $t2, '--mirror', "$http/t2/", \'--mirror v2');
 	ok(-f "$t2/msgmap.sqlite3", 't2-mirror indexed');
 	ok(-f "$t2/description", 't2 description');
+	ok(-f "$t2/Makefile", 'convenience Makefile added (v2)');
 	is(PublicInbox::Inbox::try_cat("$t2/description"),
 		"mirror of $http/t2/\n", 'description set');
 
