@@ -15,9 +15,9 @@ use File::Temp ();
 
 sub new { bless {}, __PACKAGE__ }
 
-sub fetch_cmd ($$) {
+sub fetch_args ($$) {
 	my ($lei, $opt) = @_;
-	my @cmd = qw(git);
+	my @cmd; # (git --git-dir=...) to be added by caller
 	$opt->{$_} = $lei->{$_} for (0..2);
 	# we support "-c $key=$val" for arbitrary git config options
 	# e.g.: git -c http.proxy=socks5h://127.0.0.1:9050
@@ -41,10 +41,9 @@ sub remote_url ($$) {
 sub do_manifest ($$$) {
 	my ($lei, $dir, $ibx_uri) = @_;
 	my $muri = URI->new("$ibx_uri/manifest.js.gz");
-	my $ft = File::Temp->new(TEMPLATE => 'manifest-XXXX',
-				UNLINK => 1, DIR => $dir);
+	my $ft = File::Temp->new(TEMPLATE => 'm-XXXX',
+				UNLINK => 1, DIR => $dir, SUFFIX => '.tmp');
 	my $fn = $ft->filename;
-	my @opt = (qw(-R -o), $fn);
 	my $mf = "$dir/manifest.js.gz";
 	my $m0; # current manifest.js.gz contents
 	if (open my $fh, '<', $mf) {
@@ -53,8 +52,9 @@ sub do_manifest ($$$) {
 		};
 		$lei->err($@) if $@;
 	}
-	my $curl_cmd = $lei->{curl}->for_uri($lei, $muri, @opt);
-	my $opt = {};
+	my ($bn) = ($fn =~ m!/([^/]+)\z!);
+	my $curl_cmd = $lei->{curl}->for_uri($lei, $muri, qw(-R -o), $bn);
+	my $opt = { -C => $dir };
 	$opt->{$_} = $lei->{$_} for (0..2);
 	my $cerr = PublicInbox::LeiMirror::run_reap($lei, $curl_cmd, $opt);
 	if ($cerr) {
@@ -153,9 +153,9 @@ EOM
 		my $cmd;
 		my $opt = {}; # for spawn
 		if (-d $d) {
-			$opt->{-C} = $d;
 			$fp2->[0] = get_fingerprint2($d) if $fp2;
-			$cmd = [ @$torsocks, fetch_cmd($lei, $opt) ];
+			$cmd = [ @$torsocks, 'git', "--git-dir=$d",
+				fetch_args($lei, $opt) ];
 		} else {
 			my $e_uri = $ibx_uri->clone;
 			my ($epath) = ($d =~ m!(/git/[0-9]+\.git)\z!);

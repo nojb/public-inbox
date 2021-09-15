@@ -181,7 +181,7 @@ sub index_cloned_inbox {
 
 sub run_reap {
 	my ($lei, $cmd, $opt) = @_;
-	$lei->qerr("# @$cmd" . ($opt->{-C} ? " (in $opt->{-C})" : ''));
+	$lei->qerr("# @$cmd");
 	$opt->{pgid} = 0 if $lei->{sock};
 	my $pid = spawn($cmd, undef, $opt);
 	my $reap = PublicInbox::OnDestroy->new($lei->can('sigint_reap'), $pid);
@@ -276,11 +276,13 @@ sub try_manifest {
 	$uri->path($path . '/manifest.js.gz');
 	my $pdir = $lei->rel2abs($self->{dst});
 	$pdir =~ s!/[^/]+/?\z!!;
-	my $ft = File::Temp->new(TEMPLATE => 'manifest-XXXX',
-				UNLINK => 1, DIR => $pdir);
+	my $ft = File::Temp->new(TEMPLATE => 'm-XXXX',
+				UNLINK => 1, DIR => $pdir, SUFFIX => '.tmp');
 	my $fn = $ft->filename;
-	my $cmd = $curl->for_uri($lei, $uri, '-R', '-o', $fn);
-	my $opt = { 0 => $lei->{0}, 1 => $lei->{1}, 2 => $lei->{2} };
+	my ($bn) = ($fn =~ m!/([^/]+)\z!);
+	my $cmd = $curl->for_uri($lei, $uri, '-R', '-o', $bn);
+	my $opt = { -C => $pdir };
+	$opt->{$_} = $lei->{$_} for (0..2);
 	my $cerr = run_reap($lei, $cmd, $opt);
 	if ($cerr) {
 		return try_scrape($self) if ($cerr >> 8) == 22; # 404 missing

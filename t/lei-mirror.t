@@ -116,12 +116,12 @@ SKIP: {
 	ok(!run_script([qw(-fetch --exit-code -C), "$d/t2"], undef, $opt),
 		'-fetch succeeds w/ manifest.js.gz');
 	is($? >> 8, 127, '--exit-code gave 127');
-	unlike($err, qr/git fetch/, 'no fetch done w/ manifest');
+	unlike($err, qr/git --git-dir=\S+ fetch/, 'no fetch done w/ manifest');
 	unlink("$d/t2/manifest.js.gz") or xbail "unlink $!";
 	ok(!run_script([qw(-fetch --exit-code -C), "$d/t2"], undef, $opt),
 		'-fetch succeeds w/o manifest.js.gz');
 	is($? >> 8, 127, '--exit-code gave 127');
-	like($err, qr/git fetch/, 'fetch forced w/o manifest');
+	like($err, qr/git --git-dir=\S+ fetch/, 'fetch forced w/o manifest');
 
 	ok(run_script([qw(-clone -q -C), $d, "$http/t1"], undef, $opt),
 		'cloning v1 works');
@@ -131,14 +131,14 @@ SKIP: {
 	ok(!run_script([qw(-fetch --exit-code -C), "$d/t1"], undef, $opt),
 		'fetching v1 works');
 	is($? >> 8, 127, '--exit-code gave 127');
-	unlike($err, qr/git fetch/, 'no fetch done w/ manifest');
+	unlike($err, qr/git --git-dir=\S+ fetch/, 'no fetch done w/ manifest');
 	unlink("$d/t1/manifest.js.gz") or xbail "unlink $!";
 	my $before = [ glob("$d/t1/*") ];
 	ok(!run_script([qw(-fetch --exit-code -C), "$d/t1"], undef, $opt),
 		'fetching v1 works w/o manifest.js.gz');
 	is($? >> 8, 127, '--exit-code gave 127');
 	unlink("$d/t1/FETCH_HEAD"); # git internal
-	like($err, qr/git fetch/, 'no fetch done w/ manifest');
+	like($err, qr/git --git-dir=\S+ fetch/, 'no fetch done w/ manifest');
 	ok(unlink("$d/t1/manifest.js.gz"), 'manifest created');
 	my $after = [ glob("$d/t1/*") ];
 	is_deeply($before, $after, 'no new files created');
