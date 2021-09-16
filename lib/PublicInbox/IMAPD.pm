@@ -70,12 +70,21 @@ sub imapd_refresh_finalize {
 	}
 	%$mailboxes = (%$mailboxes, %{$imapd->{mailboxes}});
 	$imapd->{mailboxes} = $mailboxes;
-	$imapd->{inboxlist} = [
+	$imapd->{mailboxlist} = [
+		map { $_->[2] }
+		sort { $a->[0] cmp $b->[0] || $a->[1] <=> $b->[1] }
 		map {
-			my $no = $mailboxes->{$_} == $dummy ? '' : 'No';
 			my $u = $_; # capitalize "INBOX" for user-familiarity
 			$u =~ s/\Ainbox(\.|\z)/INBOX$1/i;
-			qq[* LIST (\\Has${no}Children) "." $u\r\n]
+			if ($mailboxes->{$_} == $dummy) {
+				[ $u, -1,
+				  qq[* LIST (\\HasChildren) "." $u\r\n]]
+			} else {
+				$u =~ /\A(.+)\.([0-9]+)\z/ or
+					die "BUG: `$u' has no slice digit(s)";
+				[ $1, $2 + 0,
+				  qq[* LIST (\\HasNoChildren) "." $u\r\n] ]
+			}
 		} keys %$mailboxes
 	];
 	$imapd->{pi_cfg} = $pi_cfg;

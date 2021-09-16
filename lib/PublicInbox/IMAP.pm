@@ -384,7 +384,7 @@ sub ensure_slices_exist ($$$) {
 		push @created, $sub_mailbox;
 	}
 	return unless @created;
-	my $l = $imapd->{inboxlist} or return;
+	my $l = $imapd->{mailboxlist} or return;
 	push @$l, map { qq[* LIST (\\HasNoChildren) "." $_\r\n] } @created;
 }
 
@@ -850,7 +850,7 @@ sub cmd_status ($$$;@) {
 my %patmap = ('*' => '.*', '%' => '[^\.]*');
 sub cmd_list ($$$$) {
 	my ($self, $tag, $refname, $wildcard) = @_;
-	my $l = $self->{imapd}->{inboxlist};
+	my $l = $self->{imapd}->{mailboxlist};
 	if ($refname eq '' && $wildcard eq '') {
 		# request for hierarchy delimiter
 		$l = [ qq[* LIST (\\Noselect) "." ""\r\n] ];
