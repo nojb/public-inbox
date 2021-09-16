@@ -56,6 +56,28 @@ sub mic_new ($$$$) {
 
 sub auth_anon_cb { '' }; # for Mail::IMAPClient::Authcallback
 
+sub onion_hint ($$) {
+	my ($lei, $uri) = @_;
+	$uri->host =~ /\.onion\z/i or return "\n";
+	my $t = $uri->isa('PublicInbox::URIimap') ? 'imap' : 'nntp';
+	my $url = uri_section($uri);
+	my $set_cfg = 'lei config';
+	if (!$lei) { # public-inbox-watch
+		my $f = $ENV{PI_CONFIG} || '~/.public-inbox/config';
+		$set_cfg = "git config -f $f";
+	}
+	<<EOM
+
+Assuming you have Tor configured and running locally on port 9050,
+try configuring a socks5h:// proxy:
+
+	url=$url
+	$set_cfg $t.\$url.proxy socks5h://127.0.0.1:9050
+
+...before retrying your current command
+EOM
+}
+
 # mic_for may prompt the user and store auth info, prepares mic_get
 sub mic_for ($$$$) { # mic = Mail::IMAPClient
 	my ($self, $uri, $mic_common, $lei) = @_;
@@ -81,7 +103,8 @@ sub mic_for ($$$$) { # mic = Mail::IMAPClient
 	$mic_arg->{Ssl} = 1 if $uri->scheme eq 'imaps';
 	require PublicInbox::IMAPClient;
 	my $mic = mic_new($self, $mic_arg, $sec, $uri) or
-			die "E: <$uri> new: $@\n";
+		die "E: <$uri> new: $@".onion_hint($lei, $uri);
+
 	# default to using STARTTLS if it's available, but allow
 	# it to be disabled since I usually connect to localhost
 	if (!$mic_arg->{Ssl} && !defined($mic_arg->{Starttls}) &&
@@ -145,7 +168,7 @@ sub nn_new ($$$) {
 		eval { $nn = PublicInbox::NetNNTPSocks->new_socks(%$nn_arg) };
 		die "E: <$uri> $@\n" if $@;
 	} else {
-		$nn = Net::NNTP->new(%$nn_arg) or die "E: <$uri> new: $!\n";
+		$nn = Net::NNTP->new(%$nn_arg) or return;
 	}
 
 	# default to using STARTTLS if it's available, but allow
@@ -202,7 +225,8 @@ sub nn_for ($$$$) { # nn = Net::NNTP
 	$nn_arg->{SSL} = 1 if $uri->secure; # snews == nntps
 	my $sa = $self->{-proxy_cli};
 	%$nn_arg = (%$nn_arg, %$sa) if $sa;
-	my $nn = nn_new($nn_arg, $nntp_cfg, $uri);
+	my $nn = nn_new($nn_arg, $nntp_cfg, $uri) or
+		die "E: <$uri> new: $@".onion_hint($lei, $uri);
 	if ($cred) {
 		$cred->fill($lei) unless defined($p); # may prompt user here
 		if ($nn->authinfo($u, $p)) {
