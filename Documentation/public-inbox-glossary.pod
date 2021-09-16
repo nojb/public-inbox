@@ -67,6 +67,11 @@ rather than the newsgroup name since public-facing JMAP will be
 part of the PSGI code and not need a separate daemon like
 L<public-inbox-nntpd(1)> or L<public-inbox-imapd(1)>
 
+=item epoch
+
+A git repository used for blob storage.  See
+L<public-inbox-v2-format(5)/GIT EPOCHS>.
+
 =item keywords, (IMAP|Maildir) flags, mbox Status + X-Status
 
 Private, per-message keywords or flags as described in RFC 8621
