@@ -116,8 +116,26 @@ sub _html_end {
 		$x = <<EOF;
 This is a public inbox, see <a
 href="$m">mirroring instructions</a>
-on how to clone and mirror all data and code used for this inbox
+for how to clone and mirror all data and code used for this inbox
 EOF
+		my $has_nntp = @{$ctx->{ibx}->nntp_url($ctx)};
+		my $has_imap = @{$ctx->{ibx}->imap_url($ctx)};
+		if ($has_nntp || $has_imap) {
+			substr($x, -1, 1) = ";\n"; # s/\n/;\n
+			if ($has_nntp && $has_imap) {
+				$x .= <<EOM;
+as well as URLs for read-only IMAP folder(s) and NNTP newsgroup(s).
+EOM
+			} elsif ($has_nntp) {
+				$x .= <<EOM;
+as well as URLs for NNTP newsgroup(s).
+EOM
+			} else {
+				$x .= <<EOM;
+as well as URLs for IMAP folder(s).
+EOM
+			}
+		}
 	} else {
 		$x = <<EOF;
 This is an external index of several public inboxes,
