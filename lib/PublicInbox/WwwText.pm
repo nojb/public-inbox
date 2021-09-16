@@ -210,7 +210,7 @@ EOF
 		defined(my $v = $ibx->{$k}) or next;
 		$$txt .= "\t$k = $v\n";
 	}
-	$$txt .= "\tnntpmirror = $_\n" for (@{$ibx->nntp_url});
+	$$txt .= "\tnntpmirror = $_\n" for (@{$ibx->nntp_url($ctx)});
 	_coderepo_config($ctx, $txt);
 	1;
 }
@@ -343,7 +343,7 @@ EOM
 Example config snippet for mirrors: $cfg_link
 EOF
 	if ($ibx->can('nntp_url')) {
-		my $nntp = $ibx->nntp_url;
+		my $nntp = $ibx->nntp_url($ctx);
 		if (scalar @$nntp) {
 			$$txt .= "\n";
 			$$txt .= @$nntp == 1 ? 'Newsgroup' : 'Newsgroups are';

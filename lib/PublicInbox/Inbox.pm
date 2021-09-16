@@ -109,8 +109,6 @@ sub new {
 	} else {
 		delete $opts->{feedmax};
 	}
-	$opts->{nntpserver} ||= $pi_cfg->{'publicinbox.nntpserver'};
-
 	# allow any combination of multi-line or comma-delimited hide entries
 	my $hide = {};
 	if (defined(my $h = $opts->{hide})) {
@@ -261,22 +259,21 @@ sub base_url {
 }
 
 sub nntp_url {
-	my ($self) = @_;
+	my ($self, $ctx) = @_;
 	$self->{-nntp_url} ||= do {
 		# no checking for nntp_usable here, we can point entirely
 		# to non-local servers or users run by a different user
-		my $ns = $self->{nntpserver};
+		my $ns = $self->{nntpserver} //
+		       $ctx->{www}->{pi_cfg}->get_all('publicinbox.nntpserver');
 		my $group = $self->{newsgroup};
 		my @urls;
 		if ($ns && $group) {
-			$ns = [ $ns ] if ref($ns) ne 'ARRAY';
 			@urls = map {
 				my $u = m!\Anntps?://! ? $_ : "nntp://$_";
 				$u .= '/' if $u !~ m!/\z!;
 				$u.$group;
 			} @$ns;
 		}
-
 		my $mirrors = $self->{nntpmirror};
 		if ($mirrors) {
 			my @m;

@@ -43,7 +43,6 @@ my ($tmpdir, $for_destroy) = tmpdir();
 		-primary_address => 'meta@public-inbox.org',
 		'name' => 'meta',
 		-httpbackend_limiter => undef,
-		nntpserver => undef,
 	}, "lookup matches expected output");
 
 	is($cfg->lookup('blah@example.com'), undef,
@@ -60,7 +59,6 @@ my ($tmpdir, $for_destroy) = tmpdir();
 		'name' => 'test',
 		'url' => [ 'http://example.com/test' ],
 		-httpbackend_limiter => undef,
-		nntpserver => undef,
 	}, "lookup matches expected output for test");
 }
 
@@ -99,20 +97,27 @@ EOF
 	my $str = <<EOF;
 $pfx.address=test\@example.com
 $pfx.inboxdir=/path/to/non/existent
+$pfx.newsgroup=inbox.test
 publicinbox.nntpserver=news.example.com
 EOF
 	my $cfg = PublicInbox::Config->new(\$str);
 	my $ibx = $cfg->lookup_name('test');
-	is($ibx->{nntpserver}, 'news.example.com', 'global NNTP server');
+	is_deeply($ibx->nntp_url({ www => { pi_cfg => $cfg }}),
+		[ 'nntp://news.example.com/inbox.test' ],
+		'nntp_url uses global NNTP server');
 
 	$str = <<EOF;
 $pfx.address=test\@example.com
 $pfx.inboxdir=/path/to/non/existent
+$pfx.newsgroup=inbox.test
 $pfx.nntpserver=news.alt.example.com
+publicinbox.nntpserver=news.example.com
 EOF
 	$cfg = PublicInbox::Config->new(\$str);
 	$ibx = $cfg->lookup_name('test');
-	is($ibx->{nntpserver}, 'news.alt.example.com','per-inbox NNTP server');
+	is_deeply($ibx->nntp_url({ www => { pi_cfg => $cfg }}),
+		[ 'nntp://news.alt.example.com/inbox.test' ],
+		'nntp_url uses per-inbox NNTP server');
 }
 
 # no obfuscate domains

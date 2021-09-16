@@ -424,7 +424,7 @@ sub _fill_ibx {
 	my ($self, $name) = @_;
 	my $pfx = "publicinbox.$name";
 	my $ibx = {};
-	for my $k (qw(watch nntpserver)) {
+	for my $k (qw(watch)) {
 		my $v = $self->{"$pfx.$k"};
 		$ibx->{$k} = $v if defined $v;
 	}
@@ -451,7 +451,7 @@ sub _fill_ibx {
 	# TODO: more arrays, we should support multi-value for
 	# more things to encourage decentralization
 	for my $k (qw(address altid nntpmirror coderepo hide listid url
-			infourl watchheader)) {
+			infourl watchheader nntpserver)) {
 		my $v = $self->{"$pfx.$k"} // next;
 		$ibx->{$k} = _array($v);
 	}
