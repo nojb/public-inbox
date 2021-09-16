@@ -27,6 +27,12 @@ sub input_path_url { # overrides LeiInput version
 		my $sec = $lei->{net}->can('uri_section')->($uri);
 		my $mic = $lei->{net}->mic_get($uri);
 		my $l = $mic->folders_hash($uri->path); # server-side filter
+		@$l = map { $_->[2] } # undo Schwartzian transform below:
+			sort { $a->[0] cmp $b->[0] || $a->[1] <=> $b->[1] }
+			map { # prepare to sort -imapd slices numerically
+				$_->{name} =~ /\A(.+?)\.([0-9]+)\z/ ?
+				[ $1, $2 + 0, $_ ] : [ $_->{name}, -1, $_ ];
+			} @$l;
 		@f = map { "$sec/$_->{name}" } @$l;
 		if ($json) {
 			$_->{url} = "$sec/$_->{name}" for @$l;
