@@ -32,7 +32,7 @@ sub _each_mboxrd_eml { # callback for MboxReader->mboxrd
 		$smsg = $res if ref($res) eq ref($smsg);
 	}
 	$smsg->{blob} //= $xoids ? (keys(%$xoids))[0]
-				: $lei->git_blob_id($eml);
+				: $lei->git_oid($eml)->hexdigest;
 	$smsg->populate($eml);
 	$smsg->{mid} //= '(none)';
 	push @{$self->{smsg}}, $smsg;

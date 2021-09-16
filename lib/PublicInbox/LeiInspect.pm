@@ -202,7 +202,8 @@ sub ins_add { # InputPipe->consume callback
 			my $str = delete $lei->{istr};
 			$str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
 			my $eml = PublicInbox::Eml->new(\$str);
-			_inspect_argv($lei, [ 'blob:'.$lei->git_blob_id($eml),
+			_inspect_argv($lei, [
+				'blob:'.$lei->git_oid($eml)->hexdigest,
 				map { "mid:$_" } @{mids($eml)} ]);
 		};
 		$lei->{istr} .= $_[1];

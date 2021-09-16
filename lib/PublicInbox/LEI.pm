@@ -24,6 +24,8 @@ use PublicInbox::DS qw(now dwaitpid);
 use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::Lock;
 use PublicInbox::Eml;
+use PublicInbox::Import;
+use PublicInbox::ContentHash qw(git_sha);
 use Time::HiRes qw(stat); # ctime comparisons for config cache
 use File::Path qw(mkpath);
 use File::Spec;
@@ -1479,9 +1481,11 @@ sub refresh_watches {
 	}
 }
 
-sub git_blob_id {
-	my ($lei, $eml) = @_;
-	($lei->{sto} // _lei_store($lei, 1))->git_blob_id($eml);
+# TODO: support SHA-256
+sub git_oid {
+	my $eml = $_[-1];
+	$eml->header_set($_) for @PublicInbox::Import::UNWANTED_HEADERS;
+	git_sha(1, $eml);
 }
 
 sub lms { # read-only LeiMailSync

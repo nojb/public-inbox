@@ -275,7 +275,8 @@ sub each_remote_eml { # callback for MboxReader->mboxrd
 			$smsg->{kw} = []; # short-circuit xsmsg_vmd
 		}
 	}
-	$smsg->{blob} //= $xoids ? (keys(%$xoids))[0] : $lei->git_blob_id($eml);
+	$smsg->{blob} //= $xoids ? (keys(%$xoids))[0]
+				: $lei->git_oid($eml)->hexdigest;
 	_smsg_fill($smsg, $eml);
 	wait_startq($lei);
 	if ($lei->{-progress}) {
