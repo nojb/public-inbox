@@ -450,8 +450,9 @@ sub _fill_ibx {
 	}
 	# TODO: more arrays, we should support multi-value for
 	# more things to encourage decentralization
-	for my $k (qw(address altid nntpmirror coderepo hide listid url
-			infourl watchheader nntpserver)) {
+	for my $k (qw(address altid nntpmirror imapmirror
+			coderepo hide listid url
+			infourl watchheader nntpserver imapserver)) {
 		my $v = $self->{"$pfx.$k"} // next;
 		$ibx->{$k} = _array($v);
 	}

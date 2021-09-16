@@ -62,13 +62,15 @@ Default: none, optional
 
 =item publicinbox.<name>.newsgroup
 
-The NNTP group name for use with L<public-inbox-nntpd(8)>.  This
+The NNTP group name for use with L<public-inbox-nntpd(1)>.  This
 may be any newsgroup name with hierarchies delimited by C<.>.
 For example, the newsgroup for L<mailto:meta@public-inbox.org>
 is: C<inbox.comp.mail.public-inbox.meta>
 
-Omitting this for the given inbox will prevent the group from
-being read by L<public-inbox-nntpd(1)>
+It also configures the folder hierarchy used by L<public-inbox-imapd(1)>.
+
+Omitting this for a given inbox will prevent the inbox from
+being served by L<public-inbox-nntpd(1)> and/or L<public-inbox-imapd(1)>.
 
 Default: none, optional
 
@@ -95,6 +97,12 @@ matching via C<ORIGINAL_RECIPIENT> environment variable.
 This may be specified multiple times for merging multiple mailing
 lists into a single public-inbox, only one C<List-Id> header
 needs to match.
+
+Default: none
+
+=item publicinbox.<name>.imapmirror
+
+This may be the full IMAP URL of an independently-run IMAP mirror.
 
 Default: none
 
@@ -203,14 +211,18 @@ See L<public-inbox-watch(1)>
 
 See L<public-inbox-watch(1)>
 
-=item publicinbox.nntpserver
+=item publicinbox.imapserver
 
-Set this to point to the hostname of the L<public-inbox-nntpd(1)>
-instance.  This is used to advertise the existence of the NNTP
+Set this to point to the hostname(s) of the L<public-inbox-imapd(1)>
+instance.  This is used to advertise the existence of the IMAP
 endpoint in the L<PublicInbox::WWW> HTML interface.
 
-Multiple values are allowed for instances with multiple hostnames
-or mirrors.
+Default: none
+
+=item publicinbox.nntpserver
+
+Same as C<publicinbox.imapserver>, but for the hostname(s) of the
+L<public-inbox-nntpd(1)> instance.
 
 Default: none
 

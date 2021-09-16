@@ -258,49 +258,51 @@ sub base_url {
 	};
 }
 
-sub nntp_url {
-	my ($self, $ctx) = @_;
-	$self->{-nntp_url} ||= do {
-		# no checking for nntp_usable here, we can point entirely
-		# to non-local servers or users run by a different user
-		my $ns = $self->{nntpserver} //
-		       $ctx->{www}->{pi_cfg}->get_all('publicinbox.nntpserver');
-		my $group = $self->{newsgroup};
-		my @urls;
-		if ($ns && $group) {
-			@urls = map {
-				my $u = m!\Anntps?://! ? $_ : "nntp://$_";
-				$u .= '/' if $u !~ m!/\z!;
-				$u.$group;
-			} @$ns;
-		}
-		my $mirrors = $self->{nntpmirror};
-		if ($mirrors) {
-			my @m;
-			foreach (@$mirrors) {
-				my $u = m!\Anntps?://! ? $_ : "nntp://$_";
-				if ($u =~ m!\Anntps?://[^/]+/?\z!) {
-					if ($group) {
-						$u .= '/' if $u !~ m!/\z!;
-						$u .= $group;
-					} else {
-						warn
-"publicinbox.$self->{name}.nntpmirror=$_ missing newsgroup name\n";
-					}
+sub _x_url ($$$) {
+	my ($self, $x, $ctx) = @_; # $x is "nntp" or "imap"
+	# no checking for nntp_usable here, we can point entirely
+	# to non-local servers or users run by a different user
+	my $ns = $self->{"${x}server"} //
+	       $ctx->{www}->{pi_cfg}->get_all("publicinbox.${x}server");
+	my $group = $self->{newsgroup};
+	my @urls;
+	if ($ns && $group) {
+		@urls = map {
+			my $u = m!\A${x}s?://! ? $_ : "$x://$_";
+			$u .= '/' if $u !~ m!/\z!;
+			$u.$group;
+		} @$ns;
+	}
+	if (my $mirrors = $self->{"${x}mirror"}) {
+		my @m;
+		for (@$mirrors) {
+			my $u = m!\A${x}s?://! ? $_ : "$x://$_";
+			if ($u =~ m!\A${x}s?://[^/]+/?\z!) {
+				if ($group) {
+					$u .= '/' if $u !~ m!/\z!;
+					$u .= $group;
+				} else { # n.b. IMAP uses "newsgroup"
+					warn <<EOM;
+publicinbox.$self->{name}.${x}mirror=$_ missing newsgroup name
+EOM
 				}
-				# else: allow full URLs like:
-				# nntp://news.example.com/alt.example
-				push @m, $u;
 			}
-
-			# List::Util::uniq requires Perl 5.26+, maybe we
-			# can use it by 2030 or so
-			my %seen;
-			@urls = grep { !$seen{$_}++ } (@urls, @m);
+			# else: allow full URLs like:
+			# nntp://news.example.com/alt.example
+			push @m, $u;
 		}
-		\@urls;
-	};
+
+		# List::Util::uniq requires Perl 5.26+, maybe we
+		# can use it by 2030 or so
+		my %seen;
+		@urls = grep { !$seen{$_}++ } (@urls, @m);
+	}
+	\@urls;
 }
+
+# my ($self, $ctx) = @_;
+sub nntp_url { $_[0]->{-nntp_url} //= _x_url($_[0], 'nntp', $_[1]) }
+sub imap_url { $_[0]->{-imap_url} //= _x_url($_[0], 'imap', $_[1]) }
 
 sub nntp_usable {
 	my ($self) = @_;

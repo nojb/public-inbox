@@ -211,6 +211,7 @@ EOF
 		$$txt .= "\t$k = $v\n";
 	}
 	$$txt .= "\tnntpmirror = $_\n" for (@{$ibx->nntp_url($ctx)});
+	$$txt .= "\timapmirror = $_\n" for (@{$ibx->imap_url($ctx)});
 	_coderepo_config($ctx, $txt);
 	1;
 }
@@ -342,6 +343,17 @@ EOM
 
 Example config snippet for mirrors: $cfg_link
 EOF
+	if ($ibx->can('imap_url')) {
+		my $imap = $ibx->imap_url($ctx);
+		if (@$imap) {
+			$$txt .= "\n";
+			$$txt .= 'IMAP subfolder(s) available under:';
+			$$txt .= "\n\t" . join("\n\t", @$imap) . "\n";
+			$$txt .= <<EOM
+	# each subfolder (starting with `0') holds 50K messages at most
+EOM
+		}
+	}
 	if ($ibx->can('nntp_url')) {
 		my $nntp = $ibx->nntp_url($ctx);
 		if (scalar @$nntp) {
