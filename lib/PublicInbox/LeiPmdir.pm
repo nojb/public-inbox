@@ -32,7 +32,8 @@ sub new {
 sub ipc_atfork_child {
 	my ($self) = @_;
 	my $ipt = $self->{ipt} // die 'BUG: no self->{ipt}';
-	$ipt->{lei} = $self->{lei};
+	my $lei = $ipt->{lei} = $self->{lei};
+	delete @$lei{qw(auth net)}; # no network access in this worker
 	$ipt->ipc_atfork_child; # calls _lei_atfork_child;
 }
 
