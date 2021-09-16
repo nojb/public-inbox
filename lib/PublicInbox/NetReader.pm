@@ -35,6 +35,7 @@ sub socks_args ($) {
 		eval { require IO::Socket::Socks } or die <<EOM;
 IO::Socket::Socks missing for socks5h://$h:$p
 EOM
+		# for Mail::IMAPClient
 		return { ProxyAddr => $h, ProxyPort => $p };
 	}
 	die "$val not understood (only socks5h:// is supported)\n";
@@ -45,6 +46,10 @@ sub mic_new ($$$$) {
 	my %mic_arg = %$mic_arg;
 	my $sa = $self->{cfg_opt}->{$sec}->{-proxy_cfg} || $self->{-proxy_cli};
 	if ($sa) {
+		# this `require' needed for worker[1..Inf], since socks_args
+		# only got called in worker[0]
+		require IO::Socket::Socks;
+
 		my %opt = %$sa;
 		$opt{ConnectAddr} = delete $mic_arg{Server};
 		$opt{ConnectPort} = delete $mic_arg{Port};
