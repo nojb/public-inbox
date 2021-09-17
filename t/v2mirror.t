@@ -3,7 +3,7 @@
 use strict;
 use v5.10.1;
 use PublicInbox::TestCommon;
-use File::Path qw(remove_tree);
+use File::Path qw(remove_tree make_path);
 use Cwd qw(abs_path);
 require_git(2.6);
 require_cmd('curl');
@@ -233,6 +233,34 @@ for my $d (@new_epochs) {
 	is(xqx(['git', "--git-dir=$d", 'config', qw(include.path)]),
 		"../../all.git/config\n",
 		'include.path set');
+}
+
+if ('test read-only epoch dirs') {
+	my @git = ('git', "--git-dir=$new_epochs[0]");
+	my $get_objs = [@git,
+		qw(cat-file --buffer --batch-check --batch-all-objects)];
+	my $before = [sort xqx($get_objs)];
+
+	remove_tree(map { "$new_epochs[0]/$_" } qw(objects refs/heads));
+	chmod(0555, $new_epochs[0]) or xbail "chmod: $!";
+
+	# force a refetch
+	unlink("$tmpdir/m/manifest.js.gz") or xbail "unlink: $!";
+
+	run_script([qw(-fetch -q)], undef, {-C => "$tmpdir/m"}) or
+		xbail '-fetch failed';
+
+	ok(!-d "$new_epochs[0]/objects", 'no objects after fetch to R/O dir');
+
+	chmod(0755, $new_epochs[0]) or xbail "chmod: $!";
+	mkdir("$new_epochs[0]/objects") or xbail "mkdir: $!";
+	mkdir("$new_epochs[0]/refs/heads") or xbail "mkdir: $!";
+
+	my $err = '';
+	run_script([qw(-fetch -q)], undef, {-C => "$tmpdir/m", 2 => \$err}) or
+		xbail '-fetch failed '.$err;
+	is_deeply([ sort xqx($get_objs) ], $before,
+		'fetch restored objects once GIT_DIR became writable');
 }
 
 ok($td->kill, 'killed httpd');

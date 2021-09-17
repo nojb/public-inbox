@@ -96,7 +96,7 @@ sub do_fetch { # main entry point
 	my $ibx_ver;
 	$lei->{curl} //= PublicInbox::LeiCurl->new($lei) or return;
 	my $dir = PublicInbox::Admin::resolve_inboxdir($cd, \$ibx_ver);
-	my ($ibx_uri, @git_dir, @epochs, $mg, @new_epoch);
+	my ($ibx_uri, @git_dir, @epochs, $mg, @new_epoch, $skip);
 	if ($ibx_ver == 1) {
 		my $url = remote_url($lei, $dir) //
 			die "E: $dir missing remote.origin.url\n";
@@ -108,6 +108,10 @@ sub do_fetch { # main entry point
 		my ($git_url, $epoch);
 		for my $nr (@epochs) { # try newest epoch, first
 			my $edir = "$dir/git/$nr.git";
+			unless (-d $edir && -w _) { # must be writable dir
+				$skip->{$nr} = 1;
+				next;
+			}
 			if (defined(my $url = remote_url($lei, $edir))) {
 				$git_url = $url;
 				$epoch = $nr;
@@ -116,6 +120,8 @@ sub do_fetch { # main entry point
 				warn "W: $edir missing remote.origin.url\n";
 			}
 		}
+		@epochs = grep { !$skip->{$_} } @epochs if $skip;
+		$skip //= {}; # makes code below easier
 		$git_url or die "Unable to determine git URL\n";
 		my $inbox_url = $git_url;
 		$inbox_url =~ s!/git/$epoch(?:\.git)?/?\z!! or
@@ -132,7 +138,10 @@ EOM
 		# any pre-manifest.js.gz instances running? Just fetch all
 		# existing ones and unconditionally try cloning the next
 		$v2_epochs = [ map { "$dir/git/$_.git" } @epochs ];
-		push @$v2_epochs, "$dir/git/".($epochs[-1] + 1) if @epochs;
+		if (@epochs) {
+			my $n = $epochs[-1] + 1;
+			push @$v2_epochs, "$dir/git/$n.git" if !$skip->{$n};
+		}
 	} else {
 		$code == 200 or die "BUG unexpected code $code\n";
 	}
@@ -140,8 +149,10 @@ EOM
 		defined($v1_path) and warn <<EOM;
 E: got v1 `$v1_path' when expecting v2 epoch(s) in <$muri>, WTF?
 EOM
-		@git_dir = map { "$dir/git/$_.git" } sort { $a <=> $b }
-			map { my ($nr) = (m!/([0-9]+)\.git\z!g) } @$v2_epochs;
+		@git_dir = map { "$dir/git/$_.git" } sort { $a <=> $b } map {
+				my ($nr) = (m!/([0-9]+)\.git\z!g);
+				$skip->{$nr} ? () : $nr;
+			} @$v2_epochs;
 	} else {
 		$git_dir[0] = $dir;
 	}

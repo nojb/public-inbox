@@ -19,7 +19,19 @@ It does not run L<public-inbox-index(1)>, making it suitable
 for maintaining git-only backups.
 
 For v2 inboxes, it will maintain C<$INBOX_DIR/manifest.js.gz>
-file to speed up future invocations.
+file to speed up future invocations.  It always safe to remove
+manifest.js.gz, it is merely an optimization and will be
+restored on the next invocation.
+
+To prevent fetches on any v2 epoch, use L<chmod(1)> to remove
+write permissions to the top-level of the epoch.  For example,
+to disable fetches on epoch 4:
+
+	chmod a-w $INBOX_DIR/git/4.git
+
+If you wish to re-enable fetches to the epoch:
+
+	chmod u+w $INBOX_DIR/git/4.git
 
 =head1 OPTIONS
 
