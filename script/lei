@@ -53,6 +53,7 @@ my $exec_cmd = sub {
 		}
 		my %env = map { split(/=/, $_, 2) } splice(@argv, $argc);
 		@ENV{keys %env} = values %env;
+		umask 077;
 		exec(@argv);
 		warn "exec: @argv: $!\n";
 		POSIX::_exit(1);
