@@ -9,27 +9,12 @@ use v5.10.1;
 use parent qw(PublicInbox::IPC PublicInbox::LeiInput);
 use PublicInbox::LeiExportKw;
 use PublicInbox::InboxWritable qw(eml_from_path);
-use PublicInbox::ContentHash qw(git_sha);
 use PublicInbox::Import;
-
-sub eml_match ($$) {
-	my ($eml, $oidbin) = @_;
-	$eml->header_set($_) for @PublicInbox::Import::UNWANTED_HEADERS;
-	$oidbin eq git_sha(length($oidbin) == 20 ? 1 : 256, $eml)->digest;
-}
 
 sub prune_mdir { # lms->each_src callback
 	my ($oidbin, $id, $self, $mdir) = @_;
 	my @try = $$id =~ /:2,[a-zA-Z]*\z/ ? qw(cur new) : qw(new cur);
-	for my $d (@try) {
-		my $src = "$mdir/$d/$$id";
-		if ($self->{verify}) {
-			my $eml = eml_from_path($src) // next;
-			return if eml_match($eml, $oidbin);
-		} elsif (-f $src) {
-			return;
-		}
-	}
+	for (@try) { return if -f "$mdir/$_/$$id" }
 	# both tries failed
 	$self->{lei}->{sto}->ipc_do('lms_clear_src', "maildir:$mdir", $id);
 }
