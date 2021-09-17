@@ -31,14 +31,12 @@ sub prune_mdir { # lms->each_src callback
 		}
 	}
 	# both tries failed
-	$self->{lei}->qerr("# maildir:$mdir $$id gone");
 	$self->{lei}->{sto}->ipc_do('lms_clear_src', "maildir:$mdir", $id);
 }
 
 sub prune_imap { # lms->each_src callback
 	my ($oidbin, $uid, $self, $uids, $url) = @_;
 	return if exists $uids->{$uid};
-	$self->{lei}->qerr("# $url $uid gone");
 	$self->{lei}->{sto}->ipc_do('lms_clear_src', $url, $uid);
 }
 
