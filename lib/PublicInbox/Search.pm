@@ -332,7 +332,7 @@ sub date_parse_prepare {
 			push @$to_parse, $x;
 			$x = "\0%s$#$to_parse\0";
 		}
-		$r[1] //= "\0%s+\0";
+		$r[1] //= "\0%s+\0"; # add 1 day
 	}
 	"$pfx:".join('..', @r).$end;
 }
@@ -342,9 +342,12 @@ sub date_parse_finalize {
 	# git-rev-parse can handle any number of args up to system
 	# limits (around (4096*32) bytes on Linux).
 	my @r = $git->date_parse(@$to_parse);
-	my $i;
-	$_[2] =~ s/\0(%[%YmdHMSs]+)([0-9\+]+)\0/strftime($1,
-		gmtime($2 eq '+' ? ($r[$i]+86400) : $r[$i=$2+0]))/sge;
+	# n.b. git respects TZ, times stored in SQLite/Xapian are always UTC,
+	# and gmtime doesn't seem to do the right thing when TZ!=UTC
+	my ($i, $t);
+	$_[2] =~ s/\0(%[%YmdHMSs]+)([0-9\+]+)\0/
+		$t = $2 eq '+' ? ($r[$i]+86400) : $r[$i=$2+0];
+		$1 eq '%s' ? $t : strftime($1, gmtime($t))/sge;
 }
 
 # n.b. argv never has NUL, though we'll need to filter it out

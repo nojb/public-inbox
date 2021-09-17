@@ -4,6 +4,8 @@
 # (e.g. public-inbox-httpd@1 public-inbox-httpd@2) with the intention
 # that they take turns running in-between upgrades.  This should
 # allow upgrading without downtime.
+# For servers expecting visitors from multiple timezones, TZ=UTC
+# is needed to ensure a consistent approxidate experience with search.
 
 [Unit]
 Description = public-inbox PSGI server %i
@@ -13,6 +15,7 @@ After = public-inbox-httpd.socket
 [Service]
 Environment = PI_CONFIG=/home/pi/.public-inbox/config \
 PATH=/usr/local/bin:/usr/bin:/bin \
+TZ=UTC \
 PERL_INLINE_DIRECTORY=/tmp/.pub-inline
 
 LimitNOFILE = 30000

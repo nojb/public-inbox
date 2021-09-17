@@ -124,4 +124,28 @@ SKIP: {
 		'kw_changed undef on unknown message');
 }
 
+SKIP: {
+	require_mods(qw(HTTP::Date), 1);
+	my $now = HTTP::Date::time2str(time);
+	$now =~ s/GMT/+0000/ or xbail "no GMT in $now";
+	my $eml = PublicInbox::Eml->new(<<"EOM");
+Received: (listserv\@example.com) by example.com via listexpand
+	id abcde (ORCPT <rfc822;u\@example.com>);
+	$now;
+Date: $now
+Subject: timezone-dependent test
+
+WHAT IS TIME ANYMORE?
+EOM
+
+	ok($sto->add_eml($eml), 'recently received message');
+	$sto->done;
+	local $ENV{TZ} = 'GMT+5';
+	my $lse = $sto->search;
+	my $qstr = 'rt:1.hour.ago.. s:timezone';
+	$lse->query_approxidate($lse->git, $qstr);
+	my $mset = $lse->mset($qstr);
+	is($mset->size, 1, 'rt:1.hour.ago.. works w/ local time');
+}
+
 done_testing;
