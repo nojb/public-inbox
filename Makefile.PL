@@ -54,7 +54,8 @@ $v->{-m5} = [ qw(public-inbox-config public-inbox-v1-format
 		public-inbox-v2-format public-inbox-extindex-format
 		lei-mail-formats lei-store-format
 		) ];
-$v->{-m7} = [ qw(lei-overview public-inbox-overview public-inbox-tuning
+$v->{-m7} = [ qw(lei-overview lei-security
+		public-inbox-overview public-inbox-tuning
 		public-inbox-glossary) ];
 $v->{-m8} = [ qw(public-inbox-daemon) ];
 my @sections = (1, 5, 7, 8);

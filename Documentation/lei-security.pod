@@ -1,0 +1,134 @@
+=head1 NAME
+
+lei - security information
+
+=head1 SYNOPSIS
+
+L<lei(1)> is intended for use with both publicly-archived
+and "private" mail in personal mailboxes.  This document is
+intended to give an overview of security implications and
+lower^Wmanage user expectations.
+
+=head1 DESCRIPTION
+
+lei expects to be run as a regular user on a Unix-like system.
+It expects a case-sensitive filesystem with standard Unix
+permissions support.
+
+It does not use POSIX ACLs, extended attributes, nor any other
+security-related functions which require non-standard Perl modules.
+
+=head1 INTERNAL FILES
+
+lei runs with a umask of 077 to prevent other users on the
+system from accessing each other's mail.
+
+The git storage and Xapian databases are located at
+C<$XDG_DATA_HOME/lei/store> (typically C<~/.local/share/lei/store>).
+Any personal mail imported will reside here, so this should
+be on an encrypted filesystem or block device.
+
+C<$XDG_RUNTIME_DIR/lei> (typically C</run/user/$UID/lei> or
+C</tmp/lei-$UID>) contain the socket used to access the lei
+daemon.  It must only be accessible to the owner (mode 0700).
+
+C<$XDG_CACHE_HOME/lei> (typically C<~/.cache/lei>) will
+contain IMAP and Maildir folder names which could leak sensitive
+information as well as git repository names.
+
+C<$XDG_DATA_HOME/lei/saved-searches> (typically
+C<~/.local/share/lei/saved-searches>) will contain aforementioned
+folder names as well as (removable) search history.
+
+The configuration for lei resides at C<$XDG_CONFIG_HOME/lei/config>
+(typically C<~/.config/lei/config>).  It may contain sensitive pathnames
+and hostnames in the config if a user chooses to configure them.
+
+lei itself will never write credentials to the
+filesystem.  However, L<git-credential(1)> may be
+configured to do so.  lei will only read C<~/.netrc> if
+C<--netrc> is used (and it will never write to C<~/.netrc>).
+
+C<$XDG_CACHE_HOME/public-inbox> (typically C<~/.cache/public-inbox>)
+can contain data and L<Inline::C>-built modules which can be
+shared with public-facing L<public-inbox-daemon(8)> instances;
+so no private data should be in "public-inbox" paths.
+
+=head1 EXTERNAL FILES
+
+Locations set by L<lei-add-external(1)> can be shared with
+public-facing L<public-inbox-daemon(8)> processes.  They may
+reside on shared storage and may be made world-readable to
+other users on the local system.
+
+=head1 NETWORK ACCESS
+
+lei currently uses the L<curl(1)> and L<git(1)> executables in
+C<$PATH> for HTTP and HTTPS network access.  Interactive
+authentication for HTTP and HTTPS is not-yet-supported since all
+currently supported HTTP/HTTPS sources are L<PublicInbox::WWW>
+instances.
+
+The L<Mail::IMAPClient> library is used for IMAP and IMAPS.
+L<Net::NNTP> (standard library) is used for NNTP and NNTPS.
+
+L<Mail::IMAPClient> and L<Net::NNTP> will use L<IO::Socket::SSL>
+for TLS if available.  In turn, L<IO::Socket::SSL> uses the
+widely-installed OpenSSL library.
+
+STARTTLS will be attempted if advertised by the server
+unless IMAPS or NNTPS are used.  C<-c imap.starttls=0>
+and C<-c nntp.startls=0> may be used to disable STARTTLS.
+
+L<IO::Socket::Socks> will be used if C<-c imap.proxy> or
+C<-c nntp.proxy> point to a C<socks5h://$HOST:$PORT>
+address (common for Tor).
+
+The C<--netrc> switch may be passed to curl and used for
+NNTP/IMAP access (via L<Net::Netrc>).
+
+=head1 CREDENTIAL DATA
+
+lei uses L<git-credential(1)> to prompt users for IMAP and NNTP
+usernames and passwords.  These passwords are not encrypted in
+memory and get transferred across processes via anonymous UNIX
+sockets and pipes.  They may be exposed via syscall tracing
+tools (e.g. L<strace(1)>).
+
+While credentials are not written to the filesystem by default,
+it is possible for them to end up on disk if processes are
+swapped out.  Use of an encrypted swap partition is recommended.
+
+=head1 DENIAL-OF-SERVICE VECTORS
+
+lei uses the same MIME parsing library as L<public-inbox-mda(1)>
+with limits header sizes, parts, nesting and boundary limits
+similar to those found in SpamAssassin and postfix.
+
+Email address parsing is handled by L<Email::Address::XS> if
+available, but may fall back to regular expressions which favor
+speed and predictable execution times over correctness.
+
+=head1 ENCRYPTED EMAILS
+
+Not yet supported, but it should eventually be possible to
+configure decryption and indexing of encrypted messages and
+attachments.  When supported, decrypted terms will be stored
+in Xapian DBs under C<$XDG_DATA_HOME/lei/store>.
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/> and
+L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<lei-overview(7)>, L<lei(1)>

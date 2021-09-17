@@ -10,8 +10,8 @@ lei add-external [OPTIONS] LOCATION
 
 Configure lei to search against an external (an inbox or external
 index).  When C<LOCATION> is an existing local path, it should point
-to a directory that is a C<public.<name>.inboxdir> or
-C<extindex.<name>.topdir> value in ~/.public-inbox/config.
+to a directory that is a C<publicinbox.$NAME.inboxdir> or
+C<extindex.$NAME.topdir> value in ~/.public-inbox/config.
 
 =head1 OPTIONS
 
