@@ -263,7 +263,7 @@ our %CMD = ( # sorted in order of importance/use:
 	@net_opt, @c_opt ],
 'forget-mail-sync' => [ 'LOCATION...',
 	'forget sync information for a mail folder', @c_opt ],
-'prune-mail-sync' => [ 'LOCATION...|--all',
+'refresh-mail-sync' => [ 'LOCATION...|--all',
 	'prune dangling sync data for a mail folder', 'all:s', @c_opt ],
 'export-kw' => [ 'LOCATION...|--all',
 	'one-time export of keywords of sync sources',
@@ -616,6 +616,7 @@ sub pkt_ops {
 	$ops->{x_it} = [ \&x_it, $lei ];
 	$ops->{child_error} = [ \&child_error, $lei ];
 	$ops->{incr} = [ \&incr, $lei ];
+	$ops->{sto_done_request} = [ \&sto_done_request, $lei, $lei->{sock} ];
 	$ops;
 }
 

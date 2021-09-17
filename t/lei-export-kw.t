@@ -6,7 +6,6 @@ use File::Copy qw(cp);
 use File::Path qw(make_path);
 require_mods(qw(lei -imapd Mail::IMAPClient));
 my ($tmpdir, $for_destroy) = tmpdir;
-my ($ro_home, $cfg_path) = setup_public_inboxes;
 my $expect = eml_load('t/data/0001.patch');
 test_lei({ tmpdir => $tmpdir }, sub {
 	my $home = $ENV{HOME};

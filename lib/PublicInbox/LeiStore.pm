@@ -293,6 +293,11 @@ sub set_sync_info {
 	_lms_rw($self)->set_src(pack('H*', $oidhex), $folder, $id);
 }
 
+sub lms_set_src {
+	my ($self, $oidbin, $folder, $id) = @_;
+	_lms_rw($self)->set_src($oidbin, $folder, $id);
+}
+
 sub _remove_if_local { # git->cat_async arg
 	my ($bref, $oidhex, $type, $size, $self) = @_;
 	$self->{im}->remove($bref) if $bref;

@@ -235,9 +235,9 @@ lib/PublicInbox/LeiNoteEvent.pm
 lib/PublicInbox/LeiOverview.pm
 lib/PublicInbox/LeiP2q.pm
 lib/PublicInbox/LeiPmdir.pm
-lib/PublicInbox/LeiPruneMailSync.pm
 lib/PublicInbox/LeiQuery.pm
 lib/PublicInbox/LeiRediff.pm
+lib/PublicInbox/LeiRefreshMailSync.pm
 lib/PublicInbox/LeiRemote.pm
 lib/PublicInbox/LeiRm.pm
 lib/PublicInbox/LeiRmWatch.pm
@@ -450,6 +450,7 @@ t/lei-q-kw.t
 t/lei-q-remote-import.t
 t/lei-q-save.t
 t/lei-q-thread.t
+t/lei-refresh-mail-sync.t
 t/lei-sigpipe.t
 t/lei-tag.t
 t/lei-up.t
