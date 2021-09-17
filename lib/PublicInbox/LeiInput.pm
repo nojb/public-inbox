@@ -124,7 +124,11 @@ sub input_path_url {
 		handle_http_input($self, $input, @args);
 		return;
 	}
+
+	# local-only below
+	my $ifmt_pfx = '';
 	if ($input =~ s!\A([a-z0-9]+):!!i) {
+		$ifmt_pfx = "$1:";
 		$ifmt = lc($1);
 	} elsif ($input =~ /\.(?:patch|eml)\z/i) {
 		$ifmt = 'eml';
@@ -172,10 +176,15 @@ EOM
 						$self->can('input_maildir_cb'),
 						$self, @args);
 		}
+	} elsif ($self->{missing_ok} && !-e $input) { # don't ->fail
+		$self->folder_missing("$ifmt:$input");
 	} else {
-		$lei->fail("$input unsupported (TODO)");
+		$lei->fail("$ifmt_pfx$input unsupported (TODO)");
 	}
 }
+
+# subclasses should overrride this (see LeiRefreshMailSync)
+sub folder_missing { die "BUG: ->folder_missing undefined for $_[0]" }
 
 sub bad_http ($$;$) {
 	my ($lei, $url, $alt) = @_;

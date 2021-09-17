@@ -11,6 +11,11 @@ use PublicInbox::LeiExportKw;
 use PublicInbox::InboxWritable qw(eml_from_path);
 use PublicInbox::Import;
 
+sub folder_missing {
+	my ($self, $folder) = @_;
+	$self->{lei}->{sto}->ipc_do('lms_forget_folders', $folder);
+}
+
 sub prune_mdir { # lms->each_src callback
 	my ($oidbin, $id, $self, $mdir) = @_;
 	my @try = $$id =~ /:2,[a-zA-Z]*\z/ ? qw(cur new) : qw(new cur);

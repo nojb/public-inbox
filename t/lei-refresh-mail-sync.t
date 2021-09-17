@@ -3,6 +3,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 require_mods(qw(lei));
+use File::Path qw(remove_tree);
 
 my $stop_daemon = sub { # needed since we don't have inotify
 	lei_ok qw(daemon-pid);
@@ -62,6 +63,15 @@ test_lei({ daemon_only => 1 }, sub {
 	lei_ok 'inspect', "blob:$oid";
 	is_deeply(json_utf8->decode($lei_out), $exp1,
 		'replaced file noted again');
+
+	$stop_daemon->();
+
+	remove_tree($d);
+	lei_ok 'refresh-mail-sync', '--all';
+	lei_ok 'inspect', "blob:$oid";
+	is($lei_out, '{}', 'no known locations after "removal"');
+	lei_ok 'ls-mail-sync';
+	is($lei_out, '', 'no sync left when folder is gone');
 });
 
 done_testing;
