@@ -53,10 +53,13 @@ sub input_path_url { # overrides PublicInbox::LeiInput::input_path_url
 		PublicInbox::LeiInput::input_path_url($self, $input);
 	} elsif ($input =~ m!\Aimaps?://!i) {
 		my $uri = PublicInbox::URIimap->new($input);
-		my $mic = $self->{lei}->{net}->mic_for_folder($uri);
-		my $uids = $mic->search('UID 1:*');
-		$uids = +{ map { $_ => undef } @$uids };
-		$lms->each_src($$uri, \&prune_imap, $self, $uids, $$uri);
+		if (my $mic = $self->{lei}->{net}->mic_for_folder($uri)) {
+			my $uids = $mic->search('UID 1:*');
+			$uids = +{ map { $_ => undef } @$uids };
+			$lms->each_src($$uri, \&prune_imap, $self, $uids, $$uri)
+		} else {
+			$self->folder_missing($$uri);
+		}
 	} else { die "BUG: $input not supported" }
 	$self->{lei}->{pkt_op_p}->pkt_do('sto_done_request');
 }

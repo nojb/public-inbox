@@ -72,6 +72,66 @@ test_lei({ daemon_only => 1 }, sub {
 	is($lei_out, '{}', 'no known locations after "removal"');
 	lei_ok 'ls-mail-sync';
 	is($lei_out, '', 'no sync left when folder is gone');
+
+SKIP: {
+	require_mods(qw(-imapd -nntpd Mail::IMAPClient Net::NNTP), 1);
+	require File::Copy; # stdlib
+	my $home = $ENV{HOME};
+	my $srv;
+	my $cfg_path2 = "$home/cfg2";
+	File::Copy::cp($cfg_path, $cfg_path2);
+	my $env = { PI_CONFIG => $cfg_path2 };
+	for my $x (qw(imapd)) {
+		my $s = tcp_server;
+		my $cmd = [ "-$x", '-W0', "--stdout=$home/$x.out",
+			"--stderr=$home/$x.err" ];
+		my $td = start_script($cmd, $env, { 3 => $s}) or xbail("-$x");
+		$srv->{$x} = {
+			addr => (my $scalar = tcp_host_port($s)),
+			td => $td,
+			cmd => $cmd,
+		};
+	}
+	my $url = "imap://$srv->{imapd}->{addr}/t.v1.0";
+	lei_ok 'import', $url, '+L:v1';
+	lei_ok 'inspect', "blob:$oid";
+	$before = json_utf8->decode($lei_out);
+	my @f = grep(m!\Aimap://;AUTH=ANONYMOUS\@\Q$srv->{imapd}->{addr}\E!,
+		keys %{$before->{'mail-sync'}});
+	is(scalar(@f), 1, 'got IMAP folder') or xbail(\@f);
+	xsys([qw(git config), '-f', $cfg_path2,
+		qw(--unset publicinbox.t1.newsgroup)]) and
+		xbail "git config $?";
+	$stop_daemon->(); # drop IMAP IDLE
+	$srv->{imapd}->{td}->kill('HUP');
+	tick; # wait for HUP
+	lei_ok 'refresh-mail-sync', $url;
+	lei_ok 'inspect', "blob:$oid";
+	my $after = json_utf8->decode($lei_out);
+	ok(!$after->{'mail-sync'}, 'no sync info for non-existent mailbox');
+	lei_ok 'ls-mail-sync';
+	unlike $lei_out, qr!^\Q$f[0]\E!, 'IMAP folder gone from mail_sync';
+
+	# simulate server downtime
+	$url = "imap://$srv->{imapd}->{addr}/t.v2.0";
+	lei_ok 'import', $url, '+L:v2';
+
+	lei_ok 'inspect', "blob:$oid";
+	$before = $lei_out;
+	delete $srv->{imapd}->{td}; # kill + join daemon
+
+	ok(!(lei 'refresh-mail-sync', $url), 'URL fails on dead -imapd');
+	ok(!(lei 'refresh-mail-sync', '--all'), '--all fails on dead -imapd');
+
+	# restart server (somewhat dangerous since we released the socket)
+	my $cmd = $srv->{imapd}->{cmd};
+	push @$cmd, '-l', $srv->{imapd}->{addr};
+	$srv->{imapd}->{td} = start_script($cmd, $env) or xbail "@$cmd";
+
+	lei_ok 'refresh-mail-sync', '--all';
+	lei_ok 'inspect', "blob:$oid";
+	is($lei_out, $before, 'no changes when server was down');
+}; # imapd+nntpd stuff
 });
 
 done_testing;
