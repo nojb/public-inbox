@@ -33,6 +33,15 @@ Most commonly C<text> (the default) or C<reply> to
 display the message(s) in a format suitable for trimming
 and sending as a email reply.
 
+=item --stdin
+
+=item -
+
+C<lei lcat> implicitly reads from stdin if it is a L<pipe(7)>
+or regular file.  This is handy for invoking C<lei lcat> from
+inside an C<$EDITOR> session (assuming you use an C<$EDITOR>
+which lets you pipe arbitrary lines to arbitrary commands).
+
 =item --[no-]remote
 
 =item --no-local
