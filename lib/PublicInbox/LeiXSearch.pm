@@ -18,6 +18,7 @@ use PublicInbox::Smsg;
 use PublicInbox::Eml;
 use Fcntl qw(SEEK_SET F_SETFL O_APPEND O_RDWR);
 use PublicInbox::ContentHash qw(git_sha);
+use POSIX qw(strftime);
 
 sub new {
 	my ($class) = @_;
@@ -168,8 +169,7 @@ sub query_one_mset { # for --threads and l2m w/o sort
 	my $can_kw = !!$ibxish->can('msg_keywords');
 	my $threads = $lei->{opt}->{threads} // 0;
 	my $fl = $threads > 1 ? 1 : undef;
-	my $lss = $lei->{dedupe};
-	$lss = undef unless $lss && $lss->can('cfg_set'); # saved search
+	my $lss = $lei->{lss};
 	my $maxk = "external.$dir.maxuid";
 	my $stop_at = $lss ? $lss->{-cfg}->{$maxk} : undef;
 	if (defined $stop_at) {
@@ -292,6 +292,37 @@ sub each_remote_eml { # callback for MboxReader->mboxrd
 	$each_smsg->($smsg, undef, $eml);
 }
 
+sub fudge_qstr_time ($$$) {
+	my ($lei, $uri, $qstr) = @_;
+	return ($qstr, undef) unless $lei->{lss};
+	my $cfg = $lei->{lss}->{-cfg} // die 'BUG: no lss->{-cfg}';
+	my $cfg_key = "external.$uri.lastresult";
+	my $lr = $cfg->{$cfg_key} or return ($qstr, $cfg_key);
+	if ($lr !~ /\A\-?[0-9]+\z/) {
+		$lei->child_error(0,
+			"$cfg->{-f}: $cfg_key=$lr not an integer, ignoring");
+		return ($qstr, $cfg_key);
+	}
+	my $rft = $lei->{opt}->{'remote-fudge-time'};
+	if ($rft && $rft !~ /\A-?[0-9]+\z/) {
+		my @t = $lei->{lss}->git->date_parse($rft);
+		my $diff = time - $t[0];
+		$lei->qerr("# $rft => $diff seconds");
+		$rft = $diff;
+	}
+	$lr -= ($rft || (48 * 60 * 60));
+	$lei->qerr("# $uri limiting to ".
+		strftime('%Y-%m-%d %k:%M', gmtime($lr)). ' and newer');
+	# this should really be rt: (received-time), but no stable
+	# public-inbox releases support it, yet.
+	my $dt = 'dt:'.strftime('%Y%m%d%H%M%S', gmtime($lr)).'..';
+	if ($qstr =~ /\S/) {
+		substr($qstr, 0, 0, '(');
+		$qstr .= ') AND ';
+	}
+	($qstr .= $dt, $cfg_key);
+}
+
 sub query_remote_mboxrd {
 	my ($self, $uris) = @_;
 	local $0 = "$0 query_remote_mboxrd";
@@ -300,7 +331,7 @@ sub query_remote_mboxrd {
 	my $opt = $lei->{opt};
 	my $qstr = $lei->{mset_opt}->{qstr};
 	$qstr =~ s/[ \n\t]+/ /sg; # make URLs less ugly
-	my @qform = (q => $qstr, x => 'm');
+	my @qform = (x => 'm');
 	push(@qform, t => 1) if $opt->{threads};
 	my $verbose = $opt->{verbose};
 	my ($reap_tail, $reap_curl);
@@ -323,7 +354,9 @@ sub query_remote_mboxrd {
 	for my $uri (@$uris) {
 		$lei->{-current_url} = $uri->as_string;
 		$lei->{-nr_remote_eml} = 0;
-		$uri->query_form(@qform);
+		my $start = time;
+		my ($q, $key) = fudge_qstr_time($lei, $uri, $qstr);
+		$uri->query_form(@qform, q => $q);
 		my $cmd = $curl->for_uri($lei, $uri);
 		$lei->qerr("# $cmd");
 		my ($fh, $pid) = popen_rd($cmd, undef, $rdr);
@@ -336,10 +369,11 @@ sub query_remote_mboxrd {
 		@$reap_curl = (); # cancel OnDestroy
 		die $err if $err;
 		my $nr = $lei->{-nr_remote_eml};
-		if ($nr && $lei->{sto}) {
-			my $wait = $lei->{sto}->ipc_do('done');
-		}
+		my $wait = $lei->{sto}->ipc_do('done') if $nr && $lei->{sto};
 		if ($? == 0) {
+			# don't update if no results, maybe MTA is down
+			$key && $nr and
+				$lei->{lss}->cfg_set($key, $start);
 			mset_progress($lei, $lei->{-current_url}, $nr, $nr);
 			next;
 		}
@@ -353,7 +387,7 @@ sub query_remote_mboxrd {
 					$lei->err("truncate($cmd stderr): $!");
 		}
 		next if (($? >> 8) == 22 && $err =~ /\b404\b/);
-		$uri->query_form(q => $lei->{mset_opt}->{qstr});
+		$uri->query_form(q => $qstr);
 		$lei->child_error($?, "E: <$uri> $err");
 	}
 	undef $each_smsg;

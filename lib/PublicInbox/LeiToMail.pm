@@ -437,7 +437,9 @@ sub new {
 			($lei->{opt}->{save} ? 'LeiSavedSearch' : 'LeiDedupe');
 		eval "require $dd_cls";
 		die "$dd_cls: $@" if $@;
-		$dd_cls->new($lei);
+		my $dd = $dd_cls->new($lei);
+		$lei->{lss} //= $dd if $dd && $dd->can('cfg_set');
+		$dd;
 	};
 	$self;
 }

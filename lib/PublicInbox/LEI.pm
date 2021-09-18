@@ -183,7 +183,8 @@ our %CMD = ( # sorted in order of importance/use:
 	shared color! mail-sync!), @c_opt, opt_dash('limit|n=i', '[0-9]+') ],
 
 'up' => [ 'OUTPUT...|--all', 'update saved search',
-	qw(jobs|j=s lock=s@ alert=s@ mua=s verbose|v+ all:s), @c_opt ],
+	qw(jobs|j=s lock=s@ alert=s@ mua=s verbose|v+
+	remote-fudge-time=s all:s), @c_opt ],
 
 'lcat' => [ '--stdin|MSGID_OR_URL...', 'display local copy of message(s)',
 	'stdin|', # /|\z/ must be first for lone dash
@@ -420,7 +421,9 @@ my %OPTDESC = (
 'remote' => 'limit operations to those requiring network access',
 'remote!' => 'prevent operations requiring network access',
 
-'all:s	up' => ['local', 'update all (local) saved searches' ],
+'all:s	up' => ['local|remote', 'update all remote or local saved searches' ],
+'remote-fudge-time=s' => [ 'INTERVAL',
+	'look for mail INTERVAL older than the last successful query' ],
 
 'mid=s' => 'specify the Message-ID of a message',
 'oid=s' => 'specify the git object ID of a message',

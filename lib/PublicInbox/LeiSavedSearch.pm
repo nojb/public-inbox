@@ -149,6 +149,7 @@ sub new { # new saved search "lei q --save"
 	$dst = "$lei->{ovv}->{fmt}:$dst" if $dst !~ m!\Aimaps?://!i;
 	print $fh <<EOM;
 ; to refresh with new results, run: lei up $sq_dst
+; `maxuid' and `lastresult' lines are maintained by "lei up" for optimization
 [lei]
 $q
 [lei "q"]

@@ -45,7 +45,7 @@ sub up1 ($$) {
 		ref($v) and return $lei->fail("multiple values of $c in $f");
 		$lei->{opt}->{$k} = $v;
 	}
-	$lei->{lss} = $lss; # for LeiOverview->new
+	$lei->{lss} = $lss; # for LeiOverview->new and query_remote_mboxrd
 	my $lxs = $lei->lxs_prepare or return;
 	$lei->ale->refresh_externals($lxs, $lei);
 	$lei->_start_query;

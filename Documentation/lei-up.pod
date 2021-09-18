@@ -22,6 +22,21 @@ C<--all> updates all saved searches (listed in L<lei-ls-search(1)>).
 C<--all=local> only updates local mailboxes, C<--all=remote> only
 updates remote mailboxes (currently C<imap://> and C<imaps://>).
 
+=item --remote-fudge-time=INTERVAL
+
+Look for mail older than the time of the last successful query.
+Using a small interval will reduce bandwidth use.  A larger
+interval reduces the likelyhood of missing a result due to MTA
+delays or downtime.
+
+The time(s) of the last successful queries are the C<lastresult>
+values visible from L<lei-edit-search(1)>.
+
+Date formats understood by L<git-rev-parse(1)> may be used.
+e.g C<1.hour> or C<3.days>
+
+Default: 2.days
+
 =back
 
 The following options, described in L<lei-q(1)>, are supported.
