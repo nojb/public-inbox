@@ -4,6 +4,7 @@
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 require_mods(qw(lei));
 use File::Path qw(remove_tree);
+require Socket;
 
 my $stop_daemon = sub { # needed since we don't have inotify
 	lei_ok qw(daemon-pid);
@@ -81,8 +82,10 @@ SKIP: {
 	my $cfg_path2 = "$home/cfg2";
 	File::Copy::cp($cfg_path, $cfg_path2);
 	my $env = { PI_CONFIG => $cfg_path2 };
+	my $sock_cls;
 	for my $x (qw(imapd)) {
 		my $s = tcp_server;
+		$sock_cls //= ref($s);
 		my $cmd = [ "-$x", '-W0', "--stdout=$home/$x.out",
 			"--stderr=$home/$x.err" ];
 		my $td = start_script($cmd, $env, { 3 => $s}) or xbail("-$x");
@@ -124,10 +127,17 @@ SKIP: {
 	ok(!(lei 'refresh-mail-sync', '--all'), '--all fails on dead -imapd');
 
 	# restart server (somewhat dangerous since we released the socket)
+	my $listen = $sock_cls->new(
+		ReuseAddr => 1,
+		Proto => 'tcp',
+		Type => Socket::SOCK_STREAM(),
+		Listen => 1024,
+		Blocking => 0,
+		LocalAddr => $srv->{imapd}->{addr},
+	) or xbail "$sock_cls->new: $!";
 	my $cmd = $srv->{imapd}->{cmd};
-	push @$cmd, '-l', $srv->{imapd}->{addr};
-	$srv->{imapd}->{td} = start_script($cmd, $env) or xbail "@$cmd";
-
+	$srv->{imapd}->{td} = start_script($cmd, $env, { 3 => $listen }) or
+		xbail "@$cmd";
 	lei_ok 'refresh-mail-sync', '--all';
 	lei_ok 'inspect', "blob:$oid";
 	is($lei_out, $before, 'no changes when server was down');
