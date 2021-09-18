@@ -35,7 +35,7 @@ sub socks_args ($) {
 		eval { require IO::Socket::Socks } or die <<EOM;
 IO::Socket::Socks missing for socks5h://$h:$p
 EOM
-		# for Mail::IMAPClient
+		# for IO::Socket::Socks
 		return { ProxyAddr => $h, ProxyPort => $p };
 	}
 	die "$val not understood (only socks5h:// is supported)\n";
@@ -51,6 +51,7 @@ sub mic_new ($$$$) {
 		require IO::Socket::Socks;
 
 		my %opt = %$sa;
+		$opt{SocksDebug} = 1 if $mic_arg{Debug};
 		$opt{ConnectAddr} = delete $mic_arg{Server};
 		$opt{ConnectPort} = delete $mic_arg{Port};
 		$mic_arg{Socket} = IO::Socket::Socks->new(%opt) or die
@@ -170,6 +171,7 @@ sub nn_new ($$$) {
 	my $nn;
 	if (defined $nn_arg->{ProxyAddr}) {
 		require PublicInbox::NetNNTPSocks;
+		$nn_arg->{SocksDebug} = 1 if $nn_arg->{Debug};
 		eval { $nn = PublicInbox::NetNNTPSocks->new_socks(%$nn_arg) };
 		die "E: <$uri> $@\n" if $@;
 	} else {
