@@ -258,7 +258,7 @@ our %CMD = ( # sorted in order of importance/use:
 	 @c_opt ],
 'import' => [ 'LOCATION...|--stdin',
 	'one-time import/update from URL or filesystem',
-	qw(stdin| offset=i recursive|r exclude=s include|I=s jobs=s new-only
+	qw(stdin| offset=i recursive|r exclude=s include|I=s new-only
 	lock=s@ in-format|F=s kw! verbose|v+ incremental! mail-sync!),
 	@net_opt, @c_opt ],
 'forget-mail-sync' => [ 'LOCATION...',
@@ -627,6 +627,7 @@ sub workers_start {
 	my $end = $lei->pkt_op_pair;
 	my $ident = $wq->{-wq_ident} // "lei-$lei->{cmd} worker";
 	$flds->{lei} = $lei;
+	$wq->{-wq_nr_workers} //= $jobs; # lock, no incrementing
 	$wq->wq_workers_start($ident, $jobs, $lei->oldset, $flds);
 	delete $lei->{pkt_op_p};
 	my $op_c = delete $lei->{pkt_op_c};

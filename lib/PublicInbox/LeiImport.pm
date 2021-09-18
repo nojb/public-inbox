@@ -101,7 +101,6 @@ sub do_import_index ($$@) {
 	}
 	my $ops = {};
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
-	$self->{-wq_nr_workers} = $j // 1; # locked
 	$lei->{-eml_noisy} = 1;
 	(my $op_c, $ops) = $lei->workers_start($self, $j, $ops);
 	$lei->{wq1} = $self;

@@ -84,11 +84,9 @@ EOM
 	my $self = bless { missing_ok => 1 }, __PACKAGE__;
 	$lei->{opt}->{'mail-sync'} = 1; # for prepare_inputs
 	$self->prepare_inputs($lei, \@folders) or return;
-	my $j = $lei->{opt}->{jobs} || scalar(@{$self->{inputs}}) || 1;
 	my $ops = {};
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
-	$self->{-wq_nr_workers} = $j // 1; # locked
-	(my $op_c, $ops) = $lei->workers_start($self, $j, $ops);
+	(my $op_c, $ops) = $lei->workers_start($self, 1, $ops);
 	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';
 	net_merge_all_done($self) unless $lei->{auth};

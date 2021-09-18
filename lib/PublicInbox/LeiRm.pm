@@ -32,7 +32,7 @@ sub lei_rm {
 	my ($lei, @inputs) = @_;
 	$lei->_lei_store(1)->write_prepare($lei);
 	$lei->{opt}->{'in-format'} //= 'eml';
-	my $self = bless { -wq_nr_workers => 1 }, __PACKAGE__;
+	my $self = bless {}, __PACKAGE__;
 	$self->prepare_inputs($lei, \@inputs) or return;
 	my ($op_c, $ops) = $lei->workers_start($self, 1);
 	$lei->{wq1} = $self;

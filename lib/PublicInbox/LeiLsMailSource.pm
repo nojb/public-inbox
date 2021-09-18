@@ -96,8 +96,7 @@ sub lei_ls_mail_source {
 	$lei->start_pager if -t $lei->{1};
 	my $ops = {};
 	$lei->{auth}->op_merge($ops, $self);
-	my $j = $self->{-wq_nr_workers} = 1; # locked
-	(my $op_c, $ops) = $lei->workers_start($self, $j, $ops);
+	(my $op_c, $ops) = $lei->workers_start($self, 1, $ops);
 	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';
 	net_merge_all_done($self) unless $lei->{auth};

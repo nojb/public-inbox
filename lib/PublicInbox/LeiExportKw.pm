@@ -124,7 +124,6 @@ EOM
 	my $ops = {};
 	$sto->write_prepare($lei);
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
-	$self->{-wq_nr_workers} = $j // 1; # locked
 	(my $op_c, $ops) = $lei->workers_start($self, $j, $ops);
 	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';
