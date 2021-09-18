@@ -71,19 +71,21 @@ sub onion_hint ($$) {
 	my ($lei, $uri) = @_;
 	$uri->host =~ /\.onion\z/i or return "\n";
 	my $t = $uri->isa('PublicInbox::URIimap') ? 'imap' : 'nntp';
-	my $url = uri_section($uri);
+	my $url = PublicInbox::Config::squote_maybe(uri_section($uri));
 	my $set_cfg = 'lei config';
 	if (!$lei) { # public-inbox-watch
-		my $f = $ENV{PI_CONFIG} || '~/.public-inbox/config';
+		my $f = PublicInbox::Config::squote_maybe(
+				$ENV{PI_CONFIG} || '~/.public-inbox/config');
 		$set_cfg = "git config -f $f";
 	}
+	my $dq = substr($url, 0, 1) eq "'" ? '"' : '';
 	<<EOM
 
 Assuming you have Tor configured and running locally on port 9050,
 try configuring a socks5h:// proxy:
 
 	url=$url
-	$set_cfg $t.\$url.proxy socks5h://127.0.0.1:9050
+	$set_cfg $t.$dq\$url$dq.proxy socks5h://127.0.0.1:9050
 
 ...before retrying your current command
 EOM
