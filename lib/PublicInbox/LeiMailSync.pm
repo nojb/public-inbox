@@ -14,6 +14,11 @@ sub dbh_new {
 	my ($self, $rw) = @_;
 	my $f = $self->{filename};
 	my $creat = $rw && !-s $f;
+	if ($creat) {
+		require PublicInbox::Spawn;
+		open my $fh, '+>>', $f or Carp::croak "open($f): $!";
+		PublicInbox::Spawn::nodatacow_fd(fileno($fh));
+	}
 	my $dbh = DBI->connect("dbi:SQLite:dbname=$f",'','', {
 		AutoCommit => 1,
 		RaiseError => 1,
