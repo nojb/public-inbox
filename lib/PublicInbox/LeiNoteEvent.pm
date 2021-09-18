@@ -7,8 +7,8 @@ package PublicInbox::LeiNoteEvent;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::IPC);
+use PublicInbox::DS;
 
-my $flush_timer;
 our $to_flush; # { cfgpath => $lei }
 
 sub flush_lei ($) {
@@ -20,7 +20,6 @@ sub flush_lei ($) {
 # we batch up writes and flush every 5s (matching Linux default
 # writeback behavior) since MUAs can trigger a storm of inotify events
 sub flush_task { # PublicInbox::DS timer callback
-	undef $flush_timer;
 	my $todo = $to_flush // return;
 	$to_flush = undef;
 	for my $lei (values %$todo) { flush_lei($lei) }
@@ -29,7 +28,7 @@ sub flush_task { # PublicInbox::DS timer callback
 # sets a timer to flush
 sub note_event_arm_done ($) {
 	my ($lei) = @_;
-	$flush_timer //= PublicInbox::DS::add_timer(5, \&flush_task);
+	PublicInbox::DS::add_uniq_timer('flush_timer', 5, \&flush_task);
 	$to_flush->{$lei->{cfg}->{'-f'}} //= $lei;
 }
 

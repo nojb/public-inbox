@@ -32,7 +32,7 @@ use PublicInbox::Syscall qw(:epoll);
 use PublicInbox::Tmpfile;
 use Errno qw(EAGAIN EINVAL);
 use Carp qw(carp croak);
-our @EXPORT_OK = qw(now msg_more dwaitpid add_timer);
+our @EXPORT_OK = qw(now msg_more dwaitpid add_timer add_uniq_timer);
 
 my %Stack;
 my $nextq; # queue for next_tick
@@ -40,7 +40,7 @@ my $wait_pids; # list of [ pid, callback, callback_arg ]
 my $later_q; # list of callbacks to run at some later interval
 my $EXPMAP; # fd -> idle_time
 our $EXPTIME = 180; # 3 minutes
-my ($later_timer, $reap_armed, $exp_timer);
+my ($reap_armed, $exp_timer);
 my $ToClose; # sockets to close when event loop is done
 our (
      %DescriptorMap,             # fd (num) -> PublicInbox::DS object
@@ -51,6 +51,7 @@ our (
 
      $LoopTimeout,               # timeout of event loop in milliseconds
      @Timers,                    # timers
+     %UniqTimer,
      $in_loop,
      );
 
@@ -70,6 +71,7 @@ sub Reset {
 		$in_loop = undef; # first in case DESTROY callbacks use this
 		%DescriptorMap = ();
 		@Timers = ();
+		%UniqTimer = ();
 		$PostLoopCallback = undef;
 
 		# we may be iterating inside one of these on our stack
@@ -81,9 +83,9 @@ sub Reset {
 		$Epoll = undef; # may call DSKQXS::DESTROY
 	} while (@Timers || keys(%Stack) || $nextq || $wait_pids ||
 		$later_q || $ToClose || keys(%DescriptorMap) ||
-		$PostLoopCallback);
+		$PostLoopCallback || keys(%UniqTimer));
 
-	$reap_armed = $later_timer = $exp_timer = undef;
+	$reap_armed = $exp_timer = undef;
 	$LoopTimeout = -1;  # no timeout by default
 }
 
@@ -97,36 +99,33 @@ immediately.
 =cut
 sub SetLoopTimeout { $LoopTimeout = $_[1] + 0 }
 
-=head2 C<< PublicInbox::DS::add_timer( $seconds, $coderef, $arg) >>
+sub _add_named_timer {
+	my ($name, $secs, $coderef, @args) = @_;
+	my $fire_time = now() + $secs;
+	my $timer = [$fire_time, $name, $coderef, @args];
 
-Add a timer to occur $seconds from now. $seconds may be fractional, but timers
-are not guaranteed to fire at the exact time you ask for.
+	if (!@Timers || $fire_time >= $Timers[-1][0]) {
+		push @Timers, $timer;
+		return $timer;
+	}
 
-=cut
-sub add_timer ($$;@) {
-    my ($secs, $coderef, @args) = @_;
+	# Now, where do we insert?  (NOTE: this appears slow, algorithm-wise,
+	# but it was compared against calendar queues, heaps, naive push/sort,
+	# and a bunch of other versions, and found to be fastest with a large
+	# variety of datasets.)
+	for (my $i = 0; $i < @Timers; $i++) {
+		if ($Timers[$i][0] > $fire_time) {
+			splice(@Timers, $i, 0, $timer);
+			return $timer;
+		}
+	}
+	die "Shouldn't get here.";
+}
 
-    my $fire_time = now() + $secs;
+sub add_timer { _add_named_timer(undef, @_) }
 
-    my $timer = [$fire_time, $coderef, @args];
-
-    if (!@Timers || $fire_time >= $Timers[-1][0]) {
-        push @Timers, $timer;
-        return $timer;
-    }
-
-    # Now, where do we insert?  (NOTE: this appears slow, algorithm-wise,
-    # but it was compared against calendar queues, heaps, naive push/sort,
-    # and a bunch of other versions, and found to be fastest with a large
-    # variety of datasets.)
-    for (my $i = 0; $i < @Timers; $i++) {
-        if ($Timers[$i][0] > $fire_time) {
-            splice(@Timers, $i, 0, $timer);
-            return $timer;
-        }
-    }
-
-    die "Shouldn't get here.";
+sub add_uniq_timer { # ($name, $secs, $coderef, @args) = @_;
+	$UniqTimer{$_[0]} //= _add_named_timer(@_);
 }
 
 # keeping this around in case we support other FD types for now,
@@ -184,31 +183,32 @@ sub next_tick () {
 
 # runs timers and returns milliseconds for next one, or next event loop
 sub RunTimers {
-    next_tick();
+	next_tick();
 
-    return (($nextq || $ToClose) ? 0 : $LoopTimeout) unless @Timers;
+	return (($nextq || $ToClose) ? 0 : $LoopTimeout) unless @Timers;
 
-    my $now = now();
+	my $now = now();
 
-    # Run expired timers
-    while (@Timers && $Timers[0][0] <= $now) {
-        my $to_run = shift(@Timers);
-        $to_run->[1]->(@$to_run[2..$#$to_run]);
-    }
+	# Run expired timers
+	while (@Timers && $Timers[0][0] <= $now) {
+		my $to_run = shift(@Timers);
+		delete $UniqTimer{$to_run->[1] // ''};
+		$to_run->[2]->(@$to_run[3..$#$to_run]);
+	}
 
-    # timers may enqueue into nextq:
-    return 0 if ($nextq || $ToClose);
+	# timers may enqueue into nextq:
+	return 0 if ($nextq || $ToClose);
 
-    return $LoopTimeout unless @Timers;
+	return $LoopTimeout unless @Timers;
 
-    # convert time to an even number of milliseconds, adding 1
-    # extra, otherwise floating point fun can occur and we'll
-    # call RunTimers like 20-30 times, each returning a timeout
-    # of 0.0000212 seconds
-    my $timeout = int(($Timers[0][0] - $now) * 1000) + 1;
+	# convert time to an even number of milliseconds, adding 1
+	# extra, otherwise floating point fun can occur and we'll
+	# call RunTimers like 20-30 times, each returning a timeout
+	# of 0.0000212 seconds
+	my $timeout = int(($Timers[0][0] - $now) * 1000) + 1;
 
-    # -1 is an infinite timeout, so prefer a real timeout
-    ($LoopTimeout < 0 || $LoopTimeout >= $timeout) ? $timeout : $LoopTimeout;
+	# -1 is an infinite timeout, so prefer a real timeout
+	($LoopTimeout < 0 || $LoopTimeout >= $timeout) ? $timeout : $LoopTimeout
 }
 
 sub sig_setmask { sigprocmask(SIG_SETMASK, @_) or die "sigprocmask: $!" }
@@ -660,7 +660,7 @@ sub dwaitpid ($;$$) {
 
 sub _run_later () {
 	my $q = $later_q or return;
-	$later_timer = $later_q = undef;
+	$later_q = undef;
 	$Stack{later_q} = $q;
 	$_->() for @$q;
 	delete $Stack{later_q};
@@ -668,7 +668,7 @@ sub _run_later () {
 
 sub later ($) {
 	push @$later_q, $_[0]; # autovivifies @$later_q
-	$later_timer //= add_timer(60, \&_run_later);
+	add_uniq_timer('later', 60, \&_run_later);
 }
 
 sub expire_old () {
