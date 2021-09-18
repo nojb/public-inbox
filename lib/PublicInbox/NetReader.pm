@@ -182,6 +182,7 @@ sub nn_new ($$$) {
 	} else {
 		$nn = Net::NNTP->new(%$nn_arg) or return;
 	}
+	setsockopt($nn, Socket::SOL_SOCKET(), Socket::SO_KEEPALIVE(), 1);
 
 	# default to using STARTTLS if it's available, but allow
 	# it to be disabled for localhost/VPN users
