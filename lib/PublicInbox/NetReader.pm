@@ -43,21 +43,26 @@ EOM
 
 sub mic_new ($$$$) {
 	my ($self, $mic_arg, $sec, $uri) = @_;
-	my %mic_arg = %$mic_arg;
+	my %mic_arg = (%$mic_arg, Keepalive => 1);
 	my $sa = $self->{cfg_opt}->{$sec}->{-proxy_cfg} || $self->{-proxy_cli};
 	if ($sa) {
 		# this `require' needed for worker[1..Inf], since socks_args
 		# only got called in worker[0]
 		require IO::Socket::Socks;
-
-		my %opt = %$sa;
+		my %opt = (%$sa, Keepalive => 1);
 		$opt{SocksDebug} = 1 if $mic_arg{Debug};
 		$opt{ConnectAddr} = delete $mic_arg{Server};
 		$opt{ConnectPort} = delete $mic_arg{Port};
-		$mic_arg{Socket} = IO::Socket::Socks->new(%opt) or die
-			"E: <$$uri> ".eval('$IO::Socket::Socks::SOCKS_ERROR');
+		my $s = IO::Socket::Socks->new(%opt) or die
+			"E: <$uri> ".eval('$IO::Socket::Socks::SOCKS_ERROR');
+		if ($mic_arg->{Ssl}) { # for imaps://
+			require IO::Socket::SSL;
+			$s = IO::Socket::SSL->start_SSL($s) or die
+				"E: <$uri> ".(IO::Socket::SSL->errstr // '');
+		}
+		$mic_arg{Socket} = $s;
 	}
-	PublicInbox::IMAPClient->new(%mic_arg, Keepalive => 1);
+	PublicInbox::IMAPClient->new(%mic_arg);
 }
 
 sub auth_anon_cb { '' }; # for Mail::IMAPClient::Authcallback
@@ -103,7 +108,6 @@ sub mic_for ($$$$) { # mic = Mail::IMAPClient
 	my $mic_arg = {
 		Port => $uri->port,
 		Server => $host,
-		Ssl => $uri->scheme eq 'imaps',
 		%$common, # may set Starttls, Compress, Debug ....
 	};
 	$mic_arg->{Ssl} = 1 if $uri->scheme eq 'imaps';
