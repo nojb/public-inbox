@@ -36,7 +36,7 @@ sub pmdir_cb { # called via wq_io_do from LeiPmdir->each_mdir_fn
 	my $kw = PublicInbox::MdirReader::flags2kw($fl);
 	substr($folder, 0, 0) = 'maildir:'; # add prefix
 	my $lse = $self->{lse} //= $self->{lei}->{sto}->search;
-	my $lms = $self->{-lms_ro} //= $lse->lms; # may be 0 or undef
+	my $lms = $self->{-lms_ro} //= $self->{lei}->lms; # may be 0 or undef
 	my $oidbin = $lms ? $lms->name_oidbin($folder, $bn) : undef;
 	my @docids = defined($oidbin) ? $lse->over->oidbin_exists($oidbin) : ();
 	my $vmd = $self->{-import_kw} ? { kw => $kw } : undef;
@@ -83,7 +83,7 @@ sub do_import_index ($$@) {
 		# $j = $net->net_concurrency($j); TODO
 		if ($lei->{opt}->{incremental} // 1) {
 			$net->{incremental} = 1;
-			$net->{-lms_ro} = $sto->search->lms // 0;
+			$net->{-lms_ro} = $lei->lms // 0;
 			if ($self->{-import_kw} && $net->{-lms_ro} &&
 					!$lei->{opt}->{'new-only'} &&
 					$net->{imap_order}) {
@@ -120,8 +120,7 @@ sub _complete_import {
 	my $match_cb = $lei->complete_url_prepare(\@argv);
 	my @m = map { $match_cb->($_) } $lei->url_folder_cache->keys;
 	my %f = map { $_ => 1 } @m;
-	my $sto = $lei->_lei_store;
-	if (my $lms = $sto ? $sto->search->lms : undef) {
+	if (my $lms = $lei->lms) {
 		@m = map { $match_cb->($_) } $lms->folders;
 		@f{@m} = @m;
 	}

@@ -5,6 +5,7 @@
 package PublicInbox::LeiMailSync;
 use strict;
 use v5.10.1;
+use parent qw(PublicInbox::Lock);
 use DBI;
 use PublicInbox::ContentHash qw(git_sha);
 use Carp ();
@@ -21,7 +22,7 @@ sub dbh_new {
 		sqlite_use_immediate_transaction => 1,
 	});
 	# no sqlite_unicode, here, all strings are binary
-	create_tables($dbh) if $rw;
+	create_tables($self, $dbh) if $rw;
 	$dbh->do('PRAGMA journal_mode = WAL') if $creat;
 	$dbh->do('PRAGMA case_sensitive_like = ON');
 	$dbh;
@@ -29,13 +30,24 @@ sub dbh_new {
 
 sub new {
 	my ($cls, $f) = @_;
-	bless { filename => $f, fmap => {} }, $cls;
+	bless {
+		filename => $f,
+		fmap => {},
+		lock_path => "$f.flock",
+	}, $cls;
 }
 
-sub lms_write_prepare { ($_[0]->{dbh} //= dbh_new($_[0], 1)) };
+sub lms_write_prepare { ($_[0]->{dbh} //= dbh_new($_[0], 1)); $_[0] }
+
+sub lms_pause {
+	my ($self) = @_;
+	$self->{fmap} = {};
+	delete $self->{dbh};
+}
 
 sub create_tables {
-	my ($dbh) = @_;
+	my ($self, $dbh) = @_;
+	my $lk = $self->lock_for_scope;
 
 	$dbh->do(<<'');
 CREATE TABLE IF NOT EXISTS folders (
@@ -115,8 +127,15 @@ EOM
 	$fid;
 }
 
+sub add_folders {
+	my ($self, @folders) = @_;
+	my $lk = $self->lock_for_scope;
+	for my $f (@folders) { $self->{fmap}->{$f} //= fid_for($self, $f, 1) }
+}
+
 sub set_src {
 	my ($self, $oidbin, $folder, $id) = @_;
+	my $lk = $self->lock_for_scope;
 	my $fid = $self->{fmap}->{$folder} //= fid_for($self, $folder, 1);
 	my $sth;
 	if (ref($id)) { # scalar name
@@ -134,6 +153,7 @@ INSERT OR IGNORE INTO blob2num (oidbin, fid, uid) VALUES (?, ?, ?)
 
 sub clear_src {
 	my ($self, $folder, $id) = @_;
+	my $lk = $self->lock_for_scope;
 	my $fid = $self->{fmap}->{$folder} //= fid_for($self, $folder, 1);
 	my $sth;
 	if (ref($id)) { # scalar name
@@ -152,6 +172,7 @@ DELETE FROM blob2num WHERE fid = ? AND uid = ?
 # Maildir-only
 sub mv_src {
 	my ($self, $folder, $oidbin, $id, $newbn) = @_;
+	my $lk = $self->lock_for_scope;
 	my $fid = $self->{fmap}->{$folder} //= fid_for($self, $folder, 1);
 	my $sth = $self->{dbh}->prepare_cached(<<'');
 UPDATE blob2name SET name = ? WHERE fid = ? AND oidbin = ? AND name = ?
@@ -421,18 +442,23 @@ EOF
 	$err;
 }
 
-sub forget_folder {
-	my ($self, $folder) = @_;
-	my $fid = delete($self->{fmap}->{$folder}) //
-		fid_for($self, $folder) // return;
-	for my $t (qw(blob2name blob2num folders)) {
-		$self->{dbh}->do("DELETE FROM $t WHERE fid = ?", undef, $fid);
+sub forget_folders {
+	my ($self, @folders) = @_;
+	my $lk = $self->lock_for_scope;
+	for my $folder (@folders) {
+		my $fid = delete($self->{fmap}->{$folder}) //
+			fid_for($self, $folder) // next;
+		for my $t (qw(blob2name blob2num folders)) {
+			$self->{dbh}->do("DELETE FROM $t WHERE fid = ?",
+					undef, $fid);
+		}
 	}
 }
 
 # only used for changing canonicalization errors
 sub rename_folder {
 	my ($self, $old, $new) = @_;
+	my $lk = $self->lock_for_scope;
 	my $ofid = delete($self->{fmap}->{$old}) //
 		fid_for($self, $old) // return;
 	eval {

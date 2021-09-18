@@ -9,8 +9,7 @@ use PublicInbox::LeiMailSync;
 
 sub lei_ls_mail_sync {
 	my ($lei, $filter) = @_;
-	my $sto = $lei->_lei_store or return;
-	my $lms = $sto->search->lms or return;
+	my $lms = $lei->lms or return;
 	my $opt = $lei->{opt};
 	my $re = $opt->{globoff} ? undef : $lei->glob2re($filter // '*');
 	$re //= qr/\Q$filter\E/;

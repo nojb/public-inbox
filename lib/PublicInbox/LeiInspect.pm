@@ -18,7 +18,7 @@ sub inspect_blob ($$) {
 		my $oidbin = pack('H*', $oidhex);
 		my @docids = $lse ? $lse->over->oidbin_exists($oidbin) : ();
 		$ent->{'lei/store'} = \@docids if @docids;
-		my $lms = $lse->lms;
+		my $lms = $lei->lms;
 		if (my $loc = $lms ? $lms->locations_for($oidbin) : undef) {
 			$ent->{'mail-sync'} = $loc;
 		}
@@ -29,8 +29,7 @@ sub inspect_blob ($$) {
 sub inspect_imap_uid ($$) {
 	my ($lei, $uid_uri) = @_;
 	my $ent = {};
-	my $lse = $lei->{lse} or return $ent;
-	my $lms = $lse->lms or return $ent;
+	my $lms = $lei->lms or return $ent;
 	my $oidhex = $lms->imap_oid($lei, $uid_uri);
 	if (ref(my $err = $oidhex)) { # art2folder error
 		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};

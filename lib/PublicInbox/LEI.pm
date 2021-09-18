@@ -1442,20 +1442,16 @@ sub refresh_watches {
 	}
 
 	# add all known Maildir folders as implicit watches
-	my $sto = $lei->_lei_store;
-	my $renames = 0;
-	if (my $lms = $sto ? $sto->search->lms : undef) {
+	my $lms = $lei->lms;
+	if ($lms) {
+		$lms->lms_write_prepare;
 		for my $d ($lms->folders('maildir:')) {
 			substr($d, 0, length('maildir:')) = '';
-			my $cd = canonpath_harder($d);
-			my $f = "maildir:$cd";
 
 			# fixup old bugs while we're iterating:
-			if ($d ne $cd) {
-				$sto->ipc_do('lms_rename_folder',
-						"maildir:$d", $f);
-				++$renames;
-			}
+			my $cd = canonpath_harder($d);
+			my $f = "maildir:$cd";
+			$lms->rename_folder("maildir:$d", $f) if $d ne $cd;
 			next if $watches->{$f}; # may be set to pause
 			require PublicInbox::LeiWatch;
 			$watches->{$f} = PublicInbox::LeiWatch->new($f);
@@ -1463,7 +1459,6 @@ sub refresh_watches {
 			add_maildir_watch($cd, $cfg_f);
 		}
 	}
-	$lei->sto_done_request if $renames;
 	if ($old) { # cull old non-existent entries
 		for my $url (keys %$old) {
 			next if exists $seen{$url};
@@ -1490,13 +1485,12 @@ sub git_oid {
 	git_sha(1, $eml);
 }
 
-sub lms { # read-only LeiMailSync
-	my ($lei) = @_;
-	my $lse = $lei->{lse} // do {
-		my $sto = $lei->{sto} // _lei_store($lei);
-		$sto ? $sto->search : undef
-	};
-	$lse ? $lse->lms : undef;
+sub lms {
+	my ($lei, $rw) = @_;
+	my $sto = $lei->{sto} // _lei_store($lei) // return;
+	require PublicInbox::LeiMailSync;
+	my $f = "$sto->{priv_eidx}->{topdir}/mail_sync.sqlite3";
+	(-f $f || $rw) ? PublicInbox::LeiMailSync->new($f) : undef;
 }
 
 sub sto_done_request { # only call this from lei-daemon process (not workers)

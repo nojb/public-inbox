@@ -190,7 +190,7 @@ sub export1_kw_md ($$$$$) {
 				syslog('warning', "unlink($src): $!");
 			}
 			# TODO: verify oidbin?
-			lms_mv_src($self, "maildir:$mdir",
+			$self->{lms}->mv_src("maildir:$mdir",
 					$oidbin, \$orig, $bn);
 			return;
 		} elsif ($! == EEXIST) { # lost race with "lei export-kw"?
@@ -200,7 +200,7 @@ sub export1_kw_md ($$$$$) {
 		}
 	}
 	for (@try) { return if -e "$mdir/$_/$orig" };
-	lms_clear_src($self, "maildir:$mdir", \$orig);
+	$self->{lms}->clear_src("maildir:$mdir", \$orig);
 }
 
 sub sto_export_kw ($$$) {
@@ -255,7 +255,7 @@ sub remove_eml_vmd { # remove just the VMD
 	\@docids;
 }
 
-sub _lms_rw ($) {
+sub _lms_rw ($) { # it is important to have eidx processes open before lms
 	my ($self) = @_;
 	my ($eidx, $tl) = eidx_init($self);
 	$self->{lms} //= do {
@@ -267,35 +267,9 @@ sub _lms_rw ($) {
 	};
 }
 
-sub lms_clear_src {
-	my ($self, $folder, $id) = @_;
-	_lms_rw($self)->clear_src($folder, $id);
-}
-
-sub lms_mv_src {
-	my ($self, $folder, $oidbin, $id, $newbn) = @_;
-	_lms_rw($self)->mv_src($folder, $oidbin, $id, $newbn);
-}
-
-sub lms_forget_folders {
-	my ($self, @folders) = @_;
-	my $lms = _lms_rw($self);
-	for my $f (@folders) { $lms->forget_folder($f) }
-}
-
-sub lms_rename_folder {
-	my ($self, $old, $new) = @_;
-	_lms_rw($self)->rename_folder($old, $new);
-}
-
 sub set_sync_info {
 	my ($self, $oidhex, $folder, $id) = @_;
 	_lms_rw($self)->set_src(pack('H*', $oidhex), $folder, $id);
-}
-
-sub lms_set_src {
-	my ($self, $oidbin, $folder, $id) = @_;
-	_lms_rw($self)->set_src($oidbin, $folder, $id);
 }
 
 sub _remove_if_local { # git->cat_async arg
@@ -606,13 +580,6 @@ sub write_prepare {
 		};
 	}
 	$lei->{sto} = $self;
-}
-
-# called by lei-daemon before lei->refresh_watches
-sub add_sync_folders {
-	my ($self, @folders) = @_;
-	my $lms = _lms_rw($self);
-	for my $f (@folders) { $lms->fid_for($f, 1) }
 }
 
 1;

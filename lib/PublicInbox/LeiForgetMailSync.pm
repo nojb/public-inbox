@@ -15,13 +15,11 @@ use PublicInbox::LeiExportKw;
 sub lei_forget_mail_sync {
 	my ($lei, @folders) = @_;
 	my $lms = $lei->lms or return;
-	my $sto = $lei->_lei_store or return; # may disappear due to race
-	$sto->write_prepare($lei);
+	$lms->lms_write_prepare;
 	my $err = $lms->arg2folder($lei, \@folders);
 	$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
 	return $lei->fail($err->{fail}) if $err->{fail};
-	$sto->ipc_do('lms_forget_folders', @folders);
-	$lei->sto_done_request;
+	$lms->forget_folders(@folders);
 }
 
 *_complete_forget_mail_sync = \&PublicInbox::LeiExportKw::_complete_export_kw;

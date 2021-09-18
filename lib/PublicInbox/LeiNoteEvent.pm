@@ -2,6 +2,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # internal command for dealing with inotify, kqueue vnodes, etc
+# it is a semi-persistent worker
 package PublicInbox::LeiNoteEvent;
 use strict;
 use v5.10.1;
@@ -12,11 +13,8 @@ our $to_flush; # { cfgpath => $lei }
 
 sub flush_lei ($) {
 	my ($lei) = @_;
-	if (my $lne = delete $lei->{cfg}->{-lei_note_event}) {
-		$lne->wq_close(1, undef, $lei); # runs _lei_wq_eof;
-	} elsif ($lei->{sto}) { # lms_clear_src calls only:
-		$lei->sto_done_request;
-	}
+	my $lne = delete $lei->{cfg}->{-lei_note_event};
+	$lne->wq_close(1, undef, $lei) if $lne; # runs _lei_wq_eof;
 }
 
 # we batch up writes and flush every 5s (matching Linux default
@@ -38,14 +36,14 @@ sub note_event_arm_done ($) {
 sub eml_event ($$$$) {
 	my ($self, $eml, $vmd, $state) = @_;
 	my $sto = $self->{lei}->{sto};
-	my $lse = $self->{lse} //= $sto->search;
 	if ($state =~ /\Aimport-(?:rw|ro)\z/) {
 		$sto->ipc_do('set_eml', $eml, $vmd);
 	} elsif ($state =~ /\Aindex-(?:rw|ro)\z/) {
 		my $xoids = $self->{lei}->ale->xoids_for($eml);
 		$sto->ipc_do('index_eml_only', $eml, $vmd, $xoids);
 	} elsif ($state =~ /\Atag-(?:rw|ro)\z/) {
-		my $c = $lse->kw_changed($eml, $vmd->{kw}, my $docids = []);
+		my $docids = [];
+		my $c = $self->{lse}->kw_changed($eml, $vmd->{kw}, $docids);
 		if (scalar @$docids) { # already in lei/store
 			$sto->ipc_do('set_eml_vmd', undef, $vmd, $docids) if $c;
 		} elsif (my $xoids = $self->{lei}->ale->xoids_for($eml)) {
@@ -69,21 +67,19 @@ sub lei_note_event {
 	my $cfg = $lei->_lei_cfg or return; # gone (race)
 	my $sto = $lei->_lei_store or return; # gone
 	return flush_lei($lei) if $folder eq 'done'; # special case
-	my $lms = $sto->search->lms or return;
+	my $lms = $lei->lms or return;
+	$lms->lms_write_prepare if $new_cur eq ''; # for ->clear_src below
 	my $err = $lms->arg2folder($lei, [ $folder ]);
 	return if $err->{fail};
-	undef $lms;
 	my $state = $cfg->get_1("watch.$folder", 'state') // 'tag-rw';
 	return if $state eq 'pause';
+	return $lms->clear_src($folder, \$bn) if $new_cur eq '';
+	$lms->lms_pause;
 	$lei->ale; # prepare
 	$sto->write_prepare($lei);
-	if ($new_cur eq '') {
-		$sto->ipc_do('lms_clear_src', $folder, \$bn);
-		return note_event_arm_done($lei);
-	}
 	require PublicInbox::MdirReader;
 	my $self = $cfg->{-lei_note_event} //= do {
-		my $wq = bless {}, __PACKAGE__;
+		my $wq = bless { lms => $lms }, __PACKAGE__;
 		# MUAs such as mutt can trigger massive rename() storms so
 		# use all CPU power available:
 		my $jobs = $wq->detect_nproc // 1;
@@ -105,6 +101,8 @@ sub lei_note_event {
 sub ipc_atfork_child {
 	my ($self) = @_;
 	$self->{lei}->_lei_atfork_child(1); # persistent, for a while
+	$self->{lms}->lms_write_prepare;
+	$self->{lse} = $self->{lei}->{sto}->search;
 	$self->SUPER::ipc_atfork_child;
 }
 

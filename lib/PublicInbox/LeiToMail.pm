@@ -458,8 +458,10 @@ sub _pre_augment_maildir {
 
 sub clobber_dst_prepare ($;$) {
 	my ($lei, $f) = @_;
-	my $wait = (defined($f) && $lei->{sto}) ?
-			$lei->{sto}->ipc_do('lms_forget_folders', $f) : undef;
+	if (my $lms = defined($f) ? $lei->lms : undef) {
+		$lms->lms_write_prepare;
+		$lms->forget_folders($f);
+	}
 	my $dedupe = $lei->{dedupe} or return;
 	$dedupe->reset_dedupe if $dedupe->can('reset_dedupe');
 }

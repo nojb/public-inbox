@@ -40,7 +40,7 @@ sub export_kw_md { # LeiMailSync->each_src callback
 			if (!unlink($src) and $! != ENOENT) {
 				$lei->child_error(1, "E: unlink($src): $!");
 			}
-			$lei->{sto}->ipc_do('lms_mv_src', "maildir:$mdir",
+			$self->{lms}->mv_src("maildir:$mdir",
 						$oidbin, $id, $bn);
 			return; # success anyways if link(2) worked
 		} elsif ($! == EEXIST) { # lost race with lei/store?
@@ -55,7 +55,7 @@ sub export_kw_md { # LeiMailSync->each_src callback
 	my $src = "$mdir/{".join(',', @try)."}/$$id";
 	$lei->child_error(1, "link($src -> $dst) ($oidhex): $e");
 	for (@try) { return if -e "$mdir/$_/$$id" }
-	$lei->{sto}->ipc_do('lms_clear_src', "maildir:$mdir", $id);
+	$self->{lms}->clear_src("maildir:$mdir", $id);
 }
 
 sub export_kw_imap { # LeiMailSync->each_src callback
@@ -67,18 +67,17 @@ sub export_kw_imap { # LeiMailSync->each_src callback
 # overrides PublicInbox::LeiInput::input_path_url
 sub input_path_url {
 	my ($self, $input, @args) = @_;
-	my $lms = $self->{-lms_ro} //= $self->{lse}->lms;
+	$self->{lms}->lms_write_prepare;
 	if ($input =~ /\Amaildir:(.+)/i) {
 		my $mdir = $1;
 		require PublicInbox::LeiToMail; # kw2suffix
-		$lms->each_src($input, \&export_kw_md, $self, $mdir);
+		$self->{lms}->each_src($input, \&export_kw_md, $self, $mdir);
 	} elsif ($input =~ m!\Aimaps?://!i) {
 		my $uri = PublicInbox::URIimap->new($input);
 		my $mic = $self->{nwr}->mic_for_folder($uri);
-		$lms->each_src($$uri, \&export_kw_imap, $self, $mic);
+		$self->{lms}->each_src($$uri, \&export_kw_imap, $self, $mic);
 		$mic->expunge;
 	} else { die "BUG: $input not supported" }
-	my $wait = $self->{lei}->{sto}->ipc_do('done');
 }
 
 sub lei_export_kw {
@@ -86,26 +85,25 @@ sub lei_export_kw {
 	my $sto = $lei->_lei_store or return $lei->fail(<<EOM);
 lei/store uninitialized, see lei-import(1)
 EOM
-	my $lse = $sto->search;
-	my $lms = $lse->lms or return $lei->fail(<<EOM);
+	my $lms = $lei->lms or return $lei->fail(<<EOM);
 lei mail_sync uninitialized, see lei-import(1)
 EOM
-	my $opt = $lei->{opt};
-	if (defined(my $all = $opt->{all})) { # --all=<local|remote>
+	if (defined(my $all = $lei->{opt}->{all})) { # --all=<local|remote>
 		$lms->group2folders($lei, $all, \@folders) or return;
+		@folders = grep(/\A(?:maildir|imaps?):/i, @folders);
 	} else {
 		my $err = $lms->arg2folder($lei, \@folders);
 		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
 		return $lei->fail($err->{fail}) if $err->{fail};
 	}
-	my $self = bless { lse => $lse }, __PACKAGE__;
+	$lms->lms_pause;
+	my $self = bless { lse => $sto->search, lms => $lms }, __PACKAGE__;
 	$lei->{opt}->{'mail-sync'} = 1; # for prepare_inputs
 	$self->prepare_inputs($lei, \@folders) or return;
-	my $j = $opt->{jobs} // scalar(@{$self->{inputs}}) || 1;
 	if (my @ro = grep(!/\A(?:maildir|imaps?):/i, @folders)) {
 		return $lei->fail("cannot export to read-only folders: @ro");
 	}
-	my $m = $opt->{mode} // 'merge';
+	my $m = $lei->{opt}->{mode} // 'merge';
 	if ($m eq 'merge') { # default
 		$self->{-merge_kw} = 1;
 	} elsif ($m eq 'set') {
@@ -120,11 +118,9 @@ EOM
 		$self->{imap_mod_kw} = $net->can($self->{-merge_kw} ?
 					'imap_add_kw' : 'imap_set_kw');
 	}
-	undef $lms; # for fork
 	my $ops = {};
-	$sto->write_prepare($lei);
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
-	(my $op_c, $ops) = $lei->workers_start($self, $j, $ops);
+	(my $op_c, $ops) = $lei->workers_start($self, 1, $ops);
 	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';
 	net_merge_all_done($self) unless $lei->{auth};
@@ -133,8 +129,7 @@ EOM
 
 sub _complete_export_kw {
 	my ($lei, @argv) = @_;
-	my $sto = $lei->_lei_store or return;
-	my $lms = $sto->search->lms or return;
+	my $lms = $lei->lms or return;
 	my $match_cb = $lei->complete_url_prepare(\@argv);
 	map { $match_cb->($_) } $lms->folders;
 }

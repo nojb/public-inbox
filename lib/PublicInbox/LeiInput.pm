@@ -360,7 +360,7 @@ $input is `eml', not --in-format=$in_fmt
 		# start watching Maildirs ASAP
 		if ($may_sync && $lei->{sto}) {
 			grep(!m!\Amaildir:/!i, @md) and die "BUG: @md (no pfx)";
-			my $wait = $lei->{sto}->ipc_do('add_sync_folders', @md);
+			$lei->lms(1)->lms_write_prepare->add_folders(@md);
 			$lei->refresh_watches;
 		}
 	}

@@ -11,9 +11,9 @@ use PublicInbox::LeiExportKw;
 use PublicInbox::InboxWritable qw(eml_from_path);
 use PublicInbox::Import;
 
-sub folder_missing {
+sub folder_missing { # may be called by LeiInput
 	my ($self, $folder) = @_;
-	$self->{lei}->{sto}->ipc_do('lms_forget_folders', $folder);
+	$self->{lms}->forget_folders($folder);
 }
 
 sub prune_mdir { # lms->each_src callback
@@ -21,13 +21,13 @@ sub prune_mdir { # lms->each_src callback
 	my @try = $$id =~ /:2,[a-zA-Z]*\z/ ? qw(cur new) : qw(new cur);
 	for (@try) { return if -f "$mdir/$_/$$id" }
 	# both tries failed
-	$self->{lei}->{sto}->ipc_do('lms_clear_src', "maildir:$mdir", $id);
+	$self->{lms}->clear_src("maildir:$mdir", $id);
 }
 
 sub prune_imap { # lms->each_src callback
 	my ($oidbin, $uid, $self, $uids, $url) = @_;
 	return if exists $uids->{$uid};
-	$self->{lei}->{sto}->ipc_do('lms_clear_src', $url, $uid);
+	$self->{lms}->clear_src($url, $uid);
 }
 
 # detects missed file moves
@@ -36,18 +36,16 @@ sub pmdir_cb { # called via LeiPmdir->each_mdir_fn
 	my ($folder, $bn) = ($f =~ m!\A(.+?)/(?:new|cur)/([^/]+)\z!) or
 		die "BUG: $f was not from a Maildir?";
 	substr($folder, 0, 0) = 'maildir:'; # add prefix
-	my $lms = $self->{-lms_ro} //= $self->{lei}->lms;
-	return if defined($lms->name_oidbin($folder, $bn));
+	return if defined($self->{lms}->name_oidbin($folder, $bn));
 	my $eml = eml_from_path($f) // return;
 	my $oidbin = $self->{lei}->git_oid($eml)->digest;
-	$self->{lei}->{sto}->ipc_do('lms_set_src', $oidbin, $folder, \$bn);
+	$self->{lms}->set_src($oidbin, $folder, \$bn);
 }
 
 sub input_path_url { # overrides PublicInbox::LeiInput::input_path_url
 	my ($self, $input, @args) = @_;
-	my $lms = $self->{-lms_ro} //= $self->{lei}->lms;
 	if ($input =~ /\Amaildir:(.+)/i) {
-		$lms->each_src($input, \&prune_mdir, $self, my $mdir = $1);
+		$self->{lms}->each_src($input, \&prune_mdir, $self, $1);
 		$self->{lse} //= $self->{lei}->{sto}->search;
 		# call pmdir_cb (via maildir_each_file -> each_mdir_fn)
 		PublicInbox::LeiInput::input_path_url($self, $input);
@@ -56,7 +54,8 @@ sub input_path_url { # overrides PublicInbox::LeiInput::input_path_url
 		if (my $mic = $self->{lei}->{net}->mic_for_folder($uri)) {
 			my $uids = $mic->search('UID 1:*');
 			$uids = +{ map { $_ => undef } @$uids };
-			$lms->each_src($$uri, \&prune_imap, $self, $uids, $$uri)
+			$self->{lms}->each_src($$uri, \&prune_imap, $self,
+						$uids, $$uri)
 		} else {
 			$self->folder_missing($$uri);
 		}
@@ -79,9 +78,9 @@ EOM
 		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
 		return $lei->fail($err->{fail}) if $err->{fail};
 	}
-	undef $lms; # must be done before fork
+	$lms->lms_pause; # must be done before fork
 	$sto->write_prepare($lei);
-	my $self = bless { missing_ok => 1 }, __PACKAGE__;
+	my $self = bless { missing_ok => 1, lms => $lms }, __PACKAGE__;
 	$lei->{opt}->{'mail-sync'} = 1; # for prepare_inputs
 	$self->prepare_inputs($lei, \@folders) or return;
 	my $ops = {};
@@ -93,9 +92,15 @@ EOM
 	$lei->wait_wq_events($op_c, $ops); # net_merge_all_done if !{auth}
 }
 
+sub ipc_atfork_child { # needed for PublicInbox::LeiPmdir
+	my ($self) = @_;
+	PublicInbox::LeiInput::input_only_atfork_child($self);
+	$self->{lms}->lms_write_prepare;
+	undef;
+}
+
 no warnings 'once';
 *_complete_refresh_mail_sync = \&PublicInbox::LeiExportKw::_complete_export_kw;
-*ipc_atfork_child = \&PublicInbox::LeiInput::input_only_atfork_child;
 *net_merge_all_done = \&PublicInbox::LeiInput::input_only_net_merge_all_done;
 
 1;
