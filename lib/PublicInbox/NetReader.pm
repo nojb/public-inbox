@@ -108,7 +108,8 @@ sub mic_for ($$$$) { # mic = Mail::IMAPClient
 	};
 	$mic_arg->{Ssl} = 1 if $uri->scheme eq 'imaps';
 	require PublicInbox::IMAPClient;
-	my $mic = mic_new($self, $mic_arg, $sec, $uri) or
+	my $mic = mic_new($self, $mic_arg, $sec, $uri);
+	($mic && $mic->IsConnected) or
 		die "E: <$uri> new: $@".onion_hint($lei, $uri);
 
 	# default to using STARTTLS if it's available, but allow
