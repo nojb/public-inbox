@@ -112,11 +112,15 @@ $pfx.inboxdir=/path/to/non/existent
 $pfx.newsgroup=inbox.test
 $pfx.nntpserver=news.alt.example.com
 publicinbox.nntpserver=news.example.com
+publicinbox.imapserver=imaps://mail.example.com
 EOF
 	$cfg = PublicInbox::Config->new(\$str);
 	$ibx = $cfg->lookup_name('test');
 	is_deeply($ibx->nntp_url({ www => { pi_cfg => $cfg }}),
 		[ 'nntp://news.alt.example.com/inbox.test' ],
+		'nntp_url uses per-inbox NNTP server');
+	is_deeply($ibx->imap_url({ www => { pi_cfg => $cfg }}),
+		[ 'imaps://mail.example.com/inbox.test' ],
 		'nntp_url uses per-inbox NNTP server');
 }
 
