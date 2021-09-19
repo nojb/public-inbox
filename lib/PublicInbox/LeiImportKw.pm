@@ -11,7 +11,9 @@ use parent qw(PublicInbox::IPC);
 sub new {
 	my ($cls, $lei) = @_;
 	my $self = bless { -wq_ident => 'lei import_kw worker' }, $cls;
-	my ($op_c, $ops) = $lei->workers_start($self, $self->detect_nproc);
+	my $j = $self->detect_nproc // 4;
+	$j = 4 if $j > 4;
+	my ($op_c, $ops) = $lei->workers_start($self, $j);
 	$op_c->{ops} = $ops; # for PktOp->event_step
 	$self->{lei_sock} = $lei->{sock};
 	$lei->{ikw} = $self;

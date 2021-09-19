@@ -80,8 +80,9 @@ sub lei_note_event {
 	my $self = $cfg->{-lei_note_event} //= do {
 		my $wq = bless { lms => $lms }, __PACKAGE__;
 		# MUAs such as mutt can trigger massive rename() storms so
-		# use all CPU power available:
+		# use some CPU, but don't overwhelm slower storage, either
 		my $jobs = $wq->detect_nproc // 1;
+		$jobs = 4 if $jobs > 4; # same default as V2Writable
 		my ($op_c, $ops) = $lei->workers_start($wq, $jobs);
 		$lei->wait_wq_events($op_c, $ops);
 		note_event_arm_done($lei);
