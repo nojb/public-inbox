@@ -633,7 +633,7 @@ sub _lcat2smsg { # git->cat_async callback
 	}
 }
 
-sub lcat_dump {
+sub lcat_dump { # via wq_io_do
 	my ($self) = @_;
 	my $lei = $self->{lei};
 	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei);
@@ -642,7 +642,6 @@ sub lcat_dump {
 		my $json_dump = $each_smsg;
 		$each_smsg = sub {
 			my ($smsg) = @_;
-			use Data::Dumper;
 			$smsg->{-json_dump} = $json_dump;
 			$git->cat_async($smsg->{blob}, \&_lcat2smsg, $smsg);
 		};
