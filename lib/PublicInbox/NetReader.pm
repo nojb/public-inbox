@@ -344,10 +344,10 @@ sub imap_common_init ($;$) {
 		}
 		my $k = 'imap.fetchBatchSize';
 		my $bs = $cfg->urlmatch($k, $$uri) // next;
-		if ($bs =~ /\A([0-9]+)\z/) {
+		if ($bs =~ /\A([0-9]+)\z/ && $bs > 0) {
 			$self->{cfg_opt}->{$sec}->{batch_size} = $bs;
 		} else {
-			warn "$k=$bs is not an integer\n";
+			warn "$k=$bs is not a positive integer\n";
 		}
 	}
 	# make sure we can connect and cache the credentials in memory
