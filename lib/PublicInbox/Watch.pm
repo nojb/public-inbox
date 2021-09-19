@@ -358,7 +358,8 @@ sub watch_imap_idle_1 ($$$) {
 	my $mic;
 	local $0 = $uri->mailbox." $sec";
 	until ($self->{quit}) {
-		$mic //= PublicInbox::IMAPClient->new(%$mic_arg,Keepalive => 1);
+		$mic //= PublicInbox::NetReader::mic_new(
+					$self, $mic_arg, $sec, $uri);
 		my $err;
 		if ($mic && $mic->IsConnected) {
 			local $self->{mics_cached}->{$sec} = $mic;
