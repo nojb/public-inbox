@@ -37,7 +37,7 @@ sub ck_update_kw { # via wq_io_do
 	$self->{lse}->kw_changed(undef, $kw, \@docids) or return;
 	$self->{verbose} and
 		$self->{lei}->qerr('# '.unpack('H*', $oidbin)." => @$kw\n");
-	$self->{sto}->ipc_do('set_eml_vmd', undef, { kw => $kw }, \@docids);
+	$self->{sto}->wq_do('set_eml_vmd', undef, { kw => $kw }, \@docids);
 }
 
 sub ikw_done_wait {

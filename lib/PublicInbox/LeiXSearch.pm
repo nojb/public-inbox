@@ -269,7 +269,7 @@ sub each_remote_eml { # callback for MboxReader->mboxrd
 	my $xoids = $lei->{ale}->xoids_for($eml, 1);
 	my $smsg = bless {}, 'PublicInbox::Smsg';
 	if ($self->{import_sto} && !$xoids) {
-		my $res = $self->{import_sto}->ipc_do('add_eml', $eml);
+		my $res = $self->{import_sto}->wq_do('add_eml', $eml);
 		if (ref($res) eq ref($smsg)) { # totally new message
 			$smsg = $res;
 			$smsg->{kw} = []; # short-circuit xsmsg_vmd
@@ -369,7 +369,7 @@ sub query_remote_mboxrd {
 		@$reap_curl = (); # cancel OnDestroy
 		die $err if $err;
 		my $nr = $lei->{-nr_remote_eml};
-		my $wait = $lei->{sto}->ipc_do('done') if $nr && $lei->{sto};
+		my $wait = $lei->{sto}->wq_do('done') if $nr && $lei->{sto};
 		if ($? == 0) {
 			# don't update if no results, maybe MTA is down
 			$key && $nr and
@@ -413,7 +413,7 @@ sub query_done { # EOF callback for main daemon
 		warn "BUG: {sto} missing with --mail-sync";
 	}
 	$lei->sto_done_request if $lei->{sto};
-	my $wait = $lei->{v2w} ? $lei->{v2w}->ipc_do('done') : undef;
+	my $wait = $lei->{v2w} ? $lei->{v2w}->wq_do('done') : undef;
 	$lei->{ovv}->ovv_end($lei);
 	my $start_mua;
 	if ($l2m) { # close() calls LeiToMail reap_compress

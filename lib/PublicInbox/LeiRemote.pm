@@ -28,7 +28,7 @@ sub _each_mboxrd_eml { # callback for MboxReader->mboxrd
 	my $xoids = $lei->{ale}->xoids_for($eml, 1);
 	my $smsg = bless {}, 'PublicInbox::Smsg';
 	if ($lei->{sto} && !$xoids) { # memoize locally
-		my $res = $lei->{sto}->ipc_do('add_eml', $eml);
+		my $res = $lei->{sto}->wq_do('add_eml', $eml);
 		$smsg = $res if ref($res) eq ref($smsg);
 	}
 	$smsg->{blob} //= $xoids ? (keys(%$xoids))[0]
@@ -56,7 +56,7 @@ sub mset {
 	my $err = waitpid($pid, 0) == $pid ? undef
 					: "BUG: waitpid($cmd): $!";
 	@$reap = (); # cancel OnDestroy
-	my $wait = $self->{lei}->{sto}->ipc_do('done');
+	my $wait = $self->{lei}->{sto}->wq_do('done');
 	die $err if $err;
 	$self; # we are the mset (and $ibx, and $self)
 }

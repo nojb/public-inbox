@@ -16,7 +16,7 @@ sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 	if (my $all_vmd = $self->{all_vmd}) {
 		@$vmd{keys %$all_vmd} = values %$all_vmd;
 	}
-	$self->{lei}->{sto}->ipc_do('set_eml', $eml, $vmd, $xoids);
+	$self->{lei}->{sto}->wq_do('set_eml', $eml, $vmd, $xoids);
 }
 
 sub input_mbox_cb { # MboxReader callback

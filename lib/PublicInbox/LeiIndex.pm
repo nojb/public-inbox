@@ -16,7 +16,7 @@ sub input_eml_cb { # used by input_maildir_cb and input_net_cb
 	if (my $all_vmd = $self->{all_vmd}) {
 		@$vmd{keys %$all_vmd} = values %$all_vmd;
 	}
-	$self->{lei}->{sto}->ipc_do('index_eml_only', $eml, $vmd, $xoids);
+	$self->{lei}->{sto}->wq_do('index_eml_only', $eml, $vmd, $xoids);
 }
 
 sub input_fh { # overrides PublicInbox::LeiInput::input_fh

@@ -12,7 +12,7 @@ sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 	my ($self, $eml) = @_;
 	if (my $xoids = $self->{lse}->xoids_for($eml) // # tries LeiMailSync
 			$self->{lei}->{ale}->xoids_for($eml)) {
-		$self->{lei}->{sto}->ipc_do('update_xvmd', $xoids, $eml,
+		$self->{lei}->{sto}->wq_do('update_xvmd', $xoids, $eml,
 						$self->{vmd_mod});
 	} else {
 		++$self->{unimported};

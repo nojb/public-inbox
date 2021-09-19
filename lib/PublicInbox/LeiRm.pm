@@ -10,7 +10,7 @@ use parent qw(PublicInbox::IPC PublicInbox::LeiInput);
 
 sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 	my ($self, $eml) = @_;
-	$self->{lei}->{sto}->ipc_do('remove_eml', $eml);
+	$self->{lei}->{sto}->wq_do('remove_eml', $eml);
 }
 
 sub input_mbox_cb { # MboxReader callback

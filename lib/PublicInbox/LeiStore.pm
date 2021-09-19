@@ -552,6 +552,12 @@ sub ipc_atfork_child {
 	$self->SUPER::ipc_atfork_child;
 }
 
+sub recv_and_run {
+	my ($self, @args) = @_;
+	local $PublicInbox::DS::in_loop = 0; # waitpid synchronously
+	$self->SUPER::recv_and_run(@args);
+}
+
 sub write_prepare {
 	my ($self, $lei) = @_;
 	$lei // die 'BUG: $lei not passed';
@@ -560,14 +566,14 @@ sub write_prepare {
 		require PublicInbox::PktOp;
 		my ($s2d_op_c, $s2d_op_p) = PublicInbox::PktOp->pair;
 		my $dir = $lei->store_path;
-		$self->ipc_lock_init("$dir/ipc.lock");
 		substr($dir, -length('/lei/store'), 10, '');
 		pipe(my ($r, $w)) or die "pipe: $!";
 		$w->autoflush(1);
 		# Mail we import into lei are private, so headers filtered out
 		# by -mda for public mail are not appropriate
 		local @PublicInbox::MDA::BAD_HEADERS = ();
-		$self->ipc_worker_spawn("lei/store $dir", $lei->oldset, {
+		$self->{-wq_no_bcast} = 1;
+		$self->wq_workers_start("lei/store $dir", 1, $lei->oldset, {
 					lei => $lei,
 					-err_wr => $w,
 					to_close => [ $r, $s2d_op_c->{sock} ],

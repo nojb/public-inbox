@@ -1501,9 +1501,9 @@ sub sto_done_request { # only call this from lei-daemon process (not workers)
 	eval {
 		if ($sock //= $lei->{sock}) { # issue, async wait
 			$LIVE_SOCK{"$sock"} = $sock;
-			$lei->{sto}->ipc_do('done', "$sock");
+			$lei->{sto}->wq_do('done', "$sock");
 		} else { # forcibly wait
-			my $wait = $lei->{sto}->ipc_do('done');
+			my $wait = $lei->{sto}->wq_do('done');
 		}
 	};
 	$lei->err($@) if $@;

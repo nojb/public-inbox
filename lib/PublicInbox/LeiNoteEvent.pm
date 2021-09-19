@@ -36,18 +36,18 @@ sub eml_event ($$$$) {
 	my ($self, $eml, $vmd, $state) = @_;
 	my $sto = $self->{lei}->{sto};
 	if ($state =~ /\Aimport-(?:rw|ro)\z/) {
-		$sto->ipc_do('set_eml', $eml, $vmd);
+		$sto->wq_do('set_eml', $eml, $vmd);
 	} elsif ($state =~ /\Aindex-(?:rw|ro)\z/) {
 		my $xoids = $self->{lei}->ale->xoids_for($eml);
-		$sto->ipc_do('index_eml_only', $eml, $vmd, $xoids);
+		$sto->wq_do('index_eml_only', $eml, $vmd, $xoids);
 	} elsif ($state =~ /\Atag-(?:rw|ro)\z/) {
 		my $docids = [];
 		my $c = $self->{lse}->kw_changed($eml, $vmd->{kw}, $docids);
 		if (scalar @$docids) { # already in lei/store
-			$sto->ipc_do('set_eml_vmd', undef, $vmd, $docids) if $c;
+			$sto->wq_do('set_eml_vmd', undef, $vmd, $docids) if $c;
 		} elsif (my $xoids = $self->{lei}->ale->xoids_for($eml)) {
 			# it's in an external, only set kw, here
-			$sto->ipc_do('set_xvmd', $xoids, $eml, $vmd);
+			$sto->wq_do('set_xvmd', $xoids, $eml, $vmd);
 		} # else { totally unknown: ignore
 	} else {
 		warn "unknown state: $state (in $self->{lei}->{cfg}->{'-f'})\n";
