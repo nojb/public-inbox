@@ -729,7 +729,10 @@ sub _nntp_fetch_all ($$$) {
 	}
 	(defined($num_a) && defined($num_b) && $num_a > $num_b) and
 		return "E: $uri: backwards range: $num_a > $num_b";
-
+	if (defined($num_a)) { # no article numbers in mail_sync.sqlite3
+		$uri = $uri->clone;
+		$uri->group($group);
+	}
 	# IMAPTracker is also used for tracking NNTP, UID == article number
 	# LIST.ACTIVE can get the equivalent of UIDVALIDITY, but that's
 	# expensive.  So we assume newsgroups don't change:

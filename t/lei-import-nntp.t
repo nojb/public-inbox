@@ -49,12 +49,16 @@ test_lei({ tmpdir => $tmpdir }, sub {
 
 	my $end = $high - 1;
 	lei_ok qw(import), "$url/$high";
+	lei_ok 'ls-mail-sync';
+	is($lei_out, "$url\n", 'article number not stored as folder');
 	lei_ok qw(q z:0..); my $one = json_utf8->decode($lei_out);
 	pop @$one; # trailing null
 	is(scalar(@$one), 1, 'only 1 result');
 
 	local $ENV{HOME} = "$tmpdir/h3";
 	lei_ok qw(import), "$url/$low-$end";
+	lei_ok 'ls-mail-sync';
+	is($lei_out, "$url\n", 'article range not stored as folder');
 	lei_ok qw(q z:0..); my $start = json_utf8->decode($lei_out);
 	pop @$start; # trailing null
 	is(scalar(@$start), scalar(map { $_ } ($low..$end)),
