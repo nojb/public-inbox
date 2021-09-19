@@ -23,7 +23,7 @@ sub lei_init {
 
 		# some folks like symlinks and bind mounts :P
 		if (@dir && "@cur[1,0]" eq "@dir[1,0]") {
-			$self->lei_config('leistore.dir', $dir);
+			$self->_config('leistore.dir', $dir);
 			$self->_lei_store(1)->done;
 			return $self->qerr("$exists (as $cur)");
 		}
@@ -31,7 +31,7 @@ sub lei_init {
 E: leistore.dir=$cur already initialized and it is not $dir
 
 	}
-	$self->lei_config('leistore.dir', $dir);
+	$self->_config('leistore.dir', $dir);
 	$self->_lei_store(1)->done;
 	$exists //= "# leistore.dir=$dir newly initialized";
 	$self->qerr($exists);

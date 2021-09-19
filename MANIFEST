@@ -208,6 +208,7 @@ lib/PublicInbox/LeiALE.pm
 lib/PublicInbox/LeiAddWatch.pm
 lib/PublicInbox/LeiAuth.pm
 lib/PublicInbox/LeiBlob.pm
+lib/PublicInbox/LeiConfig.pm
 lib/PublicInbox/LeiConvert.pm
 lib/PublicInbox/LeiCurl.pm
 lib/PublicInbox/LeiDedupe.pm

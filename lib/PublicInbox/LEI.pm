@@ -278,7 +278,7 @@ our %CMD = ( # sorted in order of importance/use:
 'config' => [ '[...]', sub {
 		'git-config(1) wrapper for '._config_path($_[0]);
 	}, qw(config-file|system|global|file|f=s), # for conflict detection
-	 qw(c=s@ C=s@), pass_through('git config') ],
+	 qw(edit|e c=s@ C=s@), pass_through('git config') ],
 'inspect' => [ 'ITEMS...|--stdin', 'inspect lei/store and/or local external',
 	qw(stdin| pretty ascii dir=s), @c_opt ],
 
@@ -868,14 +868,6 @@ sub _config {
 	my $cmd = [ qw(git config -f), $cfg->{'-f'}, @argv ];
 	my %rdr = map { $_ => $self->{$_} } (0..2);
 	waitpid(spawn($cmd, \%env, \%rdr), 0);
-}
-
-sub lei_config {
-	my ($self, @argv) = @_;
-	$self->{opt}->{'config-file'} and return fail $self,
-		"config file switches not supported by `lei config'";
-	_config(@_);
-	x_it($self, $?) if $?;
 }
 
 sub lei_daemon_pid { puts shift, $$ }
@@ -1502,6 +1494,14 @@ sub sto_done_request {
 		}
 	};
 	$lei->err($@) if $@;
+}
+
+sub cfg_dump ($$) {
+	my ($lei, $f) = @_;
+	my $ret = eval { PublicInbox::Config->git_config_dump($f, $lei->{2}) };
+	return $ret if !$@;
+	$lei->err($@);
+	undef;
 }
 
 1;

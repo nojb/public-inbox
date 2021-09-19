@@ -100,6 +100,9 @@ my $test_config = sub {
 	is($lei_out, "tr00\n", "-c string value passed as-is");
 	lei_ok(qw(-c imap.debug=a -c imap.debug=b config --get-all imap.debug));
 	is($lei_out, "a\nb\n", '-c and --get-all work together');
+
+	lei_ok([qw(config -e)], { VISUAL => 'cat' });
+	is($lei_out, "[a]\n\tb = c\n", '--edit works');
 };
 
 my $test_completion = sub {

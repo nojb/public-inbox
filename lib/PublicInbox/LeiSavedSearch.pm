@@ -29,14 +29,6 @@ sub BOOL_FIELDS () {
 	qw(external local remote import-remote import-before threads)
 }
 
-sub cfg_dump ($$) {
-	my ($lei, $f) = @_;
-	my $ret = eval { PublicInbox::Config->git_config_dump($f, $lei->{2}) };
-	return $ret if !$@;
-	$lei->err($@);
-	undef;
-}
-
 sub lss_dir_for ($$;$) {
 	my ($lei, $dstref, $on_fs) = @_;
 	my $pfx;
@@ -64,7 +56,7 @@ sub lss_dir_for ($$;$) {
 		for my $g ("$pfx-*", '*') {
 			my @maybe = glob("$lss_dir$g/lei.saved-search");
 			for my $f (@maybe) {
-				$c = cfg_dump($lei, $f) // next;
+				$c = $lei->cfg_dump($f) // next;
 				$o = $c->{'lei.q.output'} // next;
 				$o =~ s!$LOCAL_PFX!! or next;
 				@st = stat($o) or next;
@@ -88,7 +80,7 @@ sub list {
 		print $fh "\tpath = ", cquote_val($p), "\n";
 	}
 	close $fh or die "close $f: $!";
-	my $cfg = cfg_dump($lei, $f);
+	my $cfg = $lei->cfg_dump($f);
 	unlink($f);
 	my $out = $cfg ? $cfg->get_all('lei.q.output') : [];
 	map {;
@@ -113,7 +105,7 @@ sub up { # updating existing saved search via "lei up"
 	output2lssdir($self, $lei, \$dir, \$f) or
 		return $lei->fail("--save was not used with $dst cwd=".
 					$lei->rel2abs('.'));
-	$self->{-cfg} = cfg_dump($lei, $f) // return $lei->fail;
+	$self->{-cfg} = $lei->cfg_dump($f) // return $lei->fail;
 	$self->{-ovf} = "$dir/over.sqlite3";
 	$self->{'-f'} = $f;
 	$self->{lock_path} = "$self->{-f}.flock";
@@ -276,7 +268,7 @@ sub output2lssdir {
 	my $dir = lss_dir_for($lei, \$dst, 1);
 	my $f = "$dir/lei.saved-search";
 	if (-f $f && -r _) {
-		$self->{-cfg} = cfg_dump($lei, $f) // return;
+		$self->{-cfg} = $lei->cfg_dump($f) // return;
 		$$dir_ref = $dir;
 		$$fn_ref = $f;
 		return 1;

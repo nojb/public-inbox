@@ -139,7 +139,7 @@ sub add_external_finish {
 	my $key = "external.$location.boost";
 	my $cur_boost = $cfg->{$key};
 	return if defined($cur_boost) && $cur_boost == $new_boost; # idempotent
-	$self->lei_config($key, $new_boost);
+	$self->_config($key, $new_boost);
 }
 
 sub lei_add_external {
