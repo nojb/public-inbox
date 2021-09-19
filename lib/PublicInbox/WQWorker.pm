@@ -11,11 +11,10 @@ use Errno qw(EAGAIN ECONNRESET);
 use IO::Handle (); # blocking
 
 sub new {
-	my ($cls, $wq, $field) = @_;
-	my $s2 = $wq->{$field // '-wq_s2'} // die "BUG: no {$field}";
-	$s2->blocking(0);
-	my $self = bless { sock => $s2, wq => $wq }, $cls;
-	$self->SUPER::new($s2, EPOLLEXCLUSIVE|EPOLLIN|EPOLLET);
+	my ($cls, $wq, $sock) = @_;
+	$sock->blocking(0);
+	my $self = bless { sock => $sock, wq => $wq }, $cls;
+	$self->SUPER::new($sock, EPOLLEXCLUSIVE|EPOLLIN|EPOLLET);
 	$self;
 }
 
