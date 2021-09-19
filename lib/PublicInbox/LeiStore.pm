@@ -534,10 +534,6 @@ sub done {
 	$self->{priv_eidx}->done; # V2Writable::done
 	xchg_stderr($self);
 	die $err if $err;
-
-	# notify clients ->done has been issued
-	defined($sock_ref) and
-		$self->{s2d_op_p}->pkt_do('sto_done_complete', $sock_ref);
 }
 
 sub ipc_atfork_child {
@@ -562,9 +558,6 @@ sub write_prepare {
 	my ($self, $lei) = @_;
 	$lei // die 'BUG: $lei not passed';
 	unless ($self->{-ipc_req}) {
-		# s2d => store-to-daemon messages
-		require PublicInbox::PktOp;
-		my ($s2d_op_c, $s2d_op_p) = PublicInbox::PktOp->pair;
 		my $dir = $lei->store_path;
 		substr($dir, -length('/lei/store'), 10, '');
 		pipe(my ($r, $w)) or die "pipe: $!";
@@ -576,14 +569,10 @@ sub write_prepare {
 		$self->wq_workers_start("lei/store $dir", 1, $lei->oldset, {
 					lei => $lei,
 					-err_wr => $w,
-					to_close => [ $r, $s2d_op_c->{sock} ],
-					s2d_op_p => $s2d_op_p,
+					to_close => [ $r ],
 				});
 		require PublicInbox::LeiStoreErr;
 		PublicInbox::LeiStoreErr->new($r, $lei);
-		$s2d_op_c->{ops} = {
-			sto_done_complete => [ $lei->can('sto_done_complete') ]
-		};
 	}
 	$lei->{sto} = $self;
 }
