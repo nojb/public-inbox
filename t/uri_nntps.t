@@ -37,4 +37,7 @@ is(PublicInbox::URInntps->new('nntps://0:563/')->canonical->as_string,
 $uri = PublicInbox::URInntps->new('nntps://NSA:Hunter2@0/inbox');
 is($uri->userinfo, 'NSA:Hunter2', 'userinfo accepted w/ pass');
 
+$uri = PublicInbox::URInntps->new('nntps://NSA:Hunter2@0/inbox.test/9-10');
+is_deeply([$uri->group], [ 'inbox.test', 9, 10 ], 'ranges work');
+
 done_testing;

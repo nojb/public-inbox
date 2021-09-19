@@ -37,5 +37,31 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	ok(-s $f, 'mail_sync exists tracked for redundant imports');
 	lei_ok 'ls-mail-sync';
 	like($lei_out, qr!\A\Q$url\E\n\z!, 'ls-mail-sync output as-expected');
+
+	ok(!lei(qw(import), "$url/12-1"), 'backwards range rejected');
+
+	# new home
+	local $ENV{HOME} = "$tmpdir/h2";
+	lei_ok(qw(ls-mail-source -l), $url);
+	my $ls = json_utf8->decode($lei_out);
+	my ($high, $low) = @{$ls->[0]}{qw(high low)};
+	ok($high > $low, 'high > low');
+
+	my $end = $high - 1;
+	lei_ok qw(import), "$url/$high";
+	lei_ok qw(q z:0..); my $one = json_utf8->decode($lei_out);
+	pop @$one; # trailing null
+	is(scalar(@$one), 1, 'only 1 result');
+
+	local $ENV{HOME} = "$tmpdir/h3";
+	lei_ok qw(import), "$url/$low-$end";
+	lei_ok qw(q z:0..); my $start = json_utf8->decode($lei_out);
+	pop @$start; # trailing null
+	is(scalar(@$start), scalar(map { $_ } ($low..$end)),
+		'range worked as expected');
+	my %seen;
+	for (@$start, @$one) {
+		is($seen{$_->{blob}}++, 0, "blob $_->{blob} seen once");
+	}
 });
 done_testing;

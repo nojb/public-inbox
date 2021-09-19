@@ -725,21 +725,24 @@ sub _nntp_fetch_all ($$$) {
 		my $msg = ndump($nn->message);
 		return "E: GROUP $group <$sec> $msg";
 	}
+	(defined($num_a) && defined($num_b) && $num_a > $num_b) and
+		return "E: $uri: backwards range: $num_a > $num_b";
 
 	# IMAPTracker is also used for tracking NNTP, UID == article number
 	# LIST.ACTIVE can get the equivalent of UIDVALIDITY, but that's
 	# expensive.  So we assume newsgroups don't change:
 	my ($itrk, $l_art) = itrk_last($self, $uri);
 
-	# allow users to specify articles to refetch
-	# cf. https://tools.ietf.org/id/draft-gilman-news-url-01.txt
-	# nntp://example.com/inbox.foo/$num_a-$num_b
-	$beg = $num_a if defined($num_a) && $num_a < $beg;
-	$end = $num_b if defined($num_b) && $num_b < $end;
-	if (defined $l_art) {
+	if (defined($l_art) && !defined($num_a)) {
 		return if $l_art >= $end; # nothing to do
 		$beg = $l_art + 1;
 	}
+	# allow users to specify articles to refetch
+	# cf. https://tools.ietf.org/id/draft-gilman-news-url-01.txt
+	# nntp://example.com/inbox.foo/$num_a-$num_b
+	$beg = $num_a if defined($num_a) && $num_a > $beg && $num_a <= $end;
+	$end = $num_b if defined($num_b) && $num_b >= $beg && $num_b < $end;
+	$end = $beg if defined($num_a) && !defined($num_b);
 	my ($err, $art, $last_art, $kw); # kw stays undef, no keywords in NNTP
 	unless ($self->{quiet}) {
 		warn "# $uri fetching ARTICLE $beg..$end\n";
