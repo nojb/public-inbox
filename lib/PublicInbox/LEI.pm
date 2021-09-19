@@ -627,7 +627,6 @@ sub workers_start {
 	my $end = $lei->pkt_op_pair;
 	my $ident = $wq->{-wq_ident} // "lei-$lei->{cmd} worker";
 	$flds->{lei} = $lei;
-	$wq->{-wq_nr_workers} //= $jobs; # lock, no incrementing
 	$wq->wq_workers_start($ident, $jobs, $lei->oldset, $flds);
 	delete $lei->{pkt_op_p};
 	my $op_c = delete $lei->{pkt_op_c};

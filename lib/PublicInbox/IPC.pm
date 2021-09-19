@@ -262,9 +262,10 @@ sub do_sock_stream { # via wq_io_do, for big requests
 sub wq_broadcast {
 	my ($self, $sub, @args) = @_;
 	if (my $wkr = $self->{-wq_workers}) {
+		my $buf = ipc_freeze([$sub, @args]);
 		for my $bcast1 (values %$wkr) {
-			my $buf = ipc_freeze([$sub, @args]);
-			send($bcast1, $buf, MSG_EOR) // croak "send: $!";
+			my $sock = $bcast1 // $self->{-wq_s1} // next;
+			send($sock, $buf, MSG_EOR) // croak "send: $!";
 			# XXX shouldn't have to deal with EMSGSIZE here...
 		}
 	} else {
@@ -336,11 +337,10 @@ sub wq_do {
 	}
 }
 
-sub _wq_worker_start ($$$) {
-	my ($self, $oldset, $fields) = @_;
+sub _wq_worker_start ($$$$) {
+	my ($self, $oldset, $fields, $one) = @_;
 	my ($bcast1, $bcast2);
-	$self->{-wq_no_bcast} or
-		socketpair($bcast1, $bcast2, AF_UNIX, $SEQPACKET, 0) or
+	$one or socketpair($bcast1, $bcast2, AF_UNIX, $SEQPACKET, 0) or
 							die "socketpair: $!";
 	my $seed = rand(0xffffffff);
 	my $pid = fork // die "fork: $!";
@@ -380,64 +380,15 @@ sub wq_workers_start {
 	socketpair($self->{-wq_s1}, $self->{-wq_s2}, AF_UNIX, $SEQPACKET, 0) or
 		die "socketpair: $!";
 	$self->ipc_atfork_prepare;
-	$nr_workers //= $self->{-wq_nr_workers};
+	$nr_workers //= $self->{-wq_nr_workers}; # was set earlier
 	my $sigset = $oldset // PublicInbox::DS::block_signals();
 	$self->{-wq_workers} = {};
 	$self->{-wq_ident} = $ident;
-	_wq_worker_start($self, $sigset, $fields) for (1..$nr_workers);
+	my $one = $nr_workers == 1;
+	$self->{-wq_nr_workers} = $nr_workers;
+	_wq_worker_start($self, $sigset, $fields, $one) for (1..$nr_workers);
 	PublicInbox::DS::sig_setmask($sigset) unless $oldset;
 	$self->{-wq_ppid} = $$;
-}
-
-sub wq_worker_incr { # SIGTTIN handler
-	my ($self, $oldset, $fields) = @_;
-	$self->{-wq_s2} or return;
-	die "-wq_nr_workers locked" if defined $self->{-wq_nr_workers};
-	$self->ipc_atfork_prepare;
-	my $sigset = $oldset // PublicInbox::DS::block_signals();
-	_wq_worker_start($self, $sigset, $fields);
-	PublicInbox::DS::sig_setmask($sigset) unless $oldset;
-}
-
-sub wq_exit { # wakes up wq_worker_decr_wait
-	send($_[0]->{-wq_s2}, $$, MSG_EOR) // die "$$ send: $!";
-	exit;
-}
-
-sub wq_worker_decr { # SIGTTOU handler, kills first idle worker
-	my ($self) = @_;
-	return unless wq_workers($self);
-	die "-wq_nr_workers locked" if defined $self->{-wq_nr_workers};
-	$self->wq_io_do('wq_exit');
-	# caller must call wq_worker_decr_wait in main loop
-}
-
-sub wq_worker_decr_wait {
-	my ($self, $timeout, $cb, @args) = @_;
-	return if $self->{-wq_ppid} != $$; # can't reap siblings or parents
-	die "-wq_nr_workers locked" if defined $self->{-wq_nr_workers};
-	my $s1 = $self->{-wq_s1} // croak 'BUG: no wq_s1';
-	vec(my $rin = '', fileno($s1), 1) = 1;
-	select(my $rout = $rin, undef, undef, $timeout) or
-		croak 'timed out waiting for wq_exit';
-	recv($s1, my $pid, 64, 0) // croak "recv: $!";
-	my $workers = $self->{-wq_workers} // croak 'BUG: no wq_workers';
-	delete $workers->{$pid} // croak "BUG: PID:$pid invalid";
-	dwaitpid($pid, $cb // \&ipc_worker_reap, [ $self, @args ]);
-}
-
-# set or retrieve number of workers
-sub wq_workers {
-	my ($self, $nr, $cb, @args) = @_;
-	my $cur = $self->{-wq_workers} or return;
-	if (defined $nr) {
-		while (scalar(keys(%$cur)) > $nr) {
-			$self->wq_worker_decr;
-			$self->wq_worker_decr_wait(undef, $cb, @args);
-		}
-		$self->wq_worker_incr while scalar(keys(%$cur)) < $nr;
-	}
-	scalar(keys(%$cur));
 }
 
 sub wq_close {

@@ -565,7 +565,6 @@ sub write_prepare {
 		# Mail we import into lei are private, so headers filtered out
 		# by -mda for public mail are not appropriate
 		local @PublicInbox::MDA::BAD_HEADERS = ();
-		$self->{-wq_no_bcast} = 1;
 		$self->wq_workers_start("lei/store $dir", 1, $lei->oldset, {
 					lei => $lei,
 					-err_wr => $w,
