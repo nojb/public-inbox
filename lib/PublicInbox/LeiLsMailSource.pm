@@ -59,10 +59,10 @@ sub input_path_url { # overrides LeiInput version
 # <https://rt.cpan.org/Ticket/Display.html?id=129966>
 				$desc =~ s/\r\z//;
 
-				my ($hwm, $lwm, $status) = @{$all->{$ng}};
+				my ($high, $low, $status) = @{$all->{$ng}};
 				push @x, { name => $ng, url => "$sec/$ng",
-					lwm => $lwm + 0,
-					hwm => $hwm + 0, status => $status,
+					low => $low + 0,
+					high => $high + 0, status => $status,
 					description => $desc };
 			}
 			@f = map { "$sec/$_" } keys %$all;
