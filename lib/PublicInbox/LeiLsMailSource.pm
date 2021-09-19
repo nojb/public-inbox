@@ -12,15 +12,9 @@ use parent qw(PublicInbox::IPC PublicInbox::LeiInput);
 sub input_path_url { # overrides LeiInput version
 	my ($self, $url) = @_;
 	# TODO: support ndjson and other JSONs we support elsewhere
-	my $json;
 	my $lei = $self->{lei};
-	my $ORS = "\n";
-	if ($self->{lei}->{opt}->{l}) {
-		$json = ref(PublicInbox::Config->json)->new->utf8->canonical;
-		$json->ascii(1) if $lei->{opt}->{ascii};
-	} elsif ($self->{lei}->{opt}->{z}) {
-		$ORS = "\0";
-	}
+	my $json = $lei->{json};
+	my $ORS = $self->{lei}->{opt}->{z} ? "\0" : "\n";
 	my @f;
 	if ($url =~ m!\Aimaps?://!i) {
 		my $uri = PublicInbox::URIimap->new($url);
@@ -93,7 +87,14 @@ sub lei_ls_mail_source {
 	my $self = bless { pfx => $pfx, -ls_ok => 1 }, __PACKAGE__;
 	$self->{cfg} = $lei->_lei_cfg; # may be undef
 	$self->prepare_inputs($lei, [ $url ]) or return;
-	$lei->start_pager if -t $lei->{1};
+	my $isatty = -t $lei->{1};
+	if ($lei->{opt}->{l}) {
+		my $json = ref(PublicInbox::Config->json)->new->utf8->canonical;
+		$lei->{json} = $json;
+		$json->ascii(1) if $lei->{opt}->{ascii};
+		$json->pretty(1)->indent(2) if $isatty || $lei->{opt}->{pretty};
+	}
+	$lei->start_pager if $isatty;
 	my $ops = {};
 	$lei->{auth}->op_merge($ops, $self);
 	(my $op_c, $ops) = $lei->workers_start($self, 1, $ops);
