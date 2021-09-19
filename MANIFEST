@@ -568,6 +568,7 @@ xt/msgtime_cmp.t
 xt/net_nntp_socks.t
 xt/net_writer-imap.t
 xt/nntpd-validate.t
+xt/over-fsck.perl
 xt/perf-msgview.t
 xt/perf-nntpd.t
 xt/perf-obfuscate.t
