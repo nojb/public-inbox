@@ -16,7 +16,7 @@ New inboxes: public-inbox-init -V2
 
 =item 2
 
-Process spawning
+Optional Inline::C use
 
 =item 3
 
@@ -38,6 +38,10 @@ Read-only daemons
 
 Other OS tuning knobs
 
+=item 8
+
+Scalability to many inboxes
+
 =back
 
 =head2 New inboxes: public-inbox-init -V2
@@ -46,7 +50,7 @@ If you're starting a new inbox (and not mirroring an existing one),
 the L<-V2|public-inbox-v2-format(5)> requires L<DBD::SQLite>, but is
 orders of magnitude more scalable than the original C<-V1> format.
 
-=head2 Process spawning
+=head2 Optional Inline::C use
 
 Our optional use of L<Inline::C> speeds up subprocess spawning from
 large daemon processes.
@@ -56,17 +60,16 @@ environment variable to point to a writable directory, or create
 C<~/.cache/public-inbox/inline-c> for any user(s) running
 public-inbox processes.
 
-More (optional) L<Inline::C> use will be introduced in the future
-to lower memory use and improve scalability.
-
-=head2 libgit2 usage via Inline::C
-
 If libgit2 development files are installed and L<Inline::C>
 is enabled (described above), per-inbox C<git cat-file --batch>
 processes are replaced with a single L<perl(1)> process running
-C<PublicInbox::Gcf2::loop> in read-only daemons.
+C<PublicInbox::Gcf2::loop> in read-only daemons.  libgit2 use
+will be available in public-inbox 1.7.0+
 
-Available as of public-inbox 1.7.0.
+More (optional) L<Inline::C> use will be introduced in the future
+to lower memory use and improve scalability.
+
+Note: L<Inline::C> is required for L<lei(1)>, but not public-inbox-*
 
 =head2 Performance on rotational hard disk drives
 
@@ -160,6 +163,14 @@ out-of-memory errors from git.
 
 Other OSes may have similar tuning knobs (patches appreciated).
 
+=head2 Scalability to many inboxes
+
+git 2.33+ startup time is orders-of-magnitude faster and uses
+less memory when dealing with thousands of alternates required
+for thousands of inboxes.
+
+L<public-inbox-extindex(1)> allows any number of public-inboxes
+to share the same Xapian indices.
 
 =head1 CONTACT
 
