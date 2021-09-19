@@ -1,8 +1,8 @@
+#!perl -w
 # Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
-use Test::More;
+use v5.10.1;
 use Socket qw(IPPROTO_TCP SOL_SOCKET);
 use PublicInbox::TestCommon;
 # IO::Poll is part of the standard library, but distros may split it off...
@@ -154,6 +154,13 @@ for my $args (
 	is(syswrite($slow, "1 LOGOUT\r\n"), 10, 'slow wrote LOGOUT');
 	ok(sysread($slow, my $end, 4096) > 0, 'got end');
 	is(sysread($slow, my $eof, 4096), 0, 'got EOF');
+
+	test_lei(sub {
+		lei_ok qw(ls-mail-source), "imap://$starttls_addr",
+			\'STARTTLS not used by default';
+		ok(!lei(qw(ls-mail-source -c imap.starttls=true),
+			"imap://$starttls_addr"), 'STARTTLS verify fails');
+	});
 
 	SKIP: {
 		skip 'TCP_DEFER_ACCEPT is Linux-only', 2 if $^O ne 'linux';

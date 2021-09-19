@@ -91,6 +91,16 @@ try configuring a socks5h:// proxy:
 EOM
 }
 
+# Net::NNTP doesn't support CAPABILITIES, yet; and both IMAP+NNTP
+# servers may have multiple listen sockets.
+sub try_starttls ($) {
+	my ($host) = @_;
+	return if $host =~ /\.onion\z/si;
+	return if $host =~ /\A127\.[0-9]+\.[0-9]+\.[0-9]+\z/s;
+	return if $host eq '::1';
+	1;
+}
+
 # mic_for may prompt the user and store auth info, prepares mic_get
 sub mic_for ($$$$) { # mic = Mail::IMAPClient
 	my ($self, $uri, $mic_common, $lei) = @_;
@@ -122,6 +132,7 @@ sub mic_for ($$$$) { # mic = Mail::IMAPClient
 	# it to be disabled since I usually connect to localhost
 	if (!$mic_arg->{Ssl} && !defined($mic_arg->{Starttls}) &&
 			$mic->has_capability('STARTTLS') &&
+			try_starttls($host) &&
 			$mic->can('starttls')) {
 		$mic->starttls or die "E: <$uri> STARTTLS: $@\n";
 	}
@@ -162,15 +173,6 @@ sub mic_for ($$$$) { # mic = Mail::IMAPClient
 		$lei ? $lei->fail($err) : warn($err);
 	}
 	$mic;
-}
-
-# Net::NNTP doesn't support CAPABILITIES, yet
-sub try_starttls ($) {
-	my ($host) = @_;
-	return if $host =~ /\.onion\z/s;
-	return if $host =~ /\A127\.[0-9]+\.[0-9]+\.[0-9]+\z/s;
-	return if $host eq '::1';
-	1;
 }
 
 sub nn_new ($$$) {

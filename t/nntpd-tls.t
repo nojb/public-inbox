@@ -146,6 +146,14 @@ for my $args (
 	is(sysread($slow, my $eof, 4096), 0, 'got EOF');
 	$slow = undef;
 
+	test_lei(sub {
+		lei_ok qw(ls-mail-source), "nntp://$starttls_addr",
+			\'STARTTLS not used by default';
+		ok(!lei(qw(ls-mail-source -c nntp.starttls=true),
+			"nntp://$starttls_addr"), 'STARTTLS verify fails');
+		diag $lei_err;
+	});
+
 	SKIP: {
 		skip 'TCP_DEFER_ACCEPT is Linux-only', 2 if $^O ne 'linux';
 		my $var = eval { Socket::TCP_DEFER_ACCEPT() } // 9;
