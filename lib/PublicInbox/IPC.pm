@@ -182,6 +182,13 @@ sub ipc_lock_init {
 	$self->{-ipc_lock} //= bless { lock_path => $f }, 'PublicInbox::Lock'
 }
 
+sub _wait_return ($$) {
+	my ($r_res, $sub) = @_;
+	my $ret = _get_rec($r_res) // die "no response on $sub";
+	die $$ret if ref($ret) eq 'PublicInbox::IPC::Die';
+	wantarray ? @$ret : $$ret;
+}
+
 # call $self->$sub(@args), on a worker if ipc_worker_spawn was used
 sub ipc_do {
 	my ($self, $sub, @args) = @_;
@@ -191,9 +198,7 @@ sub ipc_do {
 		if (defined(wantarray)) {
 			my $r_res = $self->{-ipc_res} or die 'no ipc_res';
 			_send_rec($w_req, [ wantarray, $sub, @args ]);
-			my $ret = _get_rec($r_res) // die "no response on $sub";
-			die $$ret if ref($ret) eq 'PublicInbox::IPC::Die';
-			wantarray ? @$ret : $$ret;
+			_wait_return($r_res, $sub);
 		} else { # likely, fire-and-forget into pipe
 			_send_rec($w_req, [ undef , $sub, @args ]);
 		}
@@ -298,13 +303,36 @@ sub wq_io_do { # always async
 			$!{ETOOMANYREFS} and
 				croak "sendmsg: $! (check RLIMIT_NOFILE)";
 			$!{EMSGSIZE} ? stream_in_full($s1, $fds, $buf) :
-			croak("sendmsg: $!");
+				croak("sendmsg: $!");
 		}
 	} else {
 		@$self{0..$#$ios} = @$ios;
 		eval { $self->$sub(@args) };
 		warn "wq_io_do: $@" if $@;
 		delete @$self{0..$#$ios}; # don't close
+	}
+}
+
+sub wq_sync_run {
+	my ($self, $wantarray, $sub, @args) = @_;
+	if ($wantarray) {
+		my @ret = eval { $self->$sub(@args) };
+		ipc_return($self->{0}, \@ret, $@);
+	} else { # '' => wantscalar
+		my $ret = eval { $self->$sub(@args) };
+		ipc_return($self->{0}, \$ret, $@);
+	}
+}
+
+sub wq_do {
+	my ($self, $sub, @args) = @_;
+	if (defined(wantarray)) {
+		pipe(my ($r, $w)) or die "pipe: $!";
+		wq_io_do($self, 'wq_sync_run', [ $w ], wantarray, $sub, @args);
+		undef $w;
+		_wait_return($r, $sub);
+	} else {
+		wq_io_do($self, $sub, [], @args);
 	}
 }
 

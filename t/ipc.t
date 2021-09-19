@@ -161,6 +161,12 @@ SKIP: {
 		is(waitpid($pid, 0), $pid, 'waitpid complete');
 		is($?, 0, 'child wq producer exited');
 	}
+	my @ary = $ipc->wq_do('test_array');
+	is_deeply(\@ary, [ qw(test array) ], 'wq_do wantarray');
+	is(my $s = $ipc->wq_do('test_scalar'), 'scalar', 'defined wantarray');
+	my $exp = bless ['blessed'], 'PublicInbox::WTF';
+	my $ret = eval { $ipc->wq_do('test_die', $exp) };
+	is_deeply($@, $exp, 'die with blessed ref');
 }
 
 $ipc->wq_close;
