@@ -17,36 +17,43 @@ BEGIN {
 		die 'PERL_INLINE_DIRECTORY not defined';
 	my $f = "$inline_dir/.public-inbox.lock";
 	open my $fh, '+>', $f or die "open($f): $!";
+
+	# CentOS 7.x ships Inline 0.53, 0.64+ has built-in locking
+	flock($fh, LOCK_EX) or die "LOCK_EX($f): $!\n";
+
 	my $pc = which($ENV{PKG_CONFIG} // 'pkg-config') //
 		die "pkg-config missing for libgit2";
 	my ($dir) = (__FILE__ =~ m!\A(.+?)/[^/]+\z!);
-	my $rdr = {};
-	open $rdr->{2}, '>', '/dev/null' or die "open /dev/null: $!";
+	my $ef = "$inline_dir/.public-inbox.pkg-config.err";
+	open my $err, '+>', $ef or die "open($ef): $!";
 	for my $x (qw(libgit2)) {
-		my $l = popen_rd([$pc, '--libs', $x], undef, $rdr);
+		my $rdr = { 2 => $err };
+		my ($l, $pid) = popen_rd([$pc, '--libs', $x], undef, $rdr);
 		$l = do { local $/; <$l> };
+		waitpid($pid, 0);
 		next if $?;
-		my $c = popen_rd([$pc, '--cflags', $x], undef, $rdr);
+		(my $c, $pid) = popen_rd([$pc, '--cflags', $x], undef, $rdr);
 		$c = do { local $/; <$c> };
+		waitpid($pid, 0);
 		next if $?;
 
 		# note: we name C source files .h to prevent
 		# ExtUtils::MakeMaker from automatically trying to
 		# build them.
 		my $f = "$dir/gcf2_$x.h";
-		if (open(my $fh, '<', $f)) {
-			chomp($l, $c);
-			local $/;
-			defined($c_src = <$fh>) or die "read $f: $!";
-			$CFG{LIBS} = $l;
-			$CFG{CCFLAGSEX} = $c;
-			last;
-		} else {
-			die "E: $f: $!";
-		}
+		open(my $src, '<', $f) or die "E: open($f): $!";
+		chomp($l, $c);
+		local $/;
+		defined($c_src = <$src>) or die "read $f: $!";
+		$CFG{LIBS} = $l;
+		$CFG{CCFLAGSEX} = $c;
+		last;
 	}
-	die "E: libgit2 not installed\n" unless $c_src;
-
+	unless ($c_src) {
+		seek($err, 0, SEEK_SET);
+		$err = do { local $/; <$err> };
+		die "E: libgit2 not installed: $err\n";
+	}
 	open my $oldout, '>&', \*STDOUT or die "dup(1): $!";
 	open my $olderr, '>&', \*STDERR or die "dup(2): $!";
 	open STDOUT, '>&', $fh or die "1>$f: $!";
@@ -54,14 +61,12 @@ BEGIN {
 	STDERR->autoflush(1);
 	STDOUT->autoflush(1);
 
-	# CentOS 7.x ships Inline 0.53, 0.64+ has built-in locking
-	flock($fh, LOCK_EX) or die "LOCK_EX($f): $!\n";
 	# we use Capitalized and ALLCAPS for compatibility with old Inline::C
 	eval <<'EOM';
 use Inline C => Config => %CFG, BOOT => q[git_libgit2_init();];
 use Inline C => $c_src, BUILD_NOISY => 1;
 EOM
-	my $err = $@;
+	$err = $@;
 	open(STDERR, '>&', $olderr) or warn "restore stderr: $!";
 	open(STDOUT, '>&', $oldout) or warn "restore stdout: $!";
 	if ($err) {
