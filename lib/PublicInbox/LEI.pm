@@ -1225,6 +1225,7 @@ sub lazy_start {
 	$errors_log = "$sock_dir/errors.log";
 	my $addr = pack_sockaddr_un($path);
 	my $lk = bless { lock_path => $errors_log }, 'PublicInbox::Lock';
+	umask(077) // die("umask(077): $!");
 	$lk->lock_acquire;
 	socket($listener, AF_UNIX, SOCK_SEQPACKET, 0) or die "socket: $!";
 	if ($errno == ECONNREFUSED || $errno == ENOENT) {
@@ -1236,7 +1237,6 @@ sub lazy_start {
 		$! = $errno; # allow interpolation to stringify in die
 		die "connect($path): $!";
 	}
-	umask(077) // die("umask(077): $!");
 	bind($listener, $addr) or die "bind($path): $!";
 	$lk->lock_release;
 	undef $lk;
