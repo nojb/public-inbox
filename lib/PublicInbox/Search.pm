@@ -409,7 +409,6 @@ sub retry_reopen {
 		# Exception: The revision being read has been discarded -
 		# you should call Xapian::Database::reopen()
 		if (ref($@) =~ /\bDatabaseModifiedError\b/) {
-			warn "# reopen try #$i on $@\n";
 			reopen($self);
 		} else {
 			# let caller decide how to spew, because ExtMsg queries
