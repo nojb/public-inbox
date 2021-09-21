@@ -29,6 +29,8 @@ sub BOOL_FIELDS () {
 	qw(external local remote import-remote import-before threads)
 }
 
+sub SINGLE_FIELDS () { qw(limit dedupe output) }
+
 sub lss_dir_for ($$;$) {
 	my ($lei, $dstref, $on_fs) = @_;
 	my $pfx;
@@ -89,9 +91,9 @@ sub list {
 	} @$out
 }
 
-sub translate_dedupe ($$$) {
-	my ($self, $lei, $dd) = @_;
-	$dd //= 'content';
+sub translate_dedupe ($$) {
+	my ($self, $lei) = @_;
+	my $dd = $lei->{opt}->{dedupe} // 'content';
 	return 1 if $dd eq 'content'; # the default
 	return $self->{"-dedupe_$dd"} = 1 if ($dd eq 'oid' || $dd eq 'mid');
 	$lei->fail("--dedupe=$dd requires --no-save");
@@ -128,8 +130,7 @@ sub new { # new saved search "lei q --save"
 	File::Path::make_path($dir); # raises on error
 	$self->{-cfg} = {};
 	my $f = $self->{'-f'} = "$dir/lei.saved-search";
-	my $dd = $lei->{opt}->{dedupe};
-	translate_dedupe($self, $lei, $dd) or return;
+	translate_dedupe($self, $lei) or return;
 	open my $fh, '>', $f or return $lei->fail("open $f: $!");
 	my $sq_dst = PublicInbox::Config::squote_maybe($dst);
 	my $q = $lei->{mset_opt}->{q_raw} // die 'BUG: {q_raw} missing';
@@ -139,15 +140,14 @@ sub new { # new saved search "lei q --save"
 		$q = "\tq = ".cquote_val($q);
 	}
 	$dst = "$lei->{ovv}->{fmt}:$dst" if $dst !~ m!\Aimaps?://!i;
+	$lei->{opt}->{output} = $dst;
 	print $fh <<EOM;
 ; to refresh with new results, run: lei up $sq_dst
 ; `maxuid' and `lastresult' lines are maintained by "lei up" for optimization
 [lei]
 $q
 [lei "q"]
-	output = $dst
 EOM
-	print $fh "\tdedupe = $dd\n" if $dd;
 	for my $k (ARRAY_FIELDS) {
 		my $ary = $lei->{opt}->{$k} // next;
 		for my $x (@$ary) {
@@ -157,6 +157,10 @@ EOM
 	for my $k (BOOL_FIELDS) {
 		my $val = $lei->{opt}->{$k} // next;
 		print $fh "\t$k = ".($val ? 1 : 0)."\n";
+	}
+	for my $k (SINGLE_FIELDS) {
+		my $val = $lei->{opt}->{$k} // next;
+		print $fh "\t$k = $val\n";
 	}
 	close($fh) or return $lei->fail("close $f: $!");
 	$self->{lock_path} = "$self->{-f}.flock";

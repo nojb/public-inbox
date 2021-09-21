@@ -110,10 +110,20 @@ sub recent {
 
 sub over {}
 
+sub _check_mset_limit ($$$) {
+	my ($lei, $desc, $mset) = @_;
+	return if defined($lei->{opt}->{limit}); # user requested limit
+	my $est = $mset->get_matches_estimated;
+	my $tot = $lei->{mset_opt}->{total};
+	$est > $tot and $lei->qerr(<<"");
+# $desc estimated matches ($est) exceeds default --limit=$tot
+
+}
+
 sub _mset_more ($$) {
 	my ($mset, $mo) = @_;
 	my $size = $mset->size;
-	$size >= $mo->{limit} && (($mo->{offset} += $size) < $mo->{limit});
+	$size >= $mo->{limit} && (($mo->{offset} += $size) < $mo->{total});
 }
 
 # $startq will EOF when do_augment is done augmenting and allow
@@ -182,7 +192,7 @@ sub query_one_mset { # for --threads and l2m w/o sort
 	my $first_ids;
 	do {
 		$mset = $srch->mset($mo->{qstr}, $mo);
-		mset_progress($lei, $dir, $mset->size,
+		mset_progress($lei, $dir, $mo->{offset} + $mset->size,
 				$mset->get_matches_estimated);
 		wait_startq($lei); # wait for keyword updates
 		my $ids = $srch->mset_to_artnums($mset, $mo);
@@ -222,6 +232,7 @@ sub query_one_mset { # for --threads and l2m w/o sort
 			}
 		}
 	} while (_mset_more($mset, $mo));
+	_check_mset_limit($lei, $dir, $mset);
 	if ($lss && scalar(@$first_ids)) {
 		undef $stop_at;
 		my $max = $first_ids->[0];
@@ -244,7 +255,7 @@ sub query_combined_mset { # non-parallel for non-"--threads" users
 	my $each_smsg = $lei->{ovv}->ovv_each_smsg_cb($lei);
 	do {
 		$mset = $self->mset($mo->{qstr}, $mo);
-		mset_progress($lei, 'xsearch', $mset->size,
+		mset_progress($lei, 'xsearch', $mo->{offset} + $mset->size,
 				$mset->get_matches_estimated);
 		wait_startq($lei); # wait for keyword updates
 		for my $mitem ($mset->items) {
@@ -252,6 +263,7 @@ sub query_combined_mset { # non-parallel for non-"--threads" users
 			$each_smsg->($smsg, $mitem);
 		}
 	} while (_mset_more($mset, $mo));
+	_check_mset_limit($lei, 'xsearch', $mset);
 	undef $each_smsg; # may commit
 	$lei->{ovv}->ovv_atexit_child($lei);
 }

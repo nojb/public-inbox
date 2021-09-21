@@ -41,6 +41,12 @@ sub _start_query { # used by "lei q" and "lei up"
 
 	# descending docid order is cheapest, MUA controls sorting order
 	$self->{mset_opt}->{relevance} //= -2 if $l2m || $opt->{threads};
+
+	my $tot = $self->{mset_opt}->{total} //= $self->{opt}->{limit} // 10000;
+	$self->{mset_opt}->{limit} = $tot > 10000 ? 10000 : $tot;
+	$self->{mset_opt}->{offset} //= 0;
+	$self->{mset_opt}->{threads} //= $opt->{threads};
+
 	if ($self->{net}) {
 		require PublicInbox::LeiAuth;
 		$self->{auth} = PublicInbox::LeiAuth->new
@@ -118,9 +124,8 @@ sub lei_q {
 	my $lxs = lxs_prepare($self) or return;
 	$self->ale->refresh_externals($lxs, $self);
 	my $opt = $self->{opt};
-	my %mset_opt = map { $_ => $opt->{$_} } qw(threads limit offset);
+	my %mset_opt;
 	$mset_opt{asc} = $opt->{'reverse'} ? 1 : 0;
-	$mset_opt{limit} //= 10000;
 	if (defined(my $sort = $opt->{'sort'})) {
 		if ($sort eq 'relevance') {
 			$mset_opt{relevance} = 1;

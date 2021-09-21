@@ -10,7 +10,7 @@ lei q [OPTIONS] (--stdin|-)
 
 =head1 DESCRIPTION
 
-Search for messages across the lei store and externals.
+Search for messages across the lei/store and externals.
 
 =for comment
 TODO: Give common prefixes, or at least a description/reference.
@@ -192,7 +192,9 @@ Default: fcntl,dotlock
 
 =item -n NUMBER
 
-Limit the number of matches.
+Fuzzy limit the number of matches per-local external and lei/store.
+Messages added by the L<--threads> switch do not count towards this
+limit, and there is no limit on remote externals.
 
 Default: 10000
 

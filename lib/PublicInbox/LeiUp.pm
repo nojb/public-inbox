@@ -18,7 +18,6 @@ sub up1 ($$) {
 	my $lss = PublicInbox::LeiSavedSearch->up($lei, $out) or return;
 	my $f = $lss->{'-f'};
 	my $mset_opt = $lei->{mset_opt} = { relevance => -2 };
-	$mset_opt->{limit} = $lei->{opt}->{limit} // 10000;
 	my $q = $mset_opt->{q_raw} = $lss->{-cfg}->{'lei.q'} //
 				return $lei->fail("lei.q unset in $f");
 	my $lse = $lei->{lse} // die 'BUG: {lse} missing';
@@ -27,24 +26,18 @@ sub up1 ($$) {
 	} else {
 		$lse->query_approxidate($lse->git, $mset_opt->{qstr} = $q);
 	}
-	my $o = $lei->{opt}->{output} = $lss->{-cfg}->{'lei.q.output'} //
-		return $lei->fail("lei.q.output unset in $f");
-	ref($o) and return $lei->fail("multiple values of lei.q.output in $f");
-	if (defined(my $dd = $lss->{-cfg}->{'lei.q.dedupe'})) {
-		$lss->translate_dedupe($lei, $dd) or return;
-		$lei->{opt}->{dedupe} = $dd;
-	}
-	for my $k (qw(only include exclude)) {
+	# n.b. only a few CLI args are accepted for "up", so //= usually sets
+	for my $k ($lss->ARRAY_FIELDS) {
 		my $v = $lss->{-cfg}->get_all("lei.q.$k") // next;
-		$lei->{opt}->{$k} = $v;
+		$lei->{opt}->{$k} //= $v;
 	}
-	for my $k (qw(external local remote
-			import-remote import-before threads)) {
-		my $c = "lei.q.$k";
-		my $v = $lss->{-cfg}->{$c} // next;
-		ref($v) and return $lei->fail("multiple values of $c in $f");
-		$lei->{opt}->{$k} = $v;
+	for my $k ($lss->BOOL_FIELDS, $lss->SINGLE_FIELDS) {
+		my $v = $lss->{-cfg}->get_1('lei.q', $k) // next;
+		$lei->{opt}->{$k} //= $v;
 	}
+	my $o = $lei->{opt}->{output} // '';
+	return $lei->fail("lei.q.output unset in $f") if $o eq '';
+	$lss->translate_dedupe($lei) or return;
 	$lei->{lss} = $lss; # for LeiOverview->new and query_remote_mboxrd
 	my $lxs = $lei->lxs_prepare or return;
 	$lei->ale->refresh_externals($lxs, $lei);

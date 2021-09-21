@@ -144,9 +144,8 @@ sub lei_lcat {
 	$lei->ale->refresh_externals($lxs, $lei);
 	$lei->_lei_store(1);
 	my $opt = $lei->{opt};
-	my %mset_opt = map { $_ => $opt->{$_} } qw(threads limit offset);
+	my %mset_opt;
 	$mset_opt{asc} = $opt->{'reverse'} ? 1 : 0;
-	$mset_opt{limit} //= 10000;
 	$opt->{sort} //= 'relevance';
 	$mset_opt{relevance} = 1;
 	$lei->{mset_opt} = \%mset_opt;
