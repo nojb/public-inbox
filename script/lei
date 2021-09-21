@@ -106,11 +106,10 @@ open my $dh, '<', '.' or die "open(.) $!";
 my $buf = join("\0", scalar(@ARGV), @ARGV);
 while (my ($k, $v) = each %ENV) { $buf .= "\0$k=$v" }
 $buf .= "\0\0";
-my $n = $send_cmd->($sock, [0, 1, 2, fileno($dh)], $buf, MSG_EOR);
-if (!$n) {
-	die "sendmsg: $! (check RLIMIT_NOFILE)\n" if $!{ETOOMANYREFS};
-	die "sendmsg: $!\n";
-}
+$send_cmd->($sock, [0, 1, 2, fileno($dh)], $buf, MSG_EOR) or die "sendmsg: $!";
+$SIG{TSTP} = sub { $send_cmd->($sock, [], 'STOP', MSG_EOR); kill 'STOP', $$ };
+$SIG{CONT} = sub { $send_cmd->($sock, [], 'CONT', MSG_EOR) };
+
 my $x_it_code = 0;
 while (1) {
 	my (@fds) = $recv_cmd->($sock, my $buf, 4096 * 33);

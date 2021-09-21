@@ -1118,23 +1118,28 @@ sub dclose {
 sub event_step {
 	my ($self) = @_;
 	local %ENV = %{$self->{env}};
-	my $sock = $self->{sock};
 	local $current_lei = $self;
 	eval {
-		while (my @fds = $recv_cmd->($sock, my $buf, 4096)) {
+		my $buf;
+		while (my @fds = $recv_cmd->($self->{sock}, $buf, 4096)) {
 			if (scalar(@fds) == 1 && !defined($fds[0])) {
 				return if $! == EAGAIN;
 				next if $! == EINTR;
 				last if $! == ECONNRESET;
 				die "recvmsg: $!";
 			}
-			for my $fd (@fds) {
-				open my $rfh, '+<&=', $fd;
+			for (@fds) { open my $rfh, '+<&=', $_ }
+		}
+		if ($buf eq '') {
+			_drop_wq($self); # EOF, client disconnected
+			dclose($self);
+		} elsif ($buf =~ /\A(STOP|CONT)\z/) {
+			for my $wq (grep(defined, @$self{@WQ_KEYS})) {
+				$wq->wq_kill($buf) or $wq->wq_kill_old($buf);
 			}
+		} else {
 			die "unrecognized client signal: $buf";
 		}
-		_drop_wq($self); # EOF, client disconnected
-		dclose($self);
 	};
 	if (my $err = $@) {
 		eval { $self->fail($err) };
@@ -1146,6 +1151,7 @@ sub event_step_init {
 	my ($self) = @_;
 	my $sock = $self->{sock} or return;
 	$self->{-event_init_done} //= do { # persist til $ops done
+		$sock->blocking(0);
 		$self->SUPER::new($sock, EPOLLIN|EPOLLET);
 		$sock;
 	};
