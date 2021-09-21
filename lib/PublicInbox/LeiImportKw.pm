@@ -34,11 +34,15 @@ sub ipc_atfork_child {
 
 sub ck_update_kw { # via wq_io_do
 	my ($self, $url, $uid, $kw) = @_;
-	my $oidbin = $self->{-lms_ro}->imap_oidbin($url, $uid) // return;
-	my @docids = $self->{over}->oidbin_exists($oidbin) or return;
+	my @oidbin = $self->{-lms_ro}->num_oidbin($url, $uid);
+	my $uid_url = "$url/;UID=$uid";
+	@oidbin > 1 and $self->{lei}->err("W: $uid_url not unique:\n",
+				map { "\t".unpack('H*', $_)."\n" } @oidbin);
+	my %seen;
+	my @docids = sort { $a <=> $b } grep { !$seen{$_}++ }
+		map { $self->{over}->oidbin_exists($_) } @oidbin;
 	$self->{lse}->kw_changed(undef, $kw, \@docids) or return;
-	$self->{verbose} and
-		$self->{lei}->qerr('# '.unpack('H*', $oidbin)." => @$kw\n");
+	$self->{verbose} and $self->{lei}->qerr("# $uid_url => @$kw\n");
 	$self->{sto}->wq_do('set_eml_vmd', undef, { kw => $kw }, \@docids);
 }
 

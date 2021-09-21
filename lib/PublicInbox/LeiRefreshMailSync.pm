@@ -36,7 +36,7 @@ sub pmdir_cb { # called via LeiPmdir->each_mdir_fn
 	my ($folder, $bn) = ($f =~ m!\A(.+?)/(?:new|cur)/([^/]+)\z!) or
 		die "BUG: $f was not from a Maildir?";
 	substr($folder, 0, 0) = 'maildir:'; # add prefix
-	return if defined($self->{lms}->name_oidbin($folder, $bn));
+	return if scalar($self->{lms}->name_oidbin($folder, $bn));
 	my $eml = eml_from_path($f) // return;
 	my $oidbin = $self->{lei}->git_oid($eml)->digest;
 	$self->{lms}->set_src($oidbin, $folder, \$bn);

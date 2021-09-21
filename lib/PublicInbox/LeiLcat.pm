@@ -32,11 +32,8 @@ sub lcat_imap_uri ($$) {
 	my $lms = $lei->lms or return;
 	# cf. LeiXsearch->lcat_dump
 	if (defined $uri->uid) {
-		my $oidhex = $lms->imap_oid($lei, $uri);
-		if (ref(my $err = $oidhex)) { # art2folder error
-			$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
-		}
-		push @{$lei->{lcat_blob}}, $oidhex;
+		my @oidhex = $lms->imap_oidhex($lei, $uri);
+		push @{$lei->{lcat_blob}}, @oidhex;
 	} elsif (defined(my $fid = $lms->fid_for($$uri))) {
 		push @{$lei->{lcat_fid}}, $fid;
 	} else {

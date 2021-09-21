@@ -37,8 +37,12 @@ sub pmdir_cb { # called via wq_io_do from LeiPmdir->each_mdir_fn
 	substr($folder, 0, 0) = 'maildir:'; # add prefix
 	my $lse = $self->{lse} //= $self->{lei}->{sto}->search;
 	my $lms = $self->{-lms_ro} //= $self->{lei}->lms; # may be 0 or undef
-	my $oidbin = $lms ? $lms->name_oidbin($folder, $bn) : undef;
-	my @docids = defined($oidbin) ? $lse->over->oidbin_exists($oidbin) : ();
+	my @oidbin = $lms ? $lms->name_oidbin($folder, $bn) : ();
+	@oidbin > 1 and $self->{lei}->err("W: $folder/*/$$bn not unique:\n",
+				map { "\t".unpack('H*', $_)."\n" } @oidbin);
+	my %seen;
+	my @docids = sort { $a <=> $b } grep { !$seen{$_}++ }
+			map { $lse->over->oidbin_exists($_) } @oidbin;
 	my $vmd = $self->{-import_kw} ? { kw => $kw } : undef;
 	if (scalar @docids) {
 		$lse->kw_changed(undef, $kw, \@docids) or return;

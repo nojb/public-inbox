@@ -32,11 +32,9 @@ sub inspect_imap_uid ($$) {
 	my ($lei, $uid_uri) = @_;
 	my $ent = {};
 	my $lms = $lei->lms or return $ent;
-	my $oidhex = $lms->imap_oid($lei, $uid_uri);
-	if (ref(my $err = $oidhex)) { # arg2folder error
-		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
-	}
-	$ent->{$$uid_uri} = $oidhex;
+	my @oidhex = $lms->imap_oidhex($lei, $uid_uri);
+	$ent->{$$uid_uri} = @oidhex == 1 ? $oidhex[0] :
+			((@oidhex == 0) ? undef : \@oidhex);
 	$ent;
 }
 
@@ -54,8 +52,10 @@ sub inspect_nntp_range {
 	}
 	$end //= $beg;
 	for my $art ($beg..$end) {
-		my $oidbin = $lms->imap_oidbin($folders->[0], $art);
-		$ent->{$art} = $oidbin ? unpack('H*', $oidbin) : undef;
+		my @oidhex = map { unpack('H*', $_) }
+			$lms->num_oidbin($folders->[0], $art);
+		$ent->{$art} = @oidhex == 1 ? $oidhex[0] :
+				((@oidhex == 0) ? undef : \@oidhex);
 	}
 	$ret;
 }

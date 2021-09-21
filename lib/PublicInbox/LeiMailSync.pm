@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS blob2num (
 	oidbin VARBINARY NOT NULL,
 	fid INTEGER NOT NULL, /* folder ID */
 	uid INTEGER NOT NULL, /* NNTP article number, IMAP UID, MH number */
+	/* not UNIQUE(fid, uid), since we may have broken servers */
 	UNIQUE (oidbin, fid, uid)
 )
 
@@ -78,6 +79,7 @@ CREATE TABLE IF NOT EXISTS blob2name (
 	oidbin VARBINARY NOT NULL,
 	fid INTEGER NOT NULL, /* folder ID */
 	name VARBINARY NOT NULL, /* Maildir basename, JMAP blobId */
+	/* not UNIQUE(fid, name), since we may have broken software */
 	UNIQUE (oidbin, fid, name)
 )
 
@@ -522,14 +524,14 @@ EOM
 	}
 }
 
-sub imap_oidbin ($$$) {
-	my ($self, $url, $uid) = @_; # $url MUST have UIDVALIDITY
-	my $fid = $self->{fmap}->{$url} //= fid_for($self, $url) // return;
+sub num_oidbin ($$$) {
+	my ($self, $url, $uid) = @_; # $url MUST have UIDVALIDITY if IMAP
+	my $fid = $self->{fmap}->{$url} //= fid_for($self, $url) // return ();
 	my $sth = $self->{dbh}->prepare_cached(<<EOM, undef, 1);
-SELECT oidbin FROM blob2num WHERE fid = ? AND uid = ?
+SELECT oidbin FROM blob2num WHERE fid = ? AND uid = ? ORDER BY _rowid_
 EOM
 	$sth->execute($fid, $uid);
-	$sth->fetchrow_array;
+	map { $_->[0] } @{$sth->fetchall_arrayref};
 }
 
 sub name_oidbin ($$$) {
@@ -539,10 +541,10 @@ sub name_oidbin ($$$) {
 SELECT oidbin FROM blob2name WHERE fid = ? AND name = ?
 EOM
 	$sth->execute($fid, $nm);
-	$sth->fetchrow_array;
+	map { $_->[0] } @{$sth->fetchall_arrayref};
 }
 
-sub imap_oid {
+sub imap_oidhex {
 	my ($self, $lei, $uid_uri) = @_;
 	my $mailbox_uri = $uid_uri->clone;
 	$mailbox_uri->uid(undef);
@@ -550,12 +552,10 @@ sub imap_oid {
 	if (my $err = $self->arg2folder($lei, $folders)) {
 		if ($err->{fail}) {
 			$lei->qerr("# no sync information for $mailbox_uri");
-			return;
 		}
 		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
 	}
-	my $oidbin = imap_oidbin($self, $folders->[0], $uid_uri->uid);
-	$oidbin ? unpack('H*', $oidbin) : undef;
+	map { unpack('H*',$_) } num_oidbin($self, $folders->[0], $uid_uri->uid)
 }
 
 1;
