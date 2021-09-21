@@ -49,6 +49,15 @@ test_lei({ tmpdir => $tmpdir }, sub {
 
 	my $end = $high - 1;
 	lei_ok qw(import), "$url/$high";
+	lei_ok('inspect', $url); is_xdeeply(json_utf8->decode($lei_out), {
+		$url => { 'article.count' => 1,
+			  'article.min' => $high,
+			  'article.max' => $high, }
+	}, 'inspect output for URL after single message') or diag $lei_out;
+	lei_ok('inspect', "$url/$high");
+	my $x = json_utf8->decode($lei_out);
+	like($x->{$url}->{$high}, qr/\A[a-f0-9]{40,}\z/, 'inspect shows blob');
+
 	lei_ok 'ls-mail-sync';
 	is($lei_out, "$url\n", 'article number not stored as folder');
 	lei_ok qw(q z:0..); my $one = json_utf8->decode($lei_out);
@@ -57,6 +66,18 @@ test_lei({ tmpdir => $tmpdir }, sub {
 
 	local $ENV{HOME} = "$tmpdir/h3";
 	lei_ok qw(import), "$url/$low-$end";
+	lei_ok('inspect', $url); is_xdeeply(json_utf8->decode($lei_out), {
+		$url => { 'article.count' => $end - $low + 1,
+			  'article.min' => $low,
+			  'article.max' => $end, }
+	}, 'inspect output for URL after range') or diag $lei_out;
+	lei_ok('inspect', "$url/$low-$end");
+	$x = json_utf8->decode($lei_out);
+	is_deeply([ ($low..$end) ], [ sort { $a <=> $b } keys %{$x->{$url}} ],
+		'inspect range shows range');
+	is(scalar(grep(/\A[a-f0-9]{40,}\z/, values %{$x->{$url}})),
+		$end - $low + 1, 'all values are git blobs');
+
 	lei_ok 'ls-mail-sync';
 	is($lei_out, "$url\n", 'article range not stored as folder');
 	lei_ok qw(q z:0..); my $start = json_utf8->decode($lei_out);

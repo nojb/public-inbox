@@ -247,12 +247,14 @@ sub location_stats {
 SELECT COUNT(name) FROM blob2name WHERE fid = ?
 
 	$ret->{'name.count'} = $row if $row;
+	my $ntype = ($folder =~ m!\A(?:nntps?|s?news)://!i) ? 'article' :
+		(($folder =~ m!\Aimaps?://!i) ? 'uid' : "TODO<$folder>");
 	for my $op (qw(count min max)) {
 		($row) = $dbh->selectrow_array(<<"", undef, $fid);
 SELECT $op(uid) FROM blob2num WHERE fid = ?
 
 		$row or last;
-		$ret->{"uid.$op"} = $row;
+		$ret->{"$ntype.$op"} = $row;
 	}
 	$ret;
 }
@@ -369,6 +371,30 @@ sub match_imap_url {
 			"E: `$url' is ambiguous:\n\t".join("\n\t", @match)."\n";
 }
 
+sub match_nntp_url ($$$) {
+	my ($self, $url, $all) = @_; # $all = [ $lms->folders ];
+	$all //= [ $self->folders ];
+	require PublicInbox::URInntps;
+	my $want = PublicInbox::URInntps->new($url)->canonical;
+	my ($s, $h, $p) = ($want->scheme, $want->host, $want->port);
+	my $ng = $want->group; # force scalar (no article ranges)
+	my @uri = map { PublicInbox::URInntps->new($_)->canonical }
+		grep(m!\A\Q$s\E://.*?\Q$h\E\b.*?/\Q$ng\E\b!, @$all);
+	my @match;
+	for my $x (@uri) {
+		next if $x->group ne $ng || $x->host ne $h || $x->port != $p;
+		# maybe user was forgotten on CLI:
+		if (defined($x->userinfo) && !defined($want->userinfo)) {
+			push @match, $x;
+		} elsif (($x->userinfo//"\0") eq ($want->userinfo//"\0")) {
+			push @match, $x;
+		}
+	}
+	return @match if wantarray;
+	scalar(@match) <= 1 ? $match[0] :
+			"E: `$url' is ambiguous:\n\t".join("\n\t", @match)."\n";
+}
+
 # returns undef on failure, number on success
 sub group2folders {
 	my ($self, $lei, $all, $folders) = @_;
@@ -424,6 +450,18 @@ sub arg2folder {
 		} elsif (m!\Aimaps?://!i) {
 			my $orig = $_;
 			my $res = match_imap_url($self, $orig, \@all);
+			if (ref $res) {
+				$_ = $$res;
+				push(@{$err->{qerr}}, <<EOM);
+# using `$res' instead of `$orig'
+EOM
+			} else {
+				$lei->err($res) if defined $res;
+				push @no, $orig;
+			}
+		} elsif (m!\A(?:nntps?|s?news)://!i) {
+			my $orig = $_;
+			my $res = match_nntp_url($self, $orig, \@all);
 			if (ref $res) {
 				$_ = $$res;
 				push(@{$err->{qerr}}, <<EOM);

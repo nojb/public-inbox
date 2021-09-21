@@ -11,6 +11,7 @@ use v5.10.1;
 use parent qw(PublicInbox::IPC);
 use PublicInbox::Config;
 use PublicInbox::MID qw(mids);
+use PublicInbox::NetReader qw(imap_uri nntp_uri);
 
 sub inspect_blob ($$) {
 	my ($lei, $oidhex) = @_;
@@ -32,11 +33,31 @@ sub inspect_imap_uid ($$) {
 	my $ent = {};
 	my $lms = $lei->lms or return $ent;
 	my $oidhex = $lms->imap_oid($lei, $uid_uri);
-	if (ref(my $err = $oidhex)) { # art2folder error
+	if (ref(my $err = $oidhex)) { # arg2folder error
 		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
 	}
 	$ent->{$$uid_uri} = $oidhex;
 	$ent;
+}
+
+sub inspect_nntp_range {
+	my ($lei, $uri) = @_;
+	my ($ng, $beg, $end) = $uri->group;
+	$uri = $uri->clone;
+	$uri->group($ng);
+	my $ent = {};
+	my $ret = { "$uri" => $ent };
+	my $lms = $lei->lms or return $ret;
+	my $err = $lms->arg2folder($lei, my $folders = [ $$uri ]);
+	if ($err) {
+		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
+	}
+	$end //= $beg;
+	for my $art ($beg..$end) {
+		my $oidbin = $lms->imap_oidbin($folders->[0], $art);
+		$ent->{$art} = $oidbin ? unpack('H*', $oidbin) : undef;
+	}
+	$ret;
 }
 
 sub inspect_sync_folder ($$) {
@@ -161,14 +182,6 @@ sub inspect1 ($$$) {
 	my $ent;
 	if ($item =~ /\Ablob:(.+)/) {
 		$ent = inspect_blob($lei, $1);
-	} elsif ($item =~ m!\Aimaps?://!i) {
-		require PublicInbox::URIimap;
-		my $uri = PublicInbox::URIimap->new($item);
-		if (defined($uri->uid)) {
-			$ent = inspect_imap_uid($lei, $uri);
-		} else {
-			$ent = inspect_sync_folder($lei, $item);
-		}
 	} elsif ($item =~ m!\A(?:maildir|mh):!i || -d $item) {
 		$ent = inspect_sync_folder($lei, $item);
 	} elsif ($item =~ m!\Adocid:([0-9]+)\z!) {
@@ -177,6 +190,23 @@ sub inspect1 ($$$) {
 		$ent = inspect_num($lei, $1 + 0);
 	} elsif ($item =~ m!\A(?:mid|m):(.+)\z!) {
 		$ent = inspect_mid($lei, $1);
+	} elsif (my $iuri = imap_uri($item)) {
+		if (defined($iuri->uid)) {
+			$ent = inspect_imap_uid($lei, $iuri);
+		} else {
+			$ent = inspect_sync_folder($lei, $item);
+		}
+	} elsif (my $nuri = nntp_uri($item)) {
+		if (defined(my $mid = $nuri->message)) {
+			$ent = inspect_mid($lei, $mid);
+		} else {
+			my ($group, $beg, $end) = $nuri->group;
+			if (defined($beg)) {
+				$ent = inspect_nntp_range($lei, $nuri);
+			} else {
+				$ent = inspect_sync_folder($lei, $item);
+			}
+		}
 	} else { # TODO: more things
 		return $lei->fail("$item not understood");
 	}

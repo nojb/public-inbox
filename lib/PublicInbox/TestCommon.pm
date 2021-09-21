@@ -18,7 +18,7 @@ BEGIN {
 		run_script start_script key2sub xsys xsys_e xqx eml_load tick
 		have_xapian_compact json_utf8 setup_public_inboxes create_inbox
 		tcp_host_port test_lei lei lei_ok $lei_out $lei_err $lei_opt
-		test_httpd xbail require_cmd);
+		test_httpd xbail require_cmd is_xdeeply);
 	require Test::More;
 	my @methods = grep(!/\W/, @Test::More::EXPORT);
 	eval(join('', map { "*$_=\\&Test::More::$_;" } @methods));
@@ -520,6 +520,13 @@ sub json_utf8 () {
 	state $x = ref(PublicInbox::Config->json)->new->utf8->canonical;
 }
 
+sub is_xdeeply ($$$) {
+	my ($x, $y, $desc) = @_;
+	my $ok = is_deeply($x, $y, $desc);
+	diag explain([$x, '!=', $y]) if !$ok;
+	$ok;
+}
+
 sub test_lei {
 SKIP: {
 	my ($cb) = pop @_;
@@ -590,7 +597,7 @@ SKIP: {
 		my $f = "$daemon_xrd/lei/errors.log";
 		open my $fh, '<', $f or BAIL_OUT "$f: $!";
 		my @l = <$fh>;
-		is_deeply(\@l, [],
+		is_xdeeply(\@l, [],
 			"$t daemon XDG_RUNTIME_DIR/lei/errors.log empty");
 	}
 }; # SKIP if missing git 2.6+ || Xapian || SQLite || json
