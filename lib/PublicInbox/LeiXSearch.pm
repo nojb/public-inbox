@@ -570,7 +570,7 @@ sub do_query {
 	@$end = ();
 	$self->{opt_threads} = $lei->{opt}->{threads};
 	$self->{opt_sort} = $lei->{opt}->{'sort'};
-	$self->{-do_lcat} = $lei->{lcat_blob} // $lei->{lcat_fid};
+	$self->{-do_lcat} = !!(delete $lei->{lcat_todo});
 	if ($l2m) {
 		$l2m->net_merge_all_done unless $lei->{auth};
 	} else {
@@ -646,13 +646,13 @@ sub lcat_dump { # via wq_io_do
 			$git->cat_async($smsg->{blob}, \&_lcat2smsg, $smsg);
 		};
 	}
-	for my $oid (@{$lei->{lcat_blob} // []}) {
-		$each_smsg->({ blob => $oid, pct => 100 });
-	}
-	if (my $fids = delete $lei->{lcat_fid}) {
-		my $lms = $lei->{lse}->lms;
-		for my $fid (@$fids) {
-			$lms->each_src({fid => $fid}, \&_lcat_i, $each_smsg);
+	my $lms;
+	for my $ent (@{$lei->{lcat_todo}}) {
+		if (ref $ent eq 'HASH') { # { fid => $fid ,.. }
+			$lms //= $lei->{lse}->lms;
+			$lms->each_src($ent, \&_lcat_i, $each_smsg);
+		} else { # oidhex
+			$each_smsg->({ blob => $ent, pct => 100 });
 		}
 	}
 	$git->async_wait_all;

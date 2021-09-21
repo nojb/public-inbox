@@ -21,7 +21,7 @@ sub lcat_folder ($$$) {
 	} else {
 		for my $f (@$folders) {
 			my $fid = $lms->fid_for($f);
-			push @{$lei->{lcat_fid}}, $fid;
+			push @{$lei->{lcat_todo}}, { fid => $fid };
 		}
 	}
 }
@@ -31,10 +31,9 @@ sub lcat_imap_uri ($$) {
 	my $lms = $lei->lms or return;
 	# cf. LeiXsearch->lcat_dump
 	if (defined $uri->uid) {
-		my @oidhex = $lms->imap_oidhex($lei, $uri);
-		push @{$lei->{lcat_blob}}, @oidhex;
+		push @{$lei->{lcat_todo}}, $lms->imap_oidhex($lei, $uri);
 	} elsif (defined(my $fid = $lms->fid_for($$uri))) {
-		push @{$lei->{lcat_fid}}, $fid;
+		push @{$lei->{lcat_todo}}, { fid => $fid };
 	} else {
 		lcat_folder($lei, $lms, $$uri);
 	}
@@ -46,10 +45,10 @@ sub extract_1 ($$) {
 		my $u = $1;
 		require PublicInbox::URIimap;
 		lcat_imap_uri($lei, PublicInbox::URIimap->new($u));
-		'""'; # blank query, using {lcat_blob} or {lcat_fid}
+		'""'; # blank query, using {lcat_todo}
 	} elsif ($x =~ m!\b(maildir:.+)!i) {
 		lcat_folder($lei, undef, $1);
-		'""'; # blank query, using {lcat_blob} or {lcat_fid}
+		'""'; # blank query, using {lcat_todo}
 	} elsif ($x =~ m!\b([a-z]+?://\S+)!i) {
 		my $u = $1;
 		$u =~ s/[\>\]\)\,\.\;]+\z//;
@@ -82,7 +81,7 @@ sub extract_1 ($$) {
 	} elsif ($x =~ /\bid:(\S+)/) { # notmuch convention
 		"mid:$1";
 	} elsif ($x =~ /\bblob:([0-9a-f]{7,})\b/) {
-		push @{$lei->{lcat_blob}}, $1; # cf. LeiToMail->wq_atexit_child
+		push @{$lei->{lcat_todo}}, $1; # cf. LeiToMail->wq_atexit_child
 		'""'; # blank query
 	} else {
 		undef;
