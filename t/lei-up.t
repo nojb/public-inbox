@@ -35,7 +35,7 @@ test_lei(sub {
 	$uc = do { local $/; <$fh> };
 	is($uc, $exp, 'uncompressed both match');
 
-	lei_ok [ 'up', "$ENV{HOME}/b", "--mua=touch $ENV{HOME}/c" ],
+	lei_ok [ qw(up -q), "$ENV{HOME}/b", "--mua=touch $ENV{HOME}/c" ],
 		undef, { run_mode => 0 };
 	ok(-f "$ENV{HOME}/c", '--mua works with single output');
 });
