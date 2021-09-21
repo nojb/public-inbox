@@ -99,6 +99,14 @@ While credentials are not written to the filesystem by default,
 it is possible for them to end up on disk if processes are
 swapped out.  Use of an encrypted swap partition is recommended.
 
+=head1 AUTHENTICATION METHODS
+
+LOGIN (username + password) is known to work over IMAP(S),
+as does AUTH=ANONYMOUS (which is used by L<public-inbox-imapd(1)>
+as part of our test suite).  AUTHINFO may work for NNTP, but
+is untested.  Testers will be needed for other authentication
+methods.
+
 =head1 DENIAL-OF-SERVICE VECTORS
 
 lei uses the same MIME parsing library as L<public-inbox-mda(1)>
