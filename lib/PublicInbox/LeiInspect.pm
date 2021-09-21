@@ -8,6 +8,7 @@
 package PublicInbox::LeiInspect;
 use strict;
 use v5.10.1;
+use parent qw(PublicInbox::IPC);
 use PublicInbox::Config;
 use PublicInbox::MID qw(mids);
 
@@ -184,14 +185,26 @@ sub inspect1 ($$$) {
 	1;
 }
 
-sub _inspect_argv ($$) {
-	my ($lei, $argv) = @_;
+sub inspect_argv { # via wq_do
+	my ($self) = @_;
+	my ($lei, $argv) = delete @$self{qw(lei argv)};
 	my $multi = scalar(@$argv) > 1;
+	$lei->{1}->autoflush(0);
 	$lei->out('[') if $multi;
 	while (defined(my $x = shift @$argv)) {
 		inspect1($lei, $x, scalar(@$argv)) or return;
 	}
 	$lei->out(']') if $multi;
+}
+
+sub inspect_start ($$) {
+	my ($lei, $argv) = @_;
+	my $self = bless { lei => $lei, argv => $argv }, __PACKAGE__;
+	my ($op_c, $ops) = $lei->workers_start($self, 1);
+	$lei->{wq1} = $self;
+	$lei->wait_wq_events($op_c, $ops);
+	$self->wq_do('inspect_argv');
+	$self->wq_close(1);
 }
 
 sub ins_add { # InputPipe->consume callback
@@ -201,7 +214,7 @@ sub ins_add { # InputPipe->consume callback
 			my $str = delete $lei->{istr};
 			$str =~ s/\A[\r\n]*From [^\r\n]*\r?\n//s;
 			my $eml = PublicInbox::Eml->new(\$str);
-			_inspect_argv($lei, [
+			inspect_start($lei, [
 				'blob:'.$lei->git_oid($eml)->hexdigest,
 				map { "mid:$_" } @{mids($eml)} ]);
 		};
@@ -218,20 +231,18 @@ sub lei_inspect {
 		my $sto = $lei->_lei_store;
 		$sto ? $sto->search : undef;
 	} : undef;
-	if ($lei->{opt}->{pretty} || -t $lei->{1}) {
-		$lei->{json}->pretty(1)->indent(2);
-	}
-	$lei->start_pager if -t $lei->{1};
-	$lei->{1}->autoflush(0);
+	my $isatty = -t $lei->{1};
+	$lei->{json}->pretty(1)->indent(2) if $lei->{opt}->{pretty} || $isatty;
+	$lei->start_pager if $isatty;
 	if ($lei->{opt}->{stdin}) {
 		return $lei->fail(<<'') if @argv;
 no args allowed on command-line with --stdin
 
 		require PublicInbox::InputPipe;
 		PublicInbox::InputPipe::consume($lei->{0}, \&ins_add, $lei);
-		return;
+	} else {
+		inspect_start($lei, \@argv);
 	}
-	_inspect_argv($lei, \@argv);
 }
 
 sub _complete_inspect {
