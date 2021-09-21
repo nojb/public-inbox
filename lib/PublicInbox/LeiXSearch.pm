@@ -572,7 +572,7 @@ sub do_query {
 	$self->{opt_sort} = $lei->{opt}->{'sort'};
 	$self->{-do_lcat} = !!(delete $lei->{lcat_todo});
 	if ($l2m) {
-		$l2m->net_merge_all_done unless $lei->{auth};
+		$l2m->net_merge_all_done($lei) unless $lei->{auth};
 	} else {
 		start_query($self);
 	}

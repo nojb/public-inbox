@@ -689,6 +689,8 @@ sub do_augment { # slow, runs in wq worker
 # fast (spawn compressor or mkdir), runs in same process as pre_augment
 sub post_augment {
 	my ($self, $lei, @args) = @_;
+	$self->{-au_noted}++ and $lei->qerr("# writing to $self->{dst} ...");
+
 	my $wait = $lei->{opt}->{'import-before'} ?
 			$lei->{sto}->wq_do('checkpoint', 1) : 0;
 	# _post_augment_mbox
@@ -784,9 +786,28 @@ sub wq_atexit_child {
 	$lei->{pkt_op_p}->pkt_do('l2m_progress', $nr);
 }
 
+# runs on a 1s timer in lei-daemon
+sub augment_inprogress {
+	my ($err, $opt, $dst, $au_noted) = @_;
+	$$au_noted++ and return;
+	print $err '# '.($opt->{'import-before'} ?
+			"importing non-external contents of $dst" : (
+			($opt->{dedupe} // 'content') ne 'none') ?
+			"scanning old contents of $dst for dedupe" :
+			"removing old contents of $dst")." ...\n";
+}
+
 # called in top-level lei-daemon when LeiAuth is done
 sub net_merge_all_done {
-	my ($self) = @_;
+	my ($self, $lei) = @_;
+	if ($PublicInbox::DS::in_loop &&
+			$self->can("_do_augment_$self->{base_type}") &&
+			!$lei->{opt}->{quiet}) {
+		$self->{-au_noted} = 0;
+		PublicInbox::DS::add_timer(1, \&augment_inprogress,
+				$lei->{2}, $lei->{opt},
+				$self->{dst}, \$self->{-au_noted});
+	}
 	$self->wq_broadcast('do_post_auth');
 	$self->wq_close(1);
 }

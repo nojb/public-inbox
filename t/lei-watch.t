@@ -91,7 +91,7 @@ test_lei(sub {
 		$ino_fdinfo or skip 'Linux/inotify-only removal removal', 1;
 		open my $fh, '<', $ino_fdinfo or xbail "open $ino_fdinfo: $!";
 		my $cmp = [ <$fh> ];
-		is_deeply($cmp, $ino_contents, 'inotify Maildir watches gone');
+		is_xdeeply($cmp, $ino_contents, 'inotify Maildir watches gone');
 	};
 });
 
