@@ -92,9 +92,7 @@ EOM
 		$lms->group2folders($lei, $all, \@folders) or return;
 		@folders = grep(/\A(?:maildir|imaps?):/i, @folders);
 	} else {
-		my $err = $lms->arg2folder($lei, \@folders);
-		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
-		return $lei->fail($err->{fail}) if $err->{fail};
+		$lms->arg2folder($lei, \@folders); # may die
 	}
 	$lms->lms_pause;
 	my $self = bless { lse => $sto->search, lms => $lms }, __PACKAGE__;

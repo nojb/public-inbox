@@ -15,9 +15,8 @@ sub lcat_folder ($$$) {
 	my ($lei, $lms, $folder) = @_;
 	$lms //= $lei->lms or return;
 	my $folders = [ $folder];
-	my $err = $lms->arg2folder($lei, $folders);
-	$lei->qerr(@{$err->{qerr}}) if $err && $err->{qerr};
-	if ($err && $err->{fail}) {
+	eval { $lms->arg2folder($lei, $folders) };
+	if ($@) {
 		$lei->child_error(0, "# unknown folder: $folder");
 	} else {
 		for my $f (@$folders) {

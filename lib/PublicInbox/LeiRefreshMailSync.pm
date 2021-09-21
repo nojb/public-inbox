@@ -74,9 +74,7 @@ EOM
 	if (defined(my $all = $lei->{opt}->{all})) {
 		$lms->group2folders($lei, $all, \@folders) or return;
 	} else {
-		my $err = $lms->arg2folder($lei, \@folders);
-		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
-		return $lei->fail($err->{fail}) if $err->{fail};
+		$lms->arg2folder($lei, \@folders); # may die
 	}
 	$lms->lms_pause; # must be done before fork
 	$sto->write_prepare($lei);

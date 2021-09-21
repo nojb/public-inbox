@@ -16,9 +16,7 @@ sub lei_forget_mail_sync {
 	my ($lei, @folders) = @_;
 	my $lms = $lei->lms or return;
 	$lms->lms_write_prepare;
-	my $err = $lms->arg2folder($lei, \@folders);
-	$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
-	return $lei->fail($err->{fail}) if $err->{fail};
+	$lms->arg2folder($lei, \@folders); # may die
 	$lms->forget_folders(@folders);
 }
 

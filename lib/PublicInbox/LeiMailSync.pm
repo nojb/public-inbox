@@ -437,7 +437,7 @@ sub arg2folder {
 	my ($self, $lei, $folders) = @_;
 	my @all = $self->folders;
 	my %all = map { $_ => 1 } @all;
-	my ($err, @no);
+	my @no;
 	for (@$folders) {
 		next if $all{$_}; # ok
 		if (m!\A(maildir|mh):(.+)!i) {
@@ -454,7 +454,7 @@ sub arg2folder {
 			my $res = match_imap_url($self, $orig, \@all);
 			if (ref $res) {
 				$_ = $$res;
-				push(@{$err->{qerr}}, <<EOM);
+				$lei->qerr(<<EOM);
 # using `$res' instead of `$orig'
 EOM
 			} else {
@@ -466,7 +466,7 @@ EOM
 			my $res = match_nntp_url($self, $orig, \@all);
 			if (ref $res) {
 				$_ = $$res;
-				push(@{$err->{qerr}}, <<EOM);
+				$lei->qerr(<<EOM);
 # using `$res' instead of `$orig'
 EOM
 			} else {
@@ -479,12 +479,11 @@ EOM
 	}
 	if (@no) {
 		my $no = join("\n\t", @no);
-		$err->{fail} = <<EOF;
+		die <<EOF;
 No sync information for: $no
 Run `lei ls-mail-sync' to display valid choices
 EOF
 	}
-	$err;
 }
 
 sub forget_folders {
@@ -549,12 +548,8 @@ sub imap_oidhex {
 	my $mailbox_uri = $uid_uri->clone;
 	$mailbox_uri->uid(undef);
 	my $folders = [ $$mailbox_uri ];
-	if (my $err = $self->arg2folder($lei, $folders)) {
-		if ($err->{fail}) {
-			$lei->qerr("# no sync information for $mailbox_uri");
-		}
-		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
-	}
+	eval { $self->arg2folder($lei, $folders) };
+	$lei->qerr("# no sync information for $mailbox_uri") if $@;
 	map { unpack('H*',$_) } num_oidbin($self, $folders->[0], $uid_uri->uid)
 }
 

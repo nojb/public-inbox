@@ -1194,7 +1194,7 @@ sub dir_idle_handler ($) { # PublicInbox::DirIdle callback
 				$lei->dispatch('note-event',
 						"maildir:$mdir", $nc, $bn, $fn);
 			};
-			warn "E note-event $f: $@\n" if $@;
+			warn "E: note-event $f: $@\n" if $@;
 		}
 	}
 	if ($ev->can('cancel') && ($ev->IN_IGNORE || $ev->IN_UNMOUNT)) {

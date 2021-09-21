@@ -46,10 +46,9 @@ sub inspect_nntp_range {
 	my $ent = {};
 	my $ret = { "$uri" => $ent };
 	my $lms = $lei->lms or return $ret;
-	my $err = $lms->arg2folder($lei, my $folders = [ $$uri ]);
-	if ($err) {
-		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
-	}
+	my $folders = [ $$uri ];
+	eval { $lms->arg2folder($lei, $folders) };
+	$lei->qerr("# no folders match $$uri (non-fatal)") if $@;
 	$end //= $beg;
 	for my $art ($beg..$end) {
 		my @oidhex = map { unpack('H*', $_) }
@@ -65,14 +64,8 @@ sub inspect_sync_folder ($$) {
 	my $ent = {};
 	my $lms = $lei->lms or return $ent;
 	my $folders = [ $folder ];
-	my $err = $lms->arg2folder($lei, $folders);
-	if ($err) {
-		if ($err->{fail}) {
-			$lei->qerr("# no folders match $folder (non-fatal)");
-			@$folders = ();
-		}
-		$lei->qerr(@{$err->{qerr}}) if $err->{qerr};
-	}
+	eval { $lms->arg2folder($lei, $folders) };
+	$lei->qerr("# no folders match $folder (non-fatal)") if $@;
 	for my $f (@$folders) {
 		$ent->{$f} = $lms->location_stats($f); # may be undef
 	}
