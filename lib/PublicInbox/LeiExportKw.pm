@@ -127,9 +127,13 @@ EOM
 
 sub _complete_export_kw {
 	my ($lei, @argv) = @_;
-	my $lms = $lei->lms or return;
+	my $lms = $lei->lms or return ();
 	my $match_cb = $lei->complete_url_prepare(\@argv);
-	map { $match_cb->($_) } $lms->folders;
+	# filter-out read-only sources:
+	my @k = grep(!m!(?://;AUTH=ANONYMOUS\@|\A(?:nntps?|s?news)://)!,
+			$lms->folders($argv[-1], 1));
+	my @m = map { $match_cb->($_) } @k;
+	@m ? @m : @k;
 }
 
 no warnings 'once';

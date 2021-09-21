@@ -84,12 +84,19 @@ SELECT k,v FROM kv
 }
 
 sub keys {
-	my ($self) = @_;
-	my $sth = $self->dbh->prepare_cached(<<'', undef, 1);
-SELECT k FROM kv
-
-	$sth->execute;
-	map { $_->[0] } @{$sth->fetchall_arrayref};
+	my ($self, @pfx) = @_;
+	my $sql = 'SELECT k FROM kv';
+	if (defined $pfx[0]) {
+		$sql .= ' WHERE k LIKE ? ESCAPE ?';
+		my $anywhere = !!$pfx[1];
+		$pfx[1] = '\\';
+		$pfx[0] =~ s/([%_\\])/\\$1/g; # glob chars
+		$pfx[0] .= '%';
+		substr($pfx[0], 0, 0, '%') if $anywhere;
+	} else {
+		@pfx = (); # [0] may've been undef
+	}
+	map { $_->[0] } @{$self->dbh->selectall_arrayref($sql, undef, @pfx)};
 }
 
 sub delete_by_val {

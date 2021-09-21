@@ -74,7 +74,7 @@ sub ipc_atfork_child {
 # Workaround bash word-splitting s to ['kw', ':', 'keyword' ...]
 # Maybe there's a better way to go about this in
 # contrib/completion/lei-completion.bash
-sub _complete_mark_common ($) {
+sub _complete_tag_common ($) {
 	my ($argv) = @_;
 	# Workaround bash word-splitting URLs to ['https', ':', '//' ...]
 	# Maybe there's a better way to go about this in
@@ -104,16 +104,18 @@ sub _complete_mark_common ($) {
 # FIXME: same problems as _complete_forget_external and similar
 sub _complete_tag {
 	my ($self, @argv) = @_;
+	require PublicInbox::LeiImport;
+	my @in = PublicInbox::LeiImport::_complete_import(@_);
 	my @L = eval { $self->_lei_store->search->all_terms('L') };
-	my @all = ((map { ("+kw:$_", "-kw:$_") } @PublicInbox::LeiInput::KW),
+	my @kwL = ((map { ("+kw:$_", "-kw:$_") } @PublicInbox::LeiInput::KW),
 		(map { ("+L:$_", "-L:$_") } @L));
-	return @all if !@argv;
-	my ($cur, $re) = _complete_mark_common(\@argv);
-	map {
+	my ($cur, $re) = _complete_tag_common(\@argv);
+	my @m = map {
 		# only return the part specified on the CLI
 		# don't duplicate if already 100% completed
 		/\A$re(\Q$cur\E.*)/ ? ($cur eq $1 ? () : $1) : ();
-	} grep(/$re\Q$cur/, @all);
+	} grep(/$re\Q$cur/, @kwL);
+	(@in, (@m ? @m : @kwL));
 }
 
 no warnings 'once'; # the following works even when LeiAuth is lazy-loaded

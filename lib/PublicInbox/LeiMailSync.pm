@@ -299,16 +299,19 @@ sub locations_for {
 
 # returns a list of folders used for completion
 sub folders {
-	my ($self, $pfx) = @_;
-	my $dbh = $self->{dbh} //= dbh_new($self);
+	my ($self, @pfx) = @_;
 	my $sql = 'SELECT loc FROM folders';
-	my @pfx;
-	if (defined $pfx) {
+	if (defined($pfx[0])) {
 		$sql .= ' WHERE loc LIKE ? ESCAPE ?';
-		@pfx = ($pfx, '\\');
+		my $anywhere = !!$pfx[1];
+		$pfx[1] = '\\';
 		$pfx[0] =~ s/([%_\\])/\\$1/g; # glob chars
 		$pfx[0] .= '%';
+		substr($pfx[0], 0, 0, '%') if $anywhere;
+	} else {
+		@pfx = (); # [0] may've been undef
 	}
+	my $dbh = $self->{dbh} //= dbh_new($self);
 	map { $_->[0] } @{$dbh->selectall_arrayref($sql, undef, @pfx)};
 }
 

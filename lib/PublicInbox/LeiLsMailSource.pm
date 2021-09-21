@@ -107,12 +107,13 @@ sub lei_ls_mail_source {
 sub _complete_ls_mail_source {
 	my ($lei, @argv) = @_;
 	my $match_cb = $lei->complete_url_prepare(\@argv);
-	my @m = map { $match_cb->($_) } $lei->url_folder_cache->keys;
-	my %f = map { $_ => 1 } @m;
+	my @k = $lei->url_folder_cache->keys($argv[-1], 1);
+	my @m = map { $match_cb->($_) } @k;
+	my %f = map { $_ => 1 } (@m ? @m : @k);
 	if (my $lms = $lei->lms) {
-		@m = map { $match_cb->($_) } grep(
-			m!\A(?:imaps?|nntps?|s?news)://!, $lms->folders);
-		@f{@m} = @m;
+		@k = $lms->folders($argv[-1], 1);
+		@m = map { $match_cb->($_) } grep(m!\A[a-z]+://!, @k);
+		if (@m) { @f{@m} = @m } else { @f{@k} = @k }
 	}
 	keys %f;
 }

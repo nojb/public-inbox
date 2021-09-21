@@ -241,6 +241,11 @@ sub complete_url_prepare {
 		$re = quotemeta($re);
 	}
 	my $match_cb = sub {
+		# the "//;" here (for AUTH=ANONYMOUS) interacts badly with
+		# bash tab completion, strip it out for now since our commands
+		# work w/o it.  Not sure if there's a better solution...
+		$_[0] =~ s!//;AUTH=ANONYMOUS\@!//!i;
+		$_[0] =~ s!;!\\;!g;
 		# only return the part specified on the CLI
 		# don't duplicate if already 100% completed
 		$_[0] =~ /\A$re(\Q$cur\E.*)/ ? ($cur eq $1 ? () : $1) : ()

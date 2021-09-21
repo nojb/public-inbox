@@ -164,10 +164,9 @@ no args allowed on command-line with --stdin
 }
 
 sub _complete_lcat {
-	my ($lei, @argv) = @_;
-	my $lms = $lei->lms or return;
-	my $match_cb = $lei->complete_url_prepare(\@argv);
-	map { $match_cb->($_) } $lms->folders;
+	require PublicInbox::LeiRefreshMailSync;
+	PublicInbox::LeiRefreshMailSync::_complete_refresh_mail_sync(@_);
+	# TODO: message-ids?, blobs? could get expensive...
 }
 
 1;

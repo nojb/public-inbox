@@ -7,7 +7,7 @@ package PublicInbox::LeiRefreshMailSync;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::IPC PublicInbox::LeiInput);
-use PublicInbox::LeiExportKw;
+use PublicInbox::LeiImport;
 use PublicInbox::InboxWritable qw(eml_from_path);
 use PublicInbox::Import;
 
@@ -97,8 +97,16 @@ sub ipc_atfork_child { # needed for PublicInbox::LeiPmdir
 	undef;
 }
 
+sub _complete_refresh_mail_sync {
+	my ($lei, @argv) = @_;
+	my $lms = $lei->lms or return ();
+	my $match_cb = $lei->complete_url_prepare(\@argv);
+	my @k = $lms->folders($argv[-1], 1);
+	my @m = map { $match_cb->($_) } @k;
+	@m ? @m : @k
+}
+
 no warnings 'once';
-*_complete_refresh_mail_sync = \&PublicInbox::LeiExportKw::_complete_export_kw;
 *net_merge_all_done = \&PublicInbox::LeiInput::input_only_net_merge_all_done;
 
 1;
