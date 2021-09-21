@@ -11,47 +11,64 @@ use PublicInbox::LeiViewText;
 use URI::Escape qw(uri_unescape);
 use PublicInbox::MID qw($MID_EXTRACT);
 
-sub lcat_folder ($$$) {
-	my ($lei, $lms, $folder) = @_;
-	$lms //= $lei->lms or return;
-	my $folders = [ $folder];
+sub lcat_folder ($$;$$) {
+	my ($lei, $folder, $beg, $end) = @_;
+	my $lms = $lei->{-lms_ro} //= $lei->lms // return;
+	my $folders = [ $folder ];
 	eval { $lms->arg2folder($lei, $folders) };
-	if ($@) {
-		$lei->child_error(0, "# unknown folder: $folder");
-	} else {
-		for my $f (@$folders) {
-			my $fid = $lms->fid_for($f);
-			push @{$lei->{lcat_todo}}, { fid => $fid };
-		}
+	return $lei->child_error(0, "# unknown folder: $folder") if $@;
+	my %range;
+	if (defined($beg)) { # NNTP article range
+		$range{min} = $beg;
+		$range{max} = $end // $beg;
+	}
+	for my $f (@$folders) {
+		my $fid = $lms->fid_for($f);
+		push @{$lei->{lcat_todo}}, { fid => $fid, %range };
 	}
 }
 
 sub lcat_imap_uri ($$) {
 	my ($lei, $uri) = @_;
-	my $lms = $lei->lms or return;
-	# cf. LeiXsearch->lcat_dump
+	# cf. LeiXSearch->lcat_dump
+	my $lms = $lei->{-lms_ro} //= $lei->lms // return;
 	if (defined $uri->uid) {
 		push @{$lei->{lcat_todo}}, $lms->imap_oidhex($lei, $uri);
 	} elsif (defined(my $fid = $lms->fid_for($$uri))) {
 		push @{$lei->{lcat_todo}}, { fid => $fid };
 	} else {
-		lcat_folder($lei, $lms, $$uri);
+		lcat_folder($lei, $$uri);
 	}
+}
+
+sub lcat_nntp_uri ($$) {
+	my ($lei, $uri) = @_;
+	my $mid = $uri->message; # already unescaped by URI::news
+	return "mid:$mid" if defined($mid);
+	my $lms = $lei->{-lms_ro} //= $lei->lms // return;
+	my ($ng, $beg, $end) = $uri->group;
+	$uri->group($ng);
+	lcat_folder($lei, $$uri, $beg, $end);
+	'""';
 }
 
 sub extract_1 ($$) {
 	my ($lei, $x) = @_;
-	if ($x =~ m!\b(imaps?://[^>]+)!i) {
-		my $u = $1;
-		require PublicInbox::URIimap;
-		lcat_imap_uri($lei, PublicInbox::URIimap->new($u));
+	if ($x =~ m!\b(maildir:.+)!i) {
+		lcat_folder($lei, $1);
 		'""'; # blank query, using {lcat_todo}
-	} elsif ($x =~ m!\b(maildir:.+)!i) {
-		lcat_folder($lei, undef, $1);
-		'""'; # blank query, using {lcat_todo}
-	} elsif ($x =~ m!\b([a-z]+?://\S+)!i) {
-		my $u = $1;
+	} elsif ($x =~ m!\b(([a-z]+)://\S+)!i) {
+		my ($u, $scheme) = ($1, $2);
 		$u =~ s/[\>\]\)\,\.\;]+\z//;
+		if ($scheme =~ m!\A(imaps?)\z!i) {
+			require PublicInbox::URIimap;
+			lcat_imap_uri($lei, PublicInbox::URIimap->new($u));
+			return '""'; # blank query, using {lcat_todo}
+		} elsif ($scheme =~ m!\A(?:nntps?|s?news)\z!i) {
+			require PublicInbox::URInntps;
+			$u = PublicInbox::URInntps->new($u);
+			return lcat_nntp_uri($lei, $u);
+		} # http, or something else:
 		require URI;
 		$u = URI->new($u);
 		my $p = $u->path;
@@ -93,7 +110,7 @@ sub extract_all {
 	my $strict = !$lei->{opt}->{stdin};
 	my @q;
 	for my $x (@argv) {
-		if (my $term = extract_1($lei,$x)) {
+		if (my $term = extract_1($lei, $x)) {
 			push @q, $term;
 		} elsif ($strict) {
 			return $lei->fail(<<"");
@@ -101,6 +118,7 @@ could not extract Message-ID from $x
 
 		}
 	}
+	delete $lei->{-lms_ro};
 	@q ? join(' OR ', @q) : $lei->fail("no Message-ID in: @argv");
 }
 

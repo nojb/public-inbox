@@ -197,9 +197,12 @@ INSERT OR IGNORE INTO blob2name (oidbin, fid, name) VALUES (?, ?, ?)
 sub each_src {
 	my ($self, $folder, $cb, @args) = @_;
 	my $dbh = $self->{dbh} //= dbh_new($self);
-	my $fid;
+	my ($fid, @rng);
+	my $and_ge_le = '';
 	if (ref($folder) eq 'HASH') {
 		$fid = $folder->{fid} // die "BUG: no `fid'";
+		@rng = grep(defined, @$folder{qw(min max)});
+		$and_ge_le = 'AND uid >= ? AND uid <= ?' if @rng;
 	} else {
 		$fid = $self->{fmap}->{$folder} //=
 			fid_for($self, $folder) // return;
@@ -208,16 +211,17 @@ sub each_src {
 	# minimize implicit txn time to avoid blocking writers by
 	# batching SELECTs.  This looks wonky but is necessary since
 	# $cb-> may access the DB on its own.
-	my $ary = $dbh->selectall_arrayref(<<'', undef, $fid);
-SELECT _rowid_,oidbin,uid FROM blob2num WHERE fid = ?
+	my $ary = $dbh->selectall_arrayref(<<"", undef, $fid, @rng);
+SELECT _rowid_,oidbin,uid FROM blob2num WHERE fid = ? $and_ge_le
 ORDER BY _rowid_ ASC LIMIT 1000
 
 	my $min = @$ary ? $ary->[-1]->[0] : undef;
 	while (defined $min) {
 		for my $row (@$ary) { $cb->($row->[1], $row->[2], @args) }
 
-		$ary = $dbh->selectall_arrayref(<<'', undef, $fid, $min);
-SELECT _rowid_,oidbin,uid FROM blob2num WHERE fid = ? AND _rowid_ > ?
+		$ary = $dbh->selectall_arrayref(<<"", undef, $fid, @rng, $min);
+SELECT _rowid_,oidbin,uid FROM blob2num
+WHERE fid = ? $and_ge_le AND _rowid_ > ?
 ORDER BY _rowid_ ASC LIMIT 1000
 
 		$min = @$ary ? $ary->[-1]->[0] : undef;

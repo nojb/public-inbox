@@ -25,6 +25,11 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	is(ref(json_utf8->decode($lei_out)), 'ARRAY', 'ls-mail-source JSON');
 
 	lei_ok('import', $url);
+	lei_ok "lcat", "nntp://$host_port/testmessage\@example.com";
+	my $local = $lei_out;
+	lei_ok "lcat", "nntp://example.com/testmessage\@example.com";
+	my $remote = $lei_out;
+	is($local, $remote, 'Message-ID used even from unknown host');
 	lei_ok(qw(q z:1..));
 	$out = json_utf8->decode($lei_out);
 	ok(scalar(@$out) > 1, 'got imported messages');
@@ -57,6 +62,11 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	lei_ok('inspect', "$url/$high");
 	my $x = json_utf8->decode($lei_out);
 	like($x->{$url}->{$high}, qr/\A[a-f0-9]{40,}\z/, 'inspect shows blob');
+	lei_ok qw(lcat -f json), "$url/$high";
+	my $lcat = json_utf8->decode($lei_out);
+	is($lcat->[1], undef, 'only one result for lcat');
+	is($lcat->[0]->{blob}, $x->{$url}->{$high},
+		'lcat showed correct blob');
 
 	lei_ok 'ls-mail-sync';
 	is($lei_out, "$url\n", 'article number not stored as folder');
@@ -77,6 +87,19 @@ test_lei({ tmpdir => $tmpdir }, sub {
 		'inspect range shows range');
 	is(scalar(grep(/\A[a-f0-9]{40,}\z/, values %{$x->{$url}})),
 		$end - $low + 1, 'all values are git blobs');
+
+	lei_ok qw(lcat -f json), "$url/$low";
+	$lcat = json_utf8->decode($lei_out);
+	is($lcat->[1], undef, 'only one result for lcat');
+	is($lcat->[0]->{blob}, $x->{$url}->{$low},
+		'lcat showed correct blob');
+	lei_ok qw(lcat -f json), "$url/$low-$end";
+	$lcat = json_utf8->decode($lei_out);
+	pop @$lcat;
+	for ($low..$end) {
+		my $tip = shift @$lcat;
+		is($x->{$url}->{$_}, $tip->{blob}, "blob matches art #$_");
+	}
 
 	lei_ok 'ls-mail-sync';
 	is($lei_out, "$url\n", 'article range not stored as folder');
