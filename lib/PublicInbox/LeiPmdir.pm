@@ -47,17 +47,11 @@ sub mdir_iter { # via wq_io_do
 	$self->{ipt}->pmdir_cb($f, $fl, @args);
 }
 
-sub pmd_done_wait {
-	my ($arg, $pid) = @_;
-	my ($self, $lei) = @$arg;
-	$lei->can('wq_done_wait')->($arg, $pid);
-}
-
 sub _lei_wq_eof { # EOF callback for main lei daemon
 	my ($lei) = @_;
 	my $pmd = delete $lei->{pmd} or return $lei->fail;
 	$lei->sto_done_request($pmd->{lei_sock});
-	$pmd->wq_wait_old(\&pmd_done_wait, $lei);
+	$pmd->wq_wait_old($lei->can('wq_done_wait'), $lei);
 }
 
 1;

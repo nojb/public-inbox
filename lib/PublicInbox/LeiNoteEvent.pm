@@ -107,17 +107,11 @@ sub ipc_atfork_child {
 	$self->SUPER::ipc_atfork_child;
 }
 
-sub lne_done_wait {
-	my ($arg, $pid) = @_;
-	my ($self, $lei) = @$arg;
-	$lei->can('wq_done_wait')->($arg, $pid);
-}
-
 sub _lei_wq_eof { # EOF callback for main lei daemon
 	my ($lei) = @_;
 	my $lne = delete $lei->{lne} or return $lei->fail;
 	$lei->sto_done_request;
-	$lne->wq_wait_old(\&lne_done_wait, $lei);
+	$lne->wq_wait_old($lei->can('wq_done_wait'), $lei);
 }
 
 1;

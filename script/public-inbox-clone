@@ -54,5 +54,5 @@ my $mrr = bless {
 	dst => $dst,
 }, 'PublicInbox::LeiMirror';
 $mrr->do_mirror;
-$mrr->can('do_finish_mirror')->([$mrr, $lei], $$);
+$mrr->can('_wq_done_wait')->([$mrr, $lei], $$);
 exit(($lei->{child_error} // 0) >> 8);

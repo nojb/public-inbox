@@ -11,7 +11,7 @@ use PublicInbox::Spawn qw(popen_rd spawn run_die);
 use File::Temp ();
 use Fcntl qw(SEEK_SET O_CREAT O_EXCL O_WRONLY);
 
-sub do_finish_mirror { # dwaitpid callback
+sub _wq_done_wait { # dwaitpid callback (via wq_eof)
 	my ($arg, $pid) = @_;
 	my ($mrr, $lei) = @$arg;
 	my $f = "$mrr->{dst}/mirror.done";
@@ -26,12 +26,6 @@ sub do_finish_mirror { # dwaitpid callback
 		$lei->qerr("# mirrored $mrr->{src} => $mrr->{dst}");
 	}
 	$lei->dclose;
-}
-
-sub _lei_wq_eof { # EOF callback for main daemon
-	my ($lei) = @_;
-	my $mrr = delete $lei->{wq1} or return $lei->fail;
-	$mrr->wq_wait_old(\&do_finish_mirror, $lei);
 }
 
 # for old installations without manifest.js.gz
@@ -176,7 +170,7 @@ sub index_cloned_inbox {
 		PublicInbox::Admin::progress_prepare($opt, $lei->{2});
 		PublicInbox::Admin::index_inbox($ibx, undef, $opt);
 	}
-	open my $x, '>', "$self->{dst}/mirror.done"; # for do_finish_mirror
+	open my $x, '>', "$self->{dst}/mirror.done"; # for _wq_done_wait
 }
 
 sub run_reap {

@@ -46,17 +46,11 @@ sub ck_update_kw { # via wq_io_do
 	$self->{sto}->wq_do('set_eml_vmd', undef, { kw => $kw }, \@docids);
 }
 
-sub ikw_done_wait {
-	my ($arg, $pid) = @_;
-	my ($self, $lei) = @$arg;
-	$lei->can('wq_done_wait')->($arg, $pid);
-}
-
 sub _lei_wq_eof { # EOF callback for main lei daemon
 	my ($lei) = @_;
 	my $ikw = delete $lei->{ikw} or return $lei->fail;
 	$lei->sto_done_request($ikw->{lei_sock});
-	$ikw->wq_wait_old(\&ikw_done_wait, $lei);
+	$ikw->wq_wait_old($lei->can('wq_done_wait'), $lei);
 }
 
 1;
