@@ -1384,7 +1384,7 @@ sub fchdir {
 sub wq_eof { # EOF callback for main daemon
 	my ($lei) = @_;
 	my $wq1 = delete $lei->{wq1} // return $lei->fail; # already failed
-	$wq1->wq_wait_old(\&wq_done_wait, $lei);
+	$wq1->wq_wait_old($wq1->can('_wq_done_wait') // \&wq_done_wait, $lei);
 }
 
 sub watch_state_ok ($) {
