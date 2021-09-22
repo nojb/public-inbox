@@ -126,11 +126,12 @@ sub version {
 
 sub git_epoch {
 	my ($self, $epoch) = @_; # v2-only, callers always supply $epoch
-	$self->{"$epoch.git"} ||= do {
+	$self->{"$epoch.git"} //= do {
 		my $git_dir = "$self->{inboxdir}/git/$epoch.git";
 		return unless -d $git_dir;
 		my $g = PublicInbox::Git->new($git_dir);
-		$g->{-httpbackend_limiter} = $self->{-httpbackend_limiter};
+		my $lim = $self->{-httpbackend_limiter};
+		$g->{-httpbackend_limiter} = $lim if $lim;
 		# caller must manually cleanup when done
 		$g;
 	};
@@ -138,11 +139,12 @@ sub git_epoch {
 
 sub git {
 	my ($self) = @_;
-	$self->{git} ||= do {
+	$self->{git} //= do {
 		my $git_dir = $self->{inboxdir};
 		$git_dir .= '/all.git' if $self->version == 2;
 		my $g = PublicInbox::Git->new($git_dir);
-		$g->{-httpbackend_limiter} = $self->{-httpbackend_limiter};
+		my $lim = $self->{-httpbackend_limiter};
+		$g->{-httpbackend_limiter} = $lim if $lim;
 		_cleanup_later($self);
 		$g;
 	};
