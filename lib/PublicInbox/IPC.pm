@@ -353,7 +353,8 @@ sub _wq_worker_start ($$$$) {
 				keys %{delete($self->{-wq_workers}) // {}};
 		$SIG{$_} = 'IGNORE' for (qw(PIPE));
 		$SIG{$_} = 'DEFAULT' for (qw(TTOU TTIN TERM QUIT INT CHLD));
-		local $0 = "$self->{-wq_ident} $self->{-wq_worker_nr}";
+		local $0 = $one ? $self->{-wq_ident} :
+			"$self->{-wq_ident} $self->{-wq_worker_nr}";
 		# ensure we properly exit even if warn() dies:
 		my $end = PublicInbox::OnDestroy->new($$, sub { exit(!!$@) });
 		eval {
