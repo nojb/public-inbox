@@ -33,12 +33,18 @@ sub misc {
 # same as per-inbox ->over, for now...
 sub over {
 	my ($self) = @_;
-	$self->{over} //= PublicInbox::Over->new("$self->{xpfx}/over.sqlite3");
+	$self->{over} //= do {
+		PublicInbox::Inbox::_cleanup_later($self);
+		PublicInbox::Over->new("$self->{xpfx}/over.sqlite3");
+	};
 }
 
 sub git {
 	my ($self) = @_;
-	$self->{git} //= PublicInbox::Git->new("$self->{topdir}/ALL.git");
+	$self->{git} //= do {
+		PublicInbox::Inbox::_cleanup_later($self);
+		PublicInbox::Git->new("$self->{topdir}/ALL.git");
+	};
 }
 
 # returns a hashref of { $NEWSGROUP_NAME => $ART_NO } using the `xref3' table

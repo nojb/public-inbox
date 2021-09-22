@@ -8,6 +8,7 @@ use strict;
 use v5.10.1;
 use PublicInbox::Spawn qw(which popen_rd); # may set PERL_INLINE_DIRECTORY
 use Fcntl qw(LOCK_EX SEEK_SET);
+use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use IO::Handle; # autoflush
 BEGIN {
 	my (%CFG, $c_src);
@@ -96,11 +97,21 @@ sub add_alt ($$) {
 	1;
 }
 
-# Usage: $^X -MPublicInbox::Gcf2 -e PublicInbox::Gcf2::loop
+sub have_unlinked_files () {
+	# FIXME: port gcf2-like over to git.git so we won't need to
+	# deal with libgit2
+	return 1 if $^O ne 'linux';
+	open my $fh, '<', "/proc/$$/maps" or return;
+	while (<$fh>) { return 1 if /\.(?:idx|pack) \(deleted\)$/ }
+	undef;
+}
+
+# Usage: $^X -MPublicInbox::Gcf2 -e PublicInbox::Gcf2::loop [EXPIRE-TIMEOUT]
 # (see lib/PublicInbox/Gcf2Client.pm)
-sub loop () {
+sub loop (;$) {
+	my $exp = $_[0] || $ARGV[0] || 60; # seconds
 	my $gcf2 = new();
-	my %seen;
+	my (%seen, $check_at);
 	STDERR->autoflush(1);
 	STDOUT->autoflush(1);
 
@@ -116,12 +127,21 @@ sub loop () {
 
 			$gcf2 = new();
 			%seen = ($git_dir => add_alt($gcf2,"$git_dir/objects"));
+			$check_at = clock_gettime(CLOCK_MONOTONIC) + $exp;
 
 			if ($gcf2->cat_oid(1, $oid)) {
 				warn "I: $$ $oid found after retry\n";
 			} else {
 				warn "W: $$ $oid missing after retry\n";
 				print "$oid missing\n"; # mimic git-cat-file
+			}
+		} else { # check expiry to deal with deleted pack files
+			my $now = clock_gettime(CLOCK_MONOTONIC);
+			$check_at //= $now + $exp;
+			if ($now > $check_at && have_unlinked_files()) {
+				undef $check_at;
+				$gcf2 = new();
+				%seen = ();
 			}
 		}
 	}

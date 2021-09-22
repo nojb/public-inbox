@@ -12,7 +12,7 @@ use v5.10.1;
 use parent qw(Exporter);
 use POSIX ();
 use IO::Handle; # ->autoflush
-use Errno qw(EINTR EAGAIN);
+use Errno qw(EINTR EAGAIN ENOENT);
 use File::Glob qw(bsd_glob GLOB_NOSORT);
 use File::Spec ();
 use Time::HiRes qw(stat);
@@ -521,6 +521,20 @@ sub manifest_entry {
 		}
 	}
 	$ent;
+}
+
+sub cleanup_if_unlinked {
+	my ($self) = @_;
+	return cleanup($self) if $^O ne 'linux';
+	# Linux-specific /proc/$PID/maps access
+	# TODO: support this inside git.git
+	for my $fld (qw(pid pid_c)) {
+		my $pid = $self->{$fld} // next;
+		open my $fh, '<', "/proc/$pid/maps" or next;
+		while (<$fh>) {
+			return cleanup($self) if /\.(?:idx|pack) \(deleted\)$/;
+		}
+	}
 }
 
 1;

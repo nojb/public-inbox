@@ -22,8 +22,15 @@ my $CLEANUP = {}; # string(inbox) -> inbox
 
 sub git_cleanup ($) {
 	my ($self) = @_;
-	my $git = $self->{git} or return;
-	$git->cleanup;
+	if ($self->isa(__PACKAGE__)) {
+		# normal Inbox; low startup cost, and likely to have many
+		# many so this keeps process/pipe counts in check
+		$self->{git}->cleanup if $self->{git};
+	} else {
+		# ExtSearch, high startup cost if ->ALL, and probably
+		# only one per-daemon, so teardown only if required:
+		$self->git->cleanup_if_unlinked;
+	}
 }
 
 sub cleanup_task () {
