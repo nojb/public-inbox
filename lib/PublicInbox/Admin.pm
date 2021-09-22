@@ -274,7 +274,7 @@ sub index_inbox {
 	if (my $pr = $opt->{-progress}) {
 		$pr->("indexing $ibx->{inboxdir} ...\n");
 	}
-	local %SIG = %SIG;
+	local @SIG{keys %SIG} = values %SIG;
 	setup_signals(\&index_terminate, $ibx);
 	my $idx = { current_info => $ibx->{inboxdir} };
 	local $SIG{__WARN__} = sub {

@@ -1272,7 +1272,7 @@ sub event_step { # PublicInbox::DS::requeue callback
 
 sub eidx_watch { # public-inbox-extindex --watch main loop
 	my ($self, $opt) = @_;
-	local %SIG = %SIG;
+	local @SIG{keys %SIG} = values %SIG;
 	for my $sig (qw(HUP USR1 TSTP QUIT INT TERM)) {
 		$SIG{$sig} = sub { warn "SIG$sig ignored while scanning\n" };
 	}
@@ -1307,7 +1307,7 @@ sub eidx_watch { # public-inbox-extindex --watch main loop
 	$sig->{QUIT} = $sig->{INT} = $sig->{TERM} = $quit;
 	my $sigfd = PublicInbox::Sigfd->new($sig,
 					$PublicInbox::Syscall::SFD_NONBLOCK);
-	%SIG = (%SIG, %$sig) if !$sigfd;
+	@SIG{keys %$sig} = values(%$sig) if !$sigfd;
 	local $self->{-watch_sync} = $sync; # for ->on_inbox_unlock
 	if (!$sigfd) {
 		# wake up every second to accept signals if we don't

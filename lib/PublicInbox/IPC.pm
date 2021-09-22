@@ -115,7 +115,7 @@ sub ipc_worker_spawn {
 			$fields //= {};
 			local @$self{keys %$fields} = values(%$fields);
 			my $on_destroy = $self->ipc_atfork_child;
-			local %SIG = %SIG;
+			local @SIG{keys %SIG} = values %SIG;
 			PublicInbox::DS::sig_setmask($sigset);
 			ipc_worker_loop($self, $r_req, $w_res);
 		};
@@ -361,7 +361,7 @@ sub _wq_worker_start ($$$$) {
 			$fields //= {};
 			local @$self{keys %$fields} = values(%$fields);
 			my $on_destroy = $self->ipc_atfork_child;
-			local %SIG = %SIG;
+			local @SIG{keys %SIG} = values %SIG;
 			PublicInbox::DS::sig_setmask($oldset);
 			wq_worker_loop($self, $bcast2);
 		};

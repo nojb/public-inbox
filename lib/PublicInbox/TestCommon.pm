@@ -317,7 +317,8 @@ sub run_script ($;$$) {
 		# note: "local *STDIN = *STDIN;" and so forth did not work in
 		# old versions of perl
 		local %ENV = $env ? (%ENV, %$env) : %ENV;
-		local %SIG = %SIG;
+		local @SIG{keys %SIG} = map { undef } values %SIG;
+		local $SIG{FPE} = 'IGNORE'; # Perl default
 		local $0 = join(' ', @$cmd);
 		my $orig_io = _prepare_redirects($fhref);
 		my $cwdfh = $lei_cwdfh;

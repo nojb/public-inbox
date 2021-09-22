@@ -168,6 +168,7 @@ my $start_worker = sub {
 	my $pid = fork // DIE "fork: $!";
 	if ($pid == 0) {
 		close $wr if $wr;
+		$SIG{USR1} = undef; # undo parent $SIG{USR1}
 		$worker = $$;
 		while (1) {
 			my $r = sysread($rd, my $buf, UINT_SIZE);

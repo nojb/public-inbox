@@ -384,7 +384,9 @@ sub watch_atfork_child ($) {
 	delete $self->{poll_pids};
 	delete $self->{opendirs};
 	PublicInbox::DS->Reset;
-	%SIG = (%SIG, %{$self->{sig}}, CHLD => 'DEFAULT');
+	my $sig = delete $self->{sig};
+	$sig->{CHLD} = 'DEFAULT';
+	@SIG{keys %$sig} = values %$sig;
 	PublicInbox::DS::sig_setmask($self->{oldset});
 }
 

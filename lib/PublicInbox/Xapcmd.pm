@@ -149,7 +149,7 @@ sub process_queue {
 
 	# run in parallel:
 	my %pids;
-	local %SIG = %SIG;
+	local @SIG{keys %SIG} = values %SIG;
 	setup_signals(\&kill_pids, \%pids);
 	while (@$queue) {
 		while (scalar(keys(%pids)) < $max && scalar(@$queue)) {
@@ -285,7 +285,7 @@ sub run {
 		PublicInbox::SearchIdx::load_xapian_writable();
 	}
 
-	local %SIG = %SIG;
+	local @SIG{keys %SIG} = values %SIG;
 	setup_signals();
 	$ibx->with_umask(\&_run, $ibx, $cb, $opt);
 }
@@ -343,7 +343,7 @@ sub compact ($$) { # cb_spawn callback
 	$pr->("$pfx `".join(' ', @$cmd)."'\n") if $pr;
 	push @$cmd, $src, $dst;
 	my ($rd, $pid);
-	local %SIG = %SIG;
+	local @SIG{keys %SIG} = values %SIG;
 	setup_signals(\&kill_compact, \$pid);
 	($rd, $pid) = popen_rd($cmd, undef, $rdr);
 	while (<$rd>) {
@@ -428,7 +428,7 @@ sub cpdb ($$) { # cb_spawn callback
 	}
 
 	my ($tmp, $ft);
-	local %SIG = %SIG;
+	local @SIG{keys %SIG} = values %SIG;
 	if ($opt->{compact}) {
 		my ($dir) = ($new =~ m!(.*?/)[^/]+/*\z!);
 		same_fs_or_die($dir, $new);
