@@ -316,6 +316,7 @@ sub run_script ($;$$) {
 	} else { # localize and run everything in the same process:
 		# note: "local *STDIN = *STDIN;" and so forth did not work in
 		# old versions of perl
+		my $umask = umask;
 		local %ENV = $env ? (%ENV, %$env) : %ENV;
 		local @SIG{keys %SIG} = map { undef } values %SIG;
 		local $SIG{FPE} = 'IGNORE'; # Perl default
@@ -333,6 +334,7 @@ sub run_script ($;$$) {
 		die "fchdir(restore): $!" if $cwdfh && !chdir($cwdfh);
 		_undo_redirects($orig_io);
 		select STDOUT;
+		umask($umask);
 	}
 
 	# slurp the redirects back into user-supplied strings
