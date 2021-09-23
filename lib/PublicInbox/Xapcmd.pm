@@ -22,11 +22,16 @@ sub commit_changes ($$$$) {
 	$SIG{INT} or die 'BUG: $SIG{INT} not handled';
 	my @old_shard;
 	my $over_chg;
+	my $mode;
 
 	while (my ($old, $newdir) = each %$tmp) {
 		next if $old eq ''; # no invalid paths
-		my @st = stat($old);
-		if (!@st && !defined($opt->{reshard})) {
+		$mode //= do {
+			my ($dname) = ($old =~ m!(.*/)[^/]+/*\z!);
+			(stat($dname))[2];
+		};
+		my $have_old = -e $old;
+		if (!$have_old && !defined($opt->{reshard})) {
 			die "failed to stat($old): $!";
 		}
 
@@ -46,13 +51,13 @@ sub commit_changes ($$$$) {
 			next;
 		}
 
-		if (@st) {
-			chmod($st[2] & 07777, $new) or die "chmod $old: $!\n";
+		chmod($mode & 07777, $new) or die "chmod($new): $!\n";
+		if ($have_old) {
 			rename($old, "$new/old") or
 					die "rename $old => $new/old: $!\n";
 		}
 		rename($new, $old) or die "rename $new => $old: $!\n";
-		if (@st) {
+		if ($have_old) {
 			my $prev = "$old/old";
 			remove_tree($prev) or
 				die "failed to remove $prev: $!\n";

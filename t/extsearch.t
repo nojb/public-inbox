@@ -423,6 +423,7 @@ if ('dedupe + dry-run') {
 		'--dry-run alone fails');
 }
 
+# chmod 0755, $home or xbail "chmod: $!";
 for my $j (1, 3, 6) {
 	my $o = { 2 => \(my $err = '') };
 	my $d = "$home/extindex-j$j";
@@ -445,11 +446,17 @@ SKIP: {
 	ok($es->cleanup_shards, 'cleanup_shards noop');
 	is("$es->{xdb}", $xdb_str, '{xdb} unchanged');
 
+	my @ei_dir = glob("$d/ei*/");
+	chmod 0755, $ei_dir[0] or xbail "chmod: $!";
+	my $mode = sprintf('%04o', 07777 & (stat($ei_dir[0]))[2]);
+	is($mode, '0755', 'mode set on ei*/ dir');
 	my $o = { 2 => \(my $err = '') };
 	ok(run_script([qw(-xcpdb -R4), $d]), 'xcpdb R4');
 	my @dirs = glob("$d/ei*/?");
 	for my $i (0..3) {
 		is(grep(m!/ei[0-9]+/$i\z!, @dirs), 1, "shard [$i] created");
+		my $m = sprintf('%04o', 07777 & (stat($dirs[$i]))[2]);
+		is($m, $mode, "shard [$i] mode");
 	}
 	is($es->cleanup_shards, undef, 'cleanup_shards cleaned');
 	ok(!defined($es->{xdb}), 'old {xdb} gone');
