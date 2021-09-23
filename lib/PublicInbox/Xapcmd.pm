@@ -20,16 +20,23 @@ sub commit_changes ($$$$) {
 	my $reshard = $opt->{reshard};
 
 	$SIG{INT} or die 'BUG: $SIG{INT} not handled';
-	my @old_shard;
-	my $over_chg;
-	my $mode;
+	my (@old_shard, $over_chg);
 
-	while (my ($old, $newdir) = each %$tmp) {
+	# Sort shards highest-to-lowest, since ->xdb_shards_flat
+	# determines the number of shards to load based on the max;
+	# and we'd rather xdb_shards_flat to momentarily fail rather
+	# than load out-of-date shards
+	my @order = sort {
+		my ($x) = ($a =~ m!/([0-9]+)/*\z!);
+		my ($y) = ($b =~ m!/([0-9]+)/*\z!);
+		($y // -1) <=> ($x // -1) # we may have non-shards
+	} keys %$tmp;
+
+	my ($dname) = ($order[0] =~ m!(.*/)[^/]+/*\z!);
+	my $mode = (stat($dname))[2];
+	for my $old (@order) {
 		next if $old eq ''; # no invalid paths
-		$mode //= do {
-			my ($dname) = ($old =~ m!(.*/)[^/]+/*\z!);
-			(stat($dname))[2];
-		};
+		my $newdir = $tmp->{$old};
 		my $have_old = -e $old;
 		if (!$have_old && !defined($opt->{reshard})) {
 			die "failed to stat($old): $!";
@@ -57,11 +64,7 @@ sub commit_changes ($$$$) {
 					die "rename $old => $new/old: $!\n";
 		}
 		rename($new, $old) or die "rename $new => $old: $!\n";
-		if ($have_old) {
-			my $prev = "$old/old";
-			remove_tree($prev) or
-				die "failed to remove $prev: $!\n";
-		}
+		push @old_shard, "$old/old" if $have_old;
 	}
 
 	# trigger ->check_inodes in read-only daemons
