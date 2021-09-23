@@ -420,7 +420,9 @@ my %OPTDESC = (
 'remote' => 'limit operations to those requiring network access',
 'remote!' => 'prevent operations requiring network access',
 
-'all:s	up' => ['local|remote', 'update all remote or local saved searches' ],
+# up, refresh-mail-sync, export-kw
+'all:s' => ['TYPE|local|remote', 'all remote or local folders' ],
+
 'remote-fudge-time=s' => [ 'INTERVAL',
 	'look for mail INTERVAL older than the last successful query' ],
 
