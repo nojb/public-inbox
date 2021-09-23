@@ -17,7 +17,6 @@ my $profiles = {
 	essential => [ qw(
 		git
 		perl
-		Devel::Peek
 		Digest::SHA
 		Encode
 		ExtUtils::MakeMaker
@@ -78,10 +77,6 @@ my $non_auto = {
 		deb => 'libtimedate-perl',
 		pkg => 'p5-TimeDate',
 		rpm => 'perl-TimeDate',
-	},
-	'Devel::Peek' => {
-		deb => 'perl', # libperl5.XX, but the XX varies
-		pkg => 'perl5',
 	},
 	'Digest::SHA' => {
 		deb => 'perl', # libperl5.XX, but the XX varies

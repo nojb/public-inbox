@@ -112,6 +112,11 @@ sub description {
 		'$EXTINDEX_DIR/description missing';
 }
 
+sub search {
+	PublicInbox::Inbox::_cleanup_later($_[0]);
+	$_[0];
+}
+
 no warnings 'once';
 *base_url = \&PublicInbox::Inbox::base_url;
 *smsg_eml = \&PublicInbox::Inbox::smsg_eml;
@@ -121,6 +126,6 @@ no warnings 'once';
 *recent = \&PublicInbox::Inbox::recent;
 
 *max_git_epoch = *nntp_usable = *msg_by_path = \&mm; # undef
-*isrch = *search = \&PublicInbox::Search::reopen;
+*isrch = \&search;
 
 1;

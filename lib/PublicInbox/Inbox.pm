@@ -16,70 +16,47 @@ use Carp qw(croak);
 # admin will attempt to replace them atomically after compact/vacuum
 # and we need to be prepared for that.
 my $cleanup_timer;
-my $cleanup_avail = -1; # 0, or 1
-my $have_devel_peek;
 my $CLEANUP = {}; # string(inbox) -> inbox
 
 sub git_cleanup ($) {
 	my ($self) = @_;
-	if ($self->isa(__PACKAGE__)) {
-		# normal Inbox; low startup cost, and likely to have many
-		# many so this keeps process/pipe counts in check
-		$self->{git}->cleanup if $self->{git};
-	} else {
-		# ExtSearch, high startup cost if ->ALL, and probably
-		# only one per-daemon, so teardown only if required:
-		$self->git->cleanup_if_unlinked;
-	}
+	my $git = $self->{git} // return undef;
+	# normal inboxes have low startup cost and there may be many, so
+	# keep process+pipe counts in check.  ExtSearch may have high startup
+	# cost (e.g. ->ALL) and but likely one per-daemon, so cleanup only
+	# if there's unlinked files
+	my $live = $self->isa(__PACKAGE__) ? $git->cleanup
+					: $git->cleanup_if_unlinked;
+	delete($self->{git}) unless $live;
+	$live;
 }
+
+# returns true if further checking is required
+sub cleanup_shards { $_[0]->{search} ? $_[0]->{search}->cleanup_shards : undef }
 
 sub cleanup_task () {
 	$cleanup_timer = undef;
 	my $next = {};
 	for my $ibx (values %$CLEANUP) {
-		my $again;
-		if ($have_devel_peek) {
-			foreach my $f (qw(search)) {
-				# we bump refcnt by assigning tmp, here:
-				my $tmp = $ibx->{$f} or next;
-				next if Devel::Peek::SvREFCNT($tmp) > 2;
-				delete $ibx->{$f};
-				# refcnt is zero when tmp is out-of-scope
-			}
-		}
-		git_cleanup($ibx);
-		if (my $gits = $ibx->{-repo_objs}) {
-			foreach my $git (@$gits) {
-				$again = 1 if $git->cleanup;
-			}
+		my $again = git_cleanup($ibx);
+		$ibx->cleanup_shards and $again = 1;
+		for my $git (@{$ibx->{-repo_objs}}) {
+			$again = 1 if $git->cleanup;
 		}
 		check_inodes($ibx);
-		if ($have_devel_peek) {
-			$again ||= !!$ibx->{search};
-		}
 		$next->{"$ibx"} = $ibx if $again;
 	}
 	$CLEANUP = $next;
-}
-
-sub cleanup_possible () {
-	# no need to require DS, here, if it were enabled another
-	# module would've require'd it, already
-	eval { PublicInbox::DS::in_loop() } or return 0;
-
-	eval {
-		require Devel::Peek; # needs separate package in Fedora
-		$have_devel_peek = 1;
-	};
-	1;
+	$cleanup_timer //= PublicInbox::DS::later(\&cleanup_task);
 }
 
 sub _cleanup_later ($) {
-	my ($self) = @_;
-	$cleanup_avail = cleanup_possible() if $cleanup_avail < 0;
-	return if $cleanup_avail != 1;
-	$cleanup_timer //= PublicInbox::DS::later(\&cleanup_task);
-	$CLEANUP->{"$self"} = $self;
+	# no need to require DS, here, if it were enabled another
+	# module would've require'd it, already
+	if (eval { PublicInbox::DS::in_loop() }) {
+		$cleanup_timer //= PublicInbox::DS::later(\&cleanup_task);
+		$CLEANUP->{"$_[0]"} = $_[0]; # $self
+	}
 }
 
 sub _set_limiter ($$$) {

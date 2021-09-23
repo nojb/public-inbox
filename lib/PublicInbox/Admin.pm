@@ -198,8 +198,7 @@ sub resolve_inboxes ($;$$) {
 	$opt->{-eidx_ok} ? (\@ibxs, \@eidx) : @ibxs;
 }
 
-# TODO: make Devel::Peek optional, only used for daemon
-my @base_mod = qw(Devel::Peek);
+my @base_mod = ();
 my @over_mod = qw(DBD::SQLite DBI);
 my %mod_groups = (
 	-index => [ @base_mod, @over_mod ],

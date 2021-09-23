@@ -436,12 +436,27 @@ for my $j (1, 3, 6) {
 
 SKIP: {
 	my $d = "$home/extindex-j1";
+	my $es = PublicInbox::ExtSearch->new($d);
+	ok(my $nresult0 = $es->mset('z:0..')->size, 'got results');
+	ok(ref($es->{xdb}), '{xdb} created');
+	my $nshards1 = $es->{nshard};
+	is($nshards1, 1, 'correct shard count');
+	my $xdb_str = "$es->{xdb}";
+	ok($es->cleanup_shards, 'cleanup_shards noop');
+	is("$es->{xdb}", $xdb_str, '{xdb} unchanged');
+
 	my $o = { 2 => \(my $err = '') };
 	ok(run_script([qw(-xcpdb -R4), $d]), 'xcpdb R4');
 	my @dirs = glob("$d/ei*/?");
 	for my $i (0..3) {
 		is(grep(m!/ei[0-9]+/$i\z!, @dirs), 1, "shard [$i] created");
 	}
+	is($es->cleanup_shards, undef, 'cleanup_shards cleaned');
+	ok(!defined($es->{xdb}), 'old {xdb} gone');
+	is($es->cleanup_shards, undef, 'cleanup_shards clean idempotent');
+	is($es->mset('z:0..')->size, $nresult0, 'new shards, same results');
+	ok($es->cleanup_shards, 'cleanup_shards true after open');
+
 	for my $i (4..5) {
 		is(grep(m!/ei[0-9]+/$i\z!, @dirs), 0, "no shard [$i]");
 	}

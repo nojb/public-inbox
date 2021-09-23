@@ -400,7 +400,7 @@ sub cleanup {
 	delete $self->{inflight_c};
 	_destroy($self, qw(cat_rbuf in out pid));
 	_destroy($self, qw(chk_rbuf in_c out_c pid_c err_c));
-	!!($self->{pid} || $self->{pid_c});
+	defined($self->{pid}) || defined($self->{pid_c});
 }
 
 
@@ -523,18 +523,25 @@ sub manifest_entry {
 	$ent;
 }
 
+# returns true if there are pending cat-file processes
 sub cleanup_if_unlinked {
 	my ($self) = @_;
 	return cleanup($self) if $^O ne 'linux';
 	# Linux-specific /proc/$PID/maps access
 	# TODO: support this inside git.git
+	my $ret = 0;
 	for my $fld (qw(pid pid_c)) {
 		my $pid = $self->{$fld} // next;
-		open my $fh, '<', "/proc/$pid/maps" or next;
+		open my $fh, '<', "/proc/$pid/maps" or return cleanup($self);
 		while (<$fh>) {
+			# n.b. we do not restart for unlinked multi-pack-index
+			# since it's not too huge, and the startup cost may
+			# be higher.
 			return cleanup($self) if /\.(?:idx|pack) \(deleted\)$/;
 		}
+		++$ret;
 	}
+	$ret;
 }
 
 1;

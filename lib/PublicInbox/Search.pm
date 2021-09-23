@@ -199,7 +199,7 @@ sub xdb_shards_flat ($) {
 	my (@xdb, $slow_phrase);
 	load_xapian();
 	$self->{qp_flags} //= $QP_FLAGS;
-	if ($xpfx =~ m/xapian${\SCHEMA_VERSION}\z/) {
+	if ($xpfx =~ m!/xapian[0-9]+\z!) {
 		@xdb = ($X{Database}->new($xpfx));
 		$self->{qp_flags} |= FLAG_PHRASE() if !-f "$xpfx/iamchert";
 	} else {
@@ -241,6 +241,20 @@ sub xdb ($) {
 		$xdb->add_database($_) for @xdb;
 		$xdb;
 	};
+}
+
+# returns true if a future rescan is desired
+sub cleanup_shards {
+	my ($self) = @_;
+	return unless exists($self->{xdb});
+	my $xpfx = $self->{xpfx};
+	return reopen($self) if $xpfx =~ m!/xapian[0-9]+\z!; # true
+	opendir(my $dh, $xpfx) or return warn("$xpfx gone: $!\n"); # true
+	my $nr = grep(/\A[0-9]+\z/, readdir($dh)) or
+		return warn("$xpfx has no shards\n"); # true
+	return reopen($self) if $nr == ($self->{nshard} // -1);
+	delete($self->{xdb});
+	undef;
 }
 
 sub new {
