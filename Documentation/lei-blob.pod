@@ -10,8 +10,8 @@ lei blob [OPTIONS] OID
 
 Display a git blob.  The blob may correspond to a message from the
 local store, an existing blob in the current repository, or a
-not-yet-created blob in the current repository that can be
-reconstructed from a message.
+not-yet-created blob in the current git project repository (if any)
+that can be reconstructed from a message.
 
 =head1 OPTIONS
 
@@ -21,6 +21,8 @@ reconstructed from a message.
 
 Specify an additional .git/ directory to scan.  This option may be
 given multiple times.
+
+Default: the output of C<git rev-parse --git-dir>
 
 =item --no-cwd
 

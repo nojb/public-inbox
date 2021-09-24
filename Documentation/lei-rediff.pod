@@ -15,10 +15,15 @@ the specified L<git-diff(1)> options.  This is useful if you want to
 change the display of the original patch (e.g., increasing context,
 coloring moved lines differently, or using an external diff viewer).
 
+It relies on the contents of the .git directory of your current
+project working tree.  In other words, it works anywhere
+L<git-am(1)> works.  Otherwise, C<--git-dir=> may be specified
+any number of times to add repositories to build blob data from.
+
 =head1 OPTIONS
 
-In addition to many L<git-diff(1)>, the following options are
-supported.
+In addition to many L<git-diff(1)> options (e.g. C<-W>, C<-w>,
+C<-U $LINES>) the following options are supported:
 
 =over
 
@@ -27,14 +32,28 @@ supported.
 Read message from stdin.  This is implicit if no arguments are given
 and stdin is a pipe or regular file.
 
+For users of text editors and pagers capable of piping its
+buffer to arbitrary commands, it is useful to pipe a patch email
+to C<lei rediff> before piping it to L<git-am(1)>.  The output
+of C<lei rediff> is compatible with C<git am> if its input was a
+patch email.
+
 =item --git-dir=DIR
 
 Specify an additional .git/ directory to scan.  This option may be
 given multiple times.
 
+Default: the output of C<git rev-parse --git-dir>
+
 =item --no-cwd
 
 Do not look in the git repository of the current working directory.
+
+=item -q
+
+=item --quiet
+
+Suppress progress output.
 
 =item -v
 

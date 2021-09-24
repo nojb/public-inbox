@@ -16,7 +16,7 @@ inbox.
 
 The patch can be provided on stdin or as a file.  Alternatively, when
 an argument is given that does not point to an existing file, it is
-taken as a reference to a commit in the current repository, and
+taken as a reference to a commit in the current git repository, and
 L<git-format-patch(1)> is used to generate the patch.
 
 =head1 OPTIONS
