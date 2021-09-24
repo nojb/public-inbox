@@ -33,7 +33,7 @@ Show message with the git blob OID of 59ec517f9.  If a message with
 that OID isn't found, check if the current git repository has the
 blob, trying to reconstruct it from a message if needed.
 
-=item $ lei blob 59ec517f9 | lei tag - -F eml +kw:flagged +L:next
+=item $ lei blob 59ec517f9 | lei tag -F eml +kw:flagged +L:next
 
 Set the "flagged" keyword and "next" label on the message with the
 blob OID of 59ec517f9.
@@ -92,18 +92,18 @@ and written.
 
 Search for all flagged messages that also have a "next" label.
 
-=item $ lei p2q HEAD | lei q --stdin -tt -o /tmp/mdir
+=item $ lei p2q HEAD | lei q -tt -o /tmp/mdir
 
 Search for messages that have post-image git blob IDs that match those
 of the current repository's HEAD commit, writing them to the Maildir
 directory "mdir" and flagging the messages that were an exact match.
 
-=item $ git show -s HEAD | lei lcat -
+=item $ git show -s HEAD | lei lcat
 
 Display a local message for the public-inbox link contained in a
 commit message.
 
-=item $ lei q -f text m:MID | lei rediff -U5 -
+=item $ lei q -f text m:MESSAGE-ID | lei rediff -U5
 
 Feed a message containing a diff to L<lei-rediff(1)> to regenerate its
 diff with five context lines.  Unless C<--git-dir> is specified, this
@@ -114,13 +114,15 @@ code repository.
 
 =head1 PERFORMANCE NOTES
 
-L<Inline::C> is recommended for performance.  To enable it, create
-C<~/.cache/public-inbox/inline-c/>.
+L<Inline::C> is required, lei runs as a background daemon to reduce
+startup costs and can provide real-time L<kqueue(2)>/L<inotify(7)>
+Maildir monitoring.  L<IO::KQueue> (p5-IO-KQueue on FreeBSD) and
+L<Linux::Inotify2> (liblinux-inotify2-perl and perl-Linux-Inotify2 in
+.deb and .rpm-based distros, respectively) are recommended.
 
-If Socket::MsgHdr is installed (libsocket-msghdr-perl in Debian), the
-first invocation of lei starts a daemon, reducing the startup cost of
-for future invocations (which is particularly important for Bash
-completion).
+L<Socket::MsgHdr> is optional (libsocket-msghdr-perl in Debian),
+and further improves startup performance.  Its effect is most felt
+when using shell completion.
 
 =head1 BASH COMPLETION
 
