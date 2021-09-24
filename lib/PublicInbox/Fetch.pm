@@ -112,10 +112,10 @@ sub do_fetch { # main entry point
 				$skip->{$nr} = 1;
 				next;
 			}
+			next if defined $git_url;
 			if (defined(my $url = remote_url($lei, $edir))) {
 				$git_url = $url;
 				$epoch = $nr;
-				last;
 			} else {
 				warn "W: $edir missing remote.origin.url\n";
 			}
