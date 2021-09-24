@@ -28,6 +28,7 @@ Documentation/lei-convert.pod
 Documentation/lei-daemon-kill.pod
 Documentation/lei-daemon-pid.pod
 Documentation/lei-edit-search.pod
+Documentation/lei-export-kw.pod
 Documentation/lei-forget-external.pod
 Documentation/lei-forget-search.pod
 Documentation/lei-import.pod
@@ -43,6 +44,7 @@ Documentation/lei-overview.pod
 Documentation/lei-p2q.pod
 Documentation/lei-q.pod
 Documentation/lei-rediff.pod
+Documentation/lei-refresh-mail-sync.pod
 Documentation/lei-rm.pod
 Documentation/lei-security.pod
 Documentation/lei-store-format.pod

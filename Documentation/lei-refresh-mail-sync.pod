@@ -1,0 +1,57 @@
+=head1 NAME
+
+lei-refresh-mail-sync - refresh sync info with Maildir, IMAP
+
+=head1 SYNOPSIS
+
+lei refresh-mail-sync --all[=<remote|local>]
+
+lei refresh-mail-sync MFOLDER [MFOLDER...]
+
+=head1 DESCRIPTION
+
+C<lei refresh-mail-sync> is intended to to keep old messages
+indexed with L<lei-index(1)> retrievable if Maildir flags change
+a filename.  It will prune invalid entries for messages which no
+longer exist in a Maildir.
+
+It is also useful for ensuring L<lei-export-kw(1)> can propagate
+keyword (flag) changes to Maildirs and IMAP folders.
+
+It only needs read-only access to Maildirs and IMAP folders
+and will not attempt to write to them at all.
+
+=head1 OPTIONS
+
+=over
+
+=item --all
+
+Refresh all local Maildirs and remote IMAP folders
+
+=item --all=local
+
+Refresh all local Maildirs
+
+=item --all=remote
+
+Refresh all remote IMAP folders
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/> and
+L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<lei-index(1)>, L<lei-export-kw(1)>
