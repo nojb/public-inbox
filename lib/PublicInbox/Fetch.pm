@@ -12,6 +12,8 @@ use PublicInbox::LEI;
 use PublicInbox::LeiCurl;
 use PublicInbox::LeiMirror;
 use File::Temp ();
+use PublicInbox::Config;
+use IO::Compress::Gzip qw(gzip $GzipError);
 
 sub new { bless {}, __PACKAGE__ }
 
@@ -81,7 +83,7 @@ sub do_manifest ($$$) {
 	}
 	my (undef, $v1_path, @v2_epochs) =
 		PublicInbox::LeiMirror::deduce_epochs($mdiff, $ibx_uri->path);
-	[ 200, $v1_path, \@v2_epochs, $muri, $ft, $mf ];
+	[ 200, $v1_path, \@v2_epochs, $muri, $ft, $mf, $m1 ];
 }
 
 sub get_fingerprint2 {
@@ -133,7 +135,7 @@ EOM
 	PublicInbox::LeiMirror::write_makefile($dir, $ibx_ver);
 	$lei->qerr("# inbox URL: $ibx_uri/");
 	my $res = do_manifest($lei, $dir, $ibx_uri) or return;
-	my ($code, $v1_path, $v2_epochs, $muri, $ft, $mf) = @$res;
+	my ($code, $v1_path, $v2_epochs, $muri, $ft, $mf, $m1) = @$res;
 	if ($code == 404) {
 		# any pre-manifest.js.gz instances running? Just fetch all
 		# existing ones and unconditionally try cloning the next
@@ -145,6 +147,7 @@ EOM
 	} else {
 		$code == 200 or die "BUG unexpected code $code\n";
 	}
+	my $mculled;
 	if ($ibx_ver == 2) {
 		defined($v1_path) and warn <<EOM;
 E: got v1 `$v1_path' when expecting v2 epoch(s) in <$muri>, WTF?
@@ -153,6 +156,12 @@ EOM
 				my ($nr) = (m!/([0-9]+)\.git\z!g);
 				$skip->{$nr} ? () : $nr;
 			} @$v2_epochs;
+		if ($m1 && scalar keys %$skip) {
+			my $re = join('|', keys %$skip);
+			my @del = grep(m!/git/$re\.git\z!, keys %$m1);
+			delete @$m1{@del};
+			$mculled = 1;
+		}
 	} else {
 		$git_dir[0] = $dir;
 	}
@@ -193,6 +202,10 @@ EOM
 	for my $i (@new_epoch) { $mg->epoch_cfg_set($i) }
 	if ($ft) {
 		my $fn = $ft->filename;
+		if ($mculled) {
+			my $json = PublicInbox::Config->json->encode($m1);
+			gzip(\$json => $fn) or die "gzip: $GzipError";
+		}
 		rename($fn, $mf) or die "E: rename($fn, $mf): $!\n";
 		$ft->unlink_on_destroy(0);
 	}

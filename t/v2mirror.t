@@ -9,6 +9,7 @@ use PublicInbox::Spawn qw(which);
 require_git(2.6);
 require_cmd('curl');
 local $ENV{HOME} = abs_path('t');
+use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
 
 # Integration tests for HTTP cloning + mirroring
 require_mods(qw(Plack::Util Plack::Builder
@@ -288,6 +289,29 @@ if ('test read-only epoch dirs') {
 	is_deeply(\@g2, \@g, 'cloned again');
 	is(scalar(grep { -w $_ } @g2), scalar(@w) + 1,
 		'got one more cloned epoch');
+
+	# make 0.git writable and fetch into it, relies on culled manifest
+	chmod(0755, $g2[0]) or xbail "chmod: $!";
+	my @before = glob("$g2[0]/objects/*/*");
+	run_script([qw(-fetch -q)], undef, { -C => $dst });
+	is($?, 0, 'no error from partial fetch');
+	my @after = glob("$g2[0]/objects/*/*");
+	ok(scalar(@before) < scalar(@after), 'fetched after chmod 0755 0.git');
+
+	# ensure culled manifest is maintained after fetch
+	gunzip("$dst/manifest.js.gz" => \(my $m), MultiStream => 1) or
+		xbail "gunzip: $GunzipError";
+	$m = PublicInbox::Config->json->decode($m);
+	for my $k (keys %$m) { # /$name/git/$N.git
+		my ($nr) = ($k =~ m!/git/([0-9]+)\.git\z!);
+		ok(-w "$dst/git/$nr.git", "writable $nr.git in manifest");
+	}
+	for my $ro (grep { !-w $_ } @g2) {
+		my ($nr) = ($ro =~ m!/git/([0-9]+)\.git\z!);
+		is(grep(m!/git/$nr\.git\z!, keys %$m), 0,
+			"read-only $nr.git not in manifest")
+			or xbail([sort keys %$m]);
+	}
 }
 
 my $err = '';

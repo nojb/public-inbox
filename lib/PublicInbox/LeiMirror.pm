@@ -6,7 +6,9 @@ package PublicInbox::LeiMirror;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::IPC);
+use PublicInbox::Config;
 use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
+use IO::Compress::Gzip qw(gzip $GzipError);
 use PublicInbox::Spawn qw(popen_rd spawn run_die);
 use File::Temp ();
 use Fcntl qw(SEEK_SET O_CREAT O_EXCL O_WRONLY);
@@ -267,14 +269,14 @@ EOM
 	close $fh or die "close:($f): $!";
 }
 
-sub clone_v2 ($$) {
-	my ($self, $v2_epochs) = @_;
+sub clone_v2 ($$;$) {
+	my ($self, $v2_epochs, $m) = @_; # $m => manifest.js.gz hashref
 	my $lei = $self->{lei};
 	my $curl = $self->{curl} //= PublicInbox::LeiCurl->new($lei) or return;
 	my $pfx = $curl->torsocks($lei, (values %$v2_epochs)[0]) or return;
 	my $dst = $self->{dst};
 	my $want = parse_epochs($lei->{opt}->{epoch}, $v2_epochs);
-	my (@src_edst, @read_only);
+	my (@src_edst, @read_only, @skip_nr);
 	for my $nr (sort { $a <=> $b } keys %$v2_epochs) {
 		my $uri = $v2_epochs->{$nr};
 		my $src = $uri->as_string;
@@ -289,7 +291,14 @@ failed to extract epoch number from $src
 		} else { # create a placeholder so users only need to chmod +w
 			init_placeholder($src, $edst);
 			push @read_only, $edst;
+			push @skip_nr, $nr;
 		}
+	}
+	if (@skip_nr) { # filter out the epochs we skipped
+		my $re = join('|', @skip_nr);
+		my @del = grep(m!/git/$re\.git\z!, keys %$m);
+		delete @$m{@del};
+		$self->{-culled_manifest} = 1;
 	}
 	my $lk = bless { lock_path => "$dst/inbox.lock" }, 'PublicInbox::Lock';
 	_try_config($self);
@@ -379,12 +388,19 @@ EOM
 			my ($n) = ("$uri" =~ m!/([0-9]+)\.git\z!);
 			$n => $uri->clone
 		} @v2_epochs;
-		clone_v2($self, \%v2_epochs);
+		clone_v2($self, \%v2_epochs, $m);
 	} elsif (defined $v1_path) {
 		clone_v1($self);
 	} else {
 		die "E: confused by <$uri>, possible matches:\n\t",
 			join(', ', sort keys %$m), "\n";
+	}
+	if (delete $self->{-culled_manifest}) { # set by clone_v2
+		# write the smaller manifest if epochs were skipped so
+		# users won't have to delete manifest if they +w an
+		# epoch they no longer want to skip
+		my $json = PublicInbox::Config->json->encode($m);
+		gzip(\$json => $fn) or die "gzip: $GzipError";
 	}
 	my $fin = "$self->{dst}/manifest.js.gz";
 	rename($fn, $fin) or die "E: rename($fn, $fin): $!";
