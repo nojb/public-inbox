@@ -6,8 +6,6 @@ lei-index - index messages without importing them into lei/store
 
 lei index [OPTIONS] FOLDER
 
-lei index [OPTIONS] --stdin
-
 =head1 DESCRIPTION
 
 Similar to L<lei-import(1)>, but does not store a copy of
@@ -26,22 +24,16 @@ messages into C<lei/store>.
 
 =over
 
-=item -
-
-=item --stdin
-
-Read input from standard input.  This is the default if standard
-input is a pipe or regular file and there are no arguments on
-the command-line.
-
 =item -F MAIL_FORMAT
 
 =item --in-format=MAIL_FORMAT
 
-Message input format: C<eml>, C<maildir>, C<imap>, C<imaps>, C<nntp>,
-C<nntps>, C<mboxrd>, C<mboxcl2>, C<mboxcl>, or C<mboxo>.
+There is currently no need for this option.  It will support C<mh>,
+eventually.  For now, the default (and only supported) format is
+C<maildir>.  When IMAP and NNTP support are fleshed out, those
+formats will be inferred from their URLs.
 
-Default: C<eml> when reading from stdin
+Default: C<maildir>
 
 =item -q
 
