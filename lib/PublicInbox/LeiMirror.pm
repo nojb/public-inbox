@@ -42,7 +42,8 @@ sub try_scrape {
 
 	# we grep with URL below, we don't want Subject/From headers
 	# making us clone random URLs
-	my @urls = ($html =~ m!\bgit clone --mirror ([a-z\+]+://\S+)!g);
+	my @html = split(/<hr>/, $html);
+	my @urls = ($html[-1] =~ m!\bgit clone --mirror ([a-z\+]+://\S+)!g);
 	my $url = $uri->as_string;
 	chop($url) eq '/' or die "BUG: $uri not canonicalized";
 
@@ -184,7 +185,9 @@ sub run_reap {
 	my $reap = PublicInbox::OnDestroy->new($lei->can('sigint_reap'), $pid);
 	waitpid($pid, 0) == $pid or die "waitpid @$cmd: $!";
 	@$reap = (); # cancel reap
-	$?
+	my $ret = $?;
+	$? = 0; # don't let it influence normal exit
+	$ret;
 }
 
 sub clone_v1 {
@@ -358,7 +361,11 @@ sub try_manifest {
 		return try_scrape($self) if ($cerr >> 8) == 22; # 404 missing
 		return $lei->child_error($cerr, "@$cmd failed");
 	}
-	my $m = decode_manifest($ft, $fn, $uri);
+	my $m = eval { decode_manifest($ft, $fn, $uri) };
+	if ($@) {
+		warn $@;
+		return try_scrape($self);
+	}
 	my ($path_pfx, $v1_path, @v2_epochs) = deduce_epochs($m, $path);
 	if (@v2_epochs) {
 		# It may be possible to have v1 + v2 in parallel someday:

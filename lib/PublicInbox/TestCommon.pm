@@ -469,6 +469,7 @@ sub start_script {
 			$ENV{LISTEN_PID} = $$;
 			$ENV{LISTEN_FDS} = $fds;
 		}
+		if ($opt->{-C}) { chdir($opt->{-C}) or die "chdir: $!" }
 		$0 = join(' ', @$cmd);
 		if ($sub) {
 			eval { PublicInbox::DS->Reset };

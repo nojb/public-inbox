@@ -5,6 +5,7 @@ use v5.10.1;
 use PublicInbox::TestCommon;
 use File::Path qw(remove_tree make_path);
 use Cwd qw(abs_path);
+use PublicInbox::Spawn qw(which);
 require_git(2.6);
 require_cmd('curl');
 local $ENV{HOME} = abs_path('t');
@@ -23,7 +24,8 @@ my $pi_config = "$tmpdir/config";
 	open my $fh, '>', $pi_config or die "open($pi_config): $!";
 	print $fh <<"" or die "print $pi_config: $!";
 [publicinbox "v2"]
-	inboxdir = $tmpdir/in
+; using "mainrepo" rather than "inboxdir" for v1.1.0-pre1 WWW compat below
+	mainrepo = $tmpdir/in
 	address = test\@example.com
 
 	close $fh or die "close($pi_config): $!";
@@ -62,11 +64,11 @@ $v2w->done;
 }
 $ibx->cleanup;
 
-my $sock = tcp_server();
+local $ENV{TEST_IPV4_ONLY} = 1; # plackup (below) doesn't do IPv6
+my $rdr = { 3 => tcp_server() };
 my @cmd = ('-httpd', '-W0', "--stdout=$tmpdir/out", "--stderr=$tmpdir/err");
-my $td = start_script(\@cmd, undef, { 3 => $sock });
-my ($host, $port) = tcp_host_port($sock);
-$sock = undef;
+my $td = start_script(\@cmd, undef, $rdr);
+my ($host, $port) = tcp_host_port(delete $rdr->{3});
 
 @cmd = (qw(-clone -q), "http://$host:$port/v2/", "$tmpdir/m");
 run_script(\@cmd) or xbail '-clone';
@@ -288,7 +290,69 @@ if ('test read-only epoch dirs') {
 		'got one more cloned epoch');
 }
 
-ok($td->kill, 'killed httpd');
-$td->join;
+my $err = '';
+my $v110 = xqx([qw(git rev-parse v1.1.0-pre1)], undef, { 2 => \$err });
+SKIP: {
+	skip("no detected public-inbox GIT_DIR ($err)", 1) if $?;
+	# using plackup to test old PublicInbox::WWW since -httpd from
+	# back then relied on some packages we no longer depend on
+	my $plackup = which('plackup') or skip('no plackup in path', 1);
+	require PublicInbox::Lock;
+	chomp $v110;
+	my ($base) = ($0 =~ m!\b([^/]+)\.[^\.]+\z!);
+	my $wt = "t/data-gen/$base.pre-manifest";
+	my $lk = bless { lock_path => __FILE__ }, 'PublicInbox::Lock';
+	$lk->lock_acquire;
+	my $psgi = "$wt/app.psgi";
+	if (!-f $psgi) { # checkout a pre-manifest.js.gz version
+		my $t = File::Temp->new(TEMPLATE => 'g-XXXX', TMPDIR => 1);
+		my $env = { GIT_INDEX_FILE => $t->filename };
+		xsys([qw(git read-tree), $v110], $env) and xbail 'read-tree';
+		xsys([qw(git checkout-index -a), "--prefix=$wt/"], $env)
+			and xbail 'checkout-index';
+		my $f = "$wt/app.psgi.tmp.$$";
+		open my $fh, '>', $f or xbail $!;
+		print $fh <<'EOM' or xbail $!;
+use Plack::Builder;
+use PublicInbox::WWW;
+my $www = PublicInbox::WWW->new;
+builder { enable 'Head'; sub { $www->call(@_) } }
+EOM
+		close $fh or xbail $!;
+		rename($f, $psgi) or xbail $!;
+	}
+	$lk->lock_release;
+
+	$rdr->{run_mode} = 0;
+	$rdr->{-C} = $wt;
+	my $cmd = [$plackup, qw(-Enone -Ilib), "--host=$host", "--port=$port"];
+	$td->join('TERM');
+	open $rdr->{2}, '>>', "$tmpdir/plackup.err.log" or xbail "open: $!";
+	open $rdr->{1}, '>>&', $rdr->{2} or xbail "open: $!";
+	$td = start_script($cmd, { PERL5LIB => 'lib' }, $rdr);
+	# wait for plackup socket()+bind()+listen()
+	my %opt = ( Proto => 'tcp', Type => Socket::SOCK_STREAM(),
+		PeerAddr => "$host:$port" );
+	for (0..50) {
+		tick();
+		last if IO::Socket::INET->new(%opt);
+	}
+	my $dst = "$tmpdir/scrape";
+	@cmd = (qw(-clone -q), "http://$host:$port/v2", $dst);
+	run_script(\@cmd, undef, { 2 => \(my $err = '') });
+	is($?, 0, 'scraping clone on old PublicInbox::WWW')
+		or diag $err;
+	my @g_all = glob("$dst/git/*.git");
+	ok(scalar(@g_all) > 1, 'cloned multiple epochs');
+
+	remove_tree($dst);
+	@cmd = (qw(-clone -q --epoch=~0), "http://$host:$port/v2", $dst);
+	run_script(\@cmd, undef, { 2 => \($err = '') });
+	is($?, 0, 'partial scraping clone on old PublicInbox::WWW');
+	my @g_last = grep { -w $_ } glob("$dst/git/*.git");
+	is_deeply(\@g_last, [ $g_all[-1] ], 'partial clone of ~0 worked');
+
+	$td->join('TERM');
+}
 
 done_testing;
