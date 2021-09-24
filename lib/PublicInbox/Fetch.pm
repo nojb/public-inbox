@@ -60,11 +60,13 @@ sub do_manifest ($$$) {
 	$opt->{$_} = $lei->{$_} for (0..2);
 	my $cerr = PublicInbox::LeiMirror::run_reap($lei, $curl_cmd, $opt);
 	if ($cerr) {
-		return [ 404 ] if ($cerr >> 8) == 22; # 404 Missing
+		return [ 404, $muri ] if ($cerr >> 8) == 22; # 404 Missing
 		$lei->child_error($cerr, "@$curl_cmd failed");
 		return;
 	}
-	my $m1 = PublicInbox::LeiMirror::decode_manifest($ft, $fn, $muri);
+	my $m1 = eval {
+		PublicInbox::LeiMirror::decode_manifest($ft, $fn, $muri);
+	} or return [ 404, $muri ];
 	my $mdiff = { %$m1 };
 
 	# filter out unchanged entries.  We check modified, too, since
@@ -83,7 +85,7 @@ sub do_manifest ($$$) {
 	}
 	my (undef, $v1_path, @v2_epochs) =
 		PublicInbox::LeiMirror::deduce_epochs($mdiff, $ibx_uri->path);
-	[ 200, $v1_path, \@v2_epochs, $muri, $ft, $mf, $m1 ];
+	[ 200, $muri, $v1_path, \@v2_epochs, $ft, $mf, $m1 ];
 }
 
 sub get_fingerprint2 {
@@ -106,7 +108,7 @@ sub do_fetch { # main entry point
 	} else { # v2:
 		require PublicInbox::MultiGit;
 		$mg = PublicInbox::MultiGit->new($dir, 'all.git', 'git');
-		my @epochs = $mg->git_epochs;
+		@epochs = $mg->git_epochs;
 		my ($git_url, $epoch);
 		for my $nr (@epochs) { # try newest epoch, first
 			my $edir = "$dir/git/$nr.git";
@@ -135,7 +137,7 @@ EOM
 	PublicInbox::LeiMirror::write_makefile($dir, $ibx_ver);
 	$lei->qerr("# inbox URL: $ibx_uri/");
 	my $res = do_manifest($lei, $dir, $ibx_uri) or return;
-	my ($code, $v1_path, $v2_epochs, $muri, $ft, $mf, $m1) = @$res;
+	my ($code, $muri, $v1_path, $v2_epochs, $ft, $mf, $m1) = @$res;
 	if ($code == 404) {
 		# any pre-manifest.js.gz instances running? Just fetch all
 		# existing ones and unconditionally try cloning the next

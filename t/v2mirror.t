@@ -376,6 +376,14 @@ EOM
 	my @g_last = grep { -w $_ } glob("$dst/git/*.git");
 	is_deeply(\@g_last, [ $g_all[-1] ], 'partial clone of ~0 worked');
 
+	chmod(0755, $g_all[0]) or xbail "chmod $!";
+	my @before = glob("$g_all[0]/objects/*/*");
+	run_script([qw(-fetch -v)], undef, { -C => $dst, 2 => \($err = '') });
+	is($?, 0, 'scraping fetch on old PublicInbox::WWW') or diag $err;
+	my @after = glob("$g_all[0]/objects/*/*");
+	ok(scalar(@before) < scalar(@after),
+		'fetched 0.git after enabling write-bit');
+
 	$td->join('TERM');
 }
 
