@@ -31,6 +31,21 @@ file to speed up subsequent L<public-inbox-fetch(1)>.
 
 =over
 
+=item --epoch=RANGE
+
+Restrict clones of L<public-inbox-v2-format(5)> inboxes to the
+given range of epochs.  The range may be a single non-negative
+integer or a (possibly open-ended) C<LOW..HIGH> range of
+non-negative integers.  C<~> may be prefixed to either (or both)
+integer values to represent the offset from the maximum possible
+value.
+
+For example, C<--epoch=~0> alone clones only the latest epoch,
+C<--epoch=~2..> clones the three latest epochs.
+
+Default: C<0..~0> or C<0..> or C<..~0>
+(all epochs, all three examples are equivalent)
+
 =item -q
 
 =item --quiet

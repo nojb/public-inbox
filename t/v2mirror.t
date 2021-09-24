@@ -263,6 +263,31 @@ if ('test read-only epoch dirs') {
 		'fetch restored objects once GIT_DIR became writable');
 }
 
+{
+	my $dst = "$tmpdir/partial";
+	run_script([qw(-clone -q --epoch=~0), "http://$host:$port/v2/", $dst]);
+	is($?, 0, 'no error from partial clone');
+	my @g = glob("$dst/git/*.git");
+	my @w = grep { -w $_ } @g;
+	my @r = grep { ! -w $_ } @g;
+	is(scalar(@w), 1, 'one writable directory');
+	my ($w) = ($w[0] =~ m!/([0-9]+)\.git\z!);
+	is((grep {
+		m!/([0-9]+)\.git\z! or xbail "no digit in $_";
+		$w > ($1 + 0)
+	} @r), scalar(@r), 'writable epoch # exceeds read-only ones');
+	run_script([qw(-fetch -q)], undef, { -C => $dst });
+	is($?, 0, 'no error from partial fetch');
+	remove_tree($dst);
+
+	run_script([qw(-clone -q --epoch=~1..),
+			"http://$host:$port/v2/", $dst]);
+	my @g2 = glob("$dst/git/*.git") ;
+	is_deeply(\@g2, \@g, 'cloned again');
+	is(scalar(grep { -w $_ } @g2), scalar(@w) + 1,
+		'got one more cloned epoch');
+}
+
 ok($td->kill, 'killed httpd');
 $td->join;
 

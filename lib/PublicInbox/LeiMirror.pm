@@ -49,8 +49,11 @@ sub try_scrape {
 	# since this is for old instances w/o manifest.js.gz, try v1 first
 	return clone_v1($self) if grep(m!\A\Q$url\E/*\z!, @urls);
 	if (my @v2_urls = grep(m!\A\Q$url\E/[0-9]+\z!, @urls)) {
-		my %v2_uris = map { $_ => URI->new($_) } @v2_urls; # uniq
-		return clone_v2($self, [ values %v2_uris ]);
+		my %v2_epochs = map {
+			my ($n) = (m!/([0-9]+)\z!);
+			$n => URI->new($_)
+		} @v2_urls; # uniq
+		return clone_v2($self, \%v2_epochs);
 	}
 
 	# filter out common URLs served by WWW (e.g /$MSGID/T/)
@@ -189,6 +192,8 @@ sub clone_v1 {
 	my $lei = $self->{lei};
 	my $curl = $self->{curl} //= PublicInbox::LeiCurl->new($lei) or return;
 	my $uri = URI->new($self->{src});
+	defined($lei->{opt}->{epoch}) and
+		die "$uri is a v1 inbox, --epoch is not supported\n";
 	my $pfx = $curl->torsocks($lei, $uri) or return;
 	my $cmd = [ @$pfx, clone_cmd($lei, my $opt = {}),
 			$uri->as_string, $self->{dst} ];
@@ -199,22 +204,89 @@ sub clone_v1 {
 	index_cloned_inbox($self, 1);
 }
 
-sub clone_v2 {
-	my ($self, $v2_uris) = @_;
+sub parse_epochs ($$) {
+	my ($opt_epochs, $v2_epochs) = @_; # $epcohs "LOW..HIGH"
+	$opt_epochs // return; # undef => all epochs
+	my ($lo, $dotdot, $hi, @extra) = split(/(\.\.)/, $opt_epochs);
+	undef($lo) if ($lo // '') eq '';
+	my $re = qr/\A~?[0-9]+\z/;
+	if (@extra || (($lo // '0') !~ $re) ||
+			(($hi // '0') !~ $re) ||
+			!(grep(defined, $lo, $hi))) {
+		die <<EOM;
+--epoch=$opt_epochs not in the form of `LOW..HIGH', `LOW..', nor `..HIGH'
+EOM
+	}
+	my @n = sort { $a <=> $b } keys %$v2_epochs;
+	for (grep(defined, $lo, $hi)) {
+		if (/\A[0-9]+\z/) {
+			$_ > $n[-1] and die
+"`$_' exceeds maximum available epoch ($n[-1])\n";
+			$_ < $n[0] and die
+"`$_' is lower than minimum available epoch ($n[0])\n";
+		} elsif (/\A~([0-9]+)/) {
+			my $off = -$1 - 1;
+			$n[$off] // die "`$_' is out of range\n";
+			$_ = $n[$off];
+		} else { die "`$_' not understood\n" }
+	}
+	defined($lo) && defined($hi) && $lo > $hi and die
+"low value (`$lo') exceeds high (`$hi')\n";
+	$lo //= $n[0] if $dotdot;
+	$hi //= $n[-1] if $dotdot;
+	$hi //= $lo;
+	my $want = {};
+	for ($lo..$hi) {
+		if (defined $v2_epochs->{$_}) {
+			$want->{$_} = 1;
+		} else {
+			warn
+"# epoch $_ is not available (non-fatal, $lo..$hi)\n";
+		}
+	}
+	$want
+}
+
+sub init_placeholder ($$) {
+	my ($src, $edst) = @_;
+	PublicInbox::Import::init_bare($edst);
+	my $f = "$edst/config";
+	open my $fh, '>>', $f or die "open($f): $!";
+	print $fh <<EOM or die "print($f): $!";
+[remote "origin"]
+	url = $src
+	fetch = +refs/*:refs/*
+	mirror = true
+
+; This git epoch was created read-only and "public-inbox-fetch"
+; will not fetch updates for it unless write permission is added.
+EOM
+	close $fh or die "close:($f): $!";
+}
+
+sub clone_v2 ($$) {
+	my ($self, $v2_epochs) = @_;
 	my $lei = $self->{lei};
 	my $curl = $self->{curl} //= PublicInbox::LeiCurl->new($lei) or return;
-	my $pfx //= $curl->torsocks($lei, $v2_uris->[0]) or return;
+	my $pfx = $curl->torsocks($lei, (values %$v2_epochs)[0]) or return;
 	my $dst = $self->{dst};
-	my @src_edst;
-	for my $uri (@$v2_uris) {
+	my $want = parse_epochs($lei->{opt}->{epoch}, $v2_epochs);
+	my (@src_edst, @read_only);
+	for my $nr (sort { $a <=> $b } keys %$v2_epochs) {
+		my $uri = $v2_epochs->{$nr};
 		my $src = $uri->as_string;
 		my $edst = $dst;
 		$src =~ m!/([0-9]+)(?:\.git)?\z! or die <<"";
 failed to extract epoch number from $src
 
-		my $nr = $1 + 0;
+		$1 + 0 == $nr or die "BUG: <$uri> miskeyed $1 != $nr";
 		$edst .= "/git/$nr.git";
-		push @src_edst, $src, $edst;
+		if (!$want || $want->{$nr}) {
+			push @src_edst, $src, $edst;
+		} else { # create a placeholder so users only need to chmod +w
+			init_placeholder($src, $edst);
+			push @read_only, $edst;
+		}
 	}
 	my $lk = bless { lock_path => "$dst/inbox.lock" }, 'PublicInbox::Lock';
 	_try_config($self);
@@ -229,6 +301,10 @@ failed to extract epoch number from $src
 	my $mg = PublicInbox::MultiGit->new($dst, 'all.git', 'git');
 	$mg->fill_alternates;
 	for my $i ($mg->git_epochs) { $mg->epoch_cfg_set($i) }
+	for my $edst (@read_only) {
+		my @st = stat($edst) or die "stat($edst): $!";
+		chmod($st[2] & 0555, $edst) or die "chmod(a-w, $edst): $!";
+	}
 	write_makefile($self->{dst}, 2);
 	undef $on_destroy; # unlock
 	index_cloned_inbox($self, 2);
@@ -291,11 +367,12 @@ sub try_manifest {
 # @v2_epochs
 # ignoring $v1_path (use --inbox-version=1 to force v1 instead)
 EOM
-		@v2_epochs = map {
+		my %v2_epochs = map {
 			$uri->path($path_pfx.$_);
-			$uri->clone
+			my ($n) = ("$uri" =~ m!/([0-9]+)\.git\z!);
+			$n => $uri->clone
 		} @v2_epochs;
-		clone_v2($self, \@v2_epochs);
+		clone_v2($self, \%v2_epochs);
 	} elsif (defined $v1_path) {
 		clone_v1($self);
 	} else {

@@ -13,6 +13,7 @@ usage: public-inbox-clone INBOX_URL [DESTINATION]
 
 options:
 
+  --epoch=RANGE       range of v2 epochs to clone (e.g `2..5', `~0', `~1..')
   --torsocks VAL      whether or not to wrap git and curl commands with
                       torsocks (default: `auto')
                       Must be one of: `auto', `no' or `yes'
@@ -21,7 +22,7 @@ options:
     -C DIR            chdir to specified directory
 EOF
 GetOptions($opt, qw(help|h quiet|q verbose|v+ C=s@ c=s@
-		no-torsocks torsocks=s)) or die $help;
+		no-torsocks torsocks=s epoch=s)) or die $help;
 if ($opt->{help}) { print $help; exit };
 require PublicInbox::Admin; # loads Config
 PublicInbox::Admin::do_chdir(delete $opt->{C});

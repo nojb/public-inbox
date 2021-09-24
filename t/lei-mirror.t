@@ -65,6 +65,14 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	lei_ok('ls-external');
 	unlike($lei_out, qr!\Q$d\E!s, 'not added to ls-external');
 
+	$d = "$home/bad-epoch";
+	ok(!lei(qw(add-external -q --epoch=0.. --mirror), "$http/t1/", $d),
+		'v1 fails on --epoch');
+	ok(!-d $d, 'destination not created on unacceptable --epoch');
+	ok(!lei(qw(add-external -q --epoch=1 --mirror), "$http/t2/", $d),
+		'v2 fails on bad epoch range');
+	ok(!-d $d, 'destination not created on bad epoch');
+
 	my %phail = (
 		HTTPS => 'https://public-inbox.org/' . 'phail',
 		ONION =>

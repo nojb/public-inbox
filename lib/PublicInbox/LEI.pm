@@ -206,7 +206,7 @@ our %CMD = ( # sorted in order of importance/use:
 
 'add-external' => [ 'LOCATION',
 	'add/set priority of a publicinbox|extindex for extra matches',
-	qw(boost=i mirror=s inbox-version=i verbose|v+),
+	qw(boost=i mirror=s inbox-version=i epoch=s verbose|v+),
 	@c_opt, index_opt(), @net_opt ],
 'ls-external' => [ '[FILTER]', 'list publicinbox|extindex locations',
 	qw(format|f=s z|0 globoff|g invert-match|v local remote), @c_opt ],
