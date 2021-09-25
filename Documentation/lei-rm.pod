@@ -34,10 +34,13 @@ the command-line.
 
 =item --in-format=MAIL_FORMAT
 
-Message input format: C<eml>, C<maildir>, C<imap>, C<imaps>, C<nntp>,
-C<nntps>, C<mboxrd>, C<mboxcl2>, C<mboxcl>, or C<mboxo>.
+Message input format: C<eml>, C<mboxrd>, C<mboxcl2>, C<mboxcl>, or C<mboxo>
+when reading from stdin or using one of the mbox variants.
 
-Default: C<eml> when reading from stdin
+Not necessary when using an IMAP URL, NNTP URL or Maildir.
+
+Default: C<eml> when reading from stdin or if the file suffix
+ends in C<.patch> or C<.eml>.
 
 =item --lock=METHOD
 
