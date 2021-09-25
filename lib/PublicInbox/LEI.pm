@@ -519,8 +519,7 @@ sub fail ($$;$) {
 	my ($self, $buf, $exit_code) = @_;
 	$self->{failed}++;
 	err($self, $buf) if defined $buf;
-	# calls fail_handler
-	$self->{pkt_op_p}->pkt_do('!') if $self->{pkt_op_p};
+	$self->{pkt_op_p}->pkt_do('fail_handler') if $self->{pkt_op_p};
 	x_it($self, ($exit_code // 1) << 8);
 	undef;
 }
@@ -552,7 +551,7 @@ sub child_error { # passes non-fatal curl exit codes to user
 sub note_sigpipe { # triggers sigpipe_handler
 	my ($self, $fd) = @_;
 	close(delete($self->{$fd})); # explicit close silences Perl warning
-	$self->{pkt_op_p}->pkt_do('|') if $self->{pkt_op_p};
+	$self->{pkt_op_p}->pkt_do('sigpipe_handler') if $self->{pkt_op_p};
 	x_it($self, 13);
 }
 
@@ -614,11 +613,11 @@ sub incr {
 
 sub pkt_ops {
 	my ($lei, $ops) = @_;
-	$ops->{'!'} = [ \&fail_handler, $lei ];
-	$ops->{'|'} = [ \&sigpipe_handler, $lei ];
-	$ops->{x_it} = [ \&x_it, $lei ];
-	$ops->{child_error} = [ \&child_error, $lei ];
-	$ops->{incr} = [ \&incr, $lei ];
+	$ops->{fail_handler} = [ $lei ];
+	$ops->{sigpipe_handler} = [ $lei ];
+	$ops->{x_it} = [ $lei ];
+	$ops->{child_error} = [ $lei ];
+	$ops->{incr} = [ $lei ];
 	$ops;
 }
 

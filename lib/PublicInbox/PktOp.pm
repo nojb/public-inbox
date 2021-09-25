@@ -13,6 +13,7 @@ use Errno qw(EAGAIN EINTR);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
 use Socket qw(AF_UNIX MSG_EOR SOCK_SEQPACKET);
 use PublicInbox::IPC qw(ipc_freeze ipc_thaw);
+use Scalar::Util qw(blessed);
 
 sub new {
 	my ($cls, $r) = @_;
@@ -57,8 +58,8 @@ sub event_step {
 		}
 		my $op = $self->{ops}->{$cmd //= $msg};
 		if ($op) {
-			my ($sub, @args) = @$op;
-			$sub->(@args, @pargs);
+			my ($obj, @args) = (@$op, @pargs);
+			blessed($obj) ? $obj->$cmd(@args) : $obj->(@args);
 		} elsif ($msg ne '') {
 			die "BUG: unknown message: `$cmd'";
 		}

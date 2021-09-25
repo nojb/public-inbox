@@ -714,16 +714,15 @@ sub do_post_auth {
 		} else { # Maildir
 			$self->{shard_info} = [ $mod, $shard ];
 		}
-		$aug = '+'; # incr_post_augment
+		$aug = 'incr_post_augment';
 	} elsif ($self->{-wq_worker_nr} == 0) { # 1st worker do_augment
-		$aug = '.'; # do_post_augment
+		$aug = 'do_post_augment';
 	}
 	if ($aug) {
 		local $0 = 'do_augment';
 		eval { do_augment($self, $lei) };
 		$lei->fail($@) if $@;
-		$lei->{pkt_op_p}->pkt_do($aug) == 1 or
-				die "do_post_augment trigger: $!";
+		$lei->{pkt_op_p}->pkt_do($aug) or die "pkt_do($aug): $!";
 	}
 	# done augmenting, connect the compressor pipe for each worker
 	if (my $zpipe = delete $lei->{zpipe}) {

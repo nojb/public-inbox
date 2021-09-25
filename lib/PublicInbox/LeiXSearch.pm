@@ -536,16 +536,16 @@ sub do_query {
 	my ($self, $lei) = @_;
 	my $l2m = $lei->{l2m};
 	my $ops = {
-		'|' => [ $lei->can('sigpipe_handler'), $lei ],
-		'!' => [ $lei->can('fail_handler'), $lei ],
-		'.' => [ \&do_post_augment, $lei ],
-		'+' => [ \&incr_post_augment, $lei ],
+		'sigpipe_handler' => [ $lei ],
+		'fail_handler' => [ $lei ],
+		'do_post_augment' => [ \&do_post_augment, $lei ],
+		'incr_post_augment' => [ \&incr_post_augment, $lei ],
 		'' => [ \&query_done, $lei ],
 		'mset_progress' => [ \&mset_progress, $lei ],
 		'l2m_progress' => [ \&l2m_progress, $lei ],
-		'x_it' => [ $lei->can('x_it'), $lei ],
-		'child_error' => [ $lei->can('child_error'), $lei ],
-		'incr_start_query' => [ \&incr_start_query, $self, $l2m ],
+		'x_it' => [ $lei ],
+		'child_error' => [ $lei ],
+		'incr_start_query' => [ $self, $l2m ],
 	};
 	$lei->{auth}->op_merge($ops, $l2m) if $l2m && $lei->{auth};
 	my $end = $lei->pkt_op_pair;
