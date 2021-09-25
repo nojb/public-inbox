@@ -315,23 +315,26 @@ if ('test read-only epoch dirs') {
 }
 
 my $err = '';
-my $v110 = xqx([qw(git rev-parse v1.1.0-pre1)], undef, { 2 => \$err });
+my $oldrev = '0b3e19584c90d958a723ac2d3dec3f84f5513688~1';
+# 3e0e596105198cfa (wwwlisting: allow hiding entries from manifest, 2019-06-09)
+$oldrev = xqx([qw(git rev-parse), $oldrev], undef, { 2 => \$err });
 SKIP: {
 	skip("no detected public-inbox GIT_DIR ($err)", 1) if $?;
+	require_mods('Email::MIME', 1); # for legacy revision
 	# using plackup to test old PublicInbox::WWW since -httpd from
 	# back then relied on some packages we no longer depend on
 	my $plackup = which('plackup') or skip('no plackup in path', 1);
 	require PublicInbox::Lock;
-	chomp $v110;
+	chomp $oldrev;
 	my ($base) = ($0 =~ m!\b([^/]+)\.[^\.]+\z!);
-	my $wt = "t/data-gen/$base.pre-manifest";
+	my $wt = "t/data-gen/$base.pre-manifest-$oldrev";
 	my $lk = bless { lock_path => __FILE__ }, 'PublicInbox::Lock';
 	$lk->lock_acquire;
 	my $psgi = "$wt/app.psgi";
 	if (!-f $psgi) { # checkout a pre-manifest.js.gz version
 		my $t = File::Temp->new(TEMPLATE => 'g-XXXX', TMPDIR => 1);
 		my $env = { GIT_INDEX_FILE => $t->filename };
-		xsys([qw(git read-tree), $v110], $env) and xbail 'read-tree';
+		xsys([qw(git read-tree), $oldrev], $env) and xbail 'read-tree';
 		xsys([qw(git checkout-index -a), "--prefix=$wt/"], $env)
 			and xbail 'checkout-index';
 		my $f = "$wt/app.psgi.tmp.$$";
@@ -353,7 +356,8 @@ EOM
 	$td->join('TERM');
 	open $rdr->{2}, '>>', "$tmpdir/plackup.err.log" or xbail "open: $!";
 	open $rdr->{1}, '>>&', $rdr->{2} or xbail "open: $!";
-	$td = start_script($cmd, { PERL5LIB => 'lib' }, $rdr);
+	my $env = { PERL5LIB => 'lib', PERL_INLINE_DIRECTORY => undef };
+	$td = start_script($cmd, $env, $rdr);
 	# wait for plackup socket()+bind()+listen()
 	my %opt = ( Proto => 'tcp', Type => Socket::SOCK_STREAM(),
 		PeerAddr => "$host:$port" );
@@ -363,7 +367,7 @@ EOM
 	}
 	my $dst = "$tmpdir/scrape";
 	@cmd = (qw(-clone -q), "http://$host:$port/v2", $dst);
-	run_script(\@cmd, undef, { 2 => \(my $err = '') });
+	run_script(\@cmd, undef, { 2 => \($err = '') });
 	is($?, 0, 'scraping clone on old PublicInbox::WWW')
 		or diag $err;
 	my @g_all = glob("$dst/git/*.git");
