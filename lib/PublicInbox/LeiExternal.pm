@@ -50,7 +50,7 @@ my %re_map = ( '*' => '[^/]*?', '?' => '[^/]',
 		'[' => '[', ']' => ']', ',' => ',' );
 
 sub glob2re {
-	my $re = $_[-1];
+	my $re = $_[-1]; # $_[0] may be $lei
 	my $p = '';
 	my $in_bracket = 0;
 	my $qm = 0;
@@ -106,30 +106,6 @@ sub get_externals {
 		$self->fail("`$loc' is ambiguous:\n", map { "\t$_\n" } @m);
 	}
 	();
-}
-
-# TODO: does this need JSON output?
-sub lei_ls_external {
-	my ($self, $filter) = @_;
-	my $opt = $self->{opt};
-	my $do_glob = !$opt->{globoff}; # glob by default
-	my ($OFS, $ORS) = $opt->{z} ? ("\0", "\0\0") : (" ", "\n");
-	$filter //= '*';
-	my $re = $do_glob ? glob2re($filter) : undef;
-	$re //= index($filter, '/') < 0 ?
-			qr!/\Q$filter\E/?\z! : # exact basename match
-			qr/\Q$filter\E/; # grep -F semantics
-	my @ext = externals_each($self, my $boost = {});
-	@ext = $opt->{'invert-match'} ? grep(!/$re/, @ext)
-					: grep(/$re/, @ext);
-	if ($opt->{'local'} && !$opt->{remote}) {
-		@ext = grep(!m!\A[a-z\+]+://!, @ext);
-	} elsif ($opt->{remote} && !$opt->{'local'}) {
-		@ext = grep(m!\A[a-z\+]+://!, @ext);
-	}
-	for my $loc (@ext) {
-		$self->out($loc, $OFS, 'boost=', $boost->{$loc}, $ORS);
-	}
 }
 
 # returns an anonymous sub which returns an array of potential results

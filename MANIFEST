@@ -230,6 +230,7 @@ lib/PublicInbox/LeiInit.pm
 lib/PublicInbox/LeiInput.pm
 lib/PublicInbox/LeiInspect.pm
 lib/PublicInbox/LeiLcat.pm
+lib/PublicInbox/LeiLsExternal.pm
 lib/PublicInbox/LeiLsLabel.pm
 lib/PublicInbox/LeiLsMailSource.pm
 lib/PublicInbox/LeiLsMailSync.pm
