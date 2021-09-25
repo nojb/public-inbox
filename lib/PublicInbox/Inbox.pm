@@ -167,12 +167,12 @@ sub mm {
 
 sub search {
 	my ($self) = @_;
-	my $srch = $self->{search} //= eval {
+	$self->{search} // eval {
 		_cleanup_later($self);
 		require PublicInbox::Search;
-		PublicInbox::Search->new($self);
+		my $srch = PublicInbox::Search->new($self);
+		(eval { $srch->xdb }) ? ($self->{search} = $srch) : undef;
 	};
-	(eval { $srch->xdb }) ? $srch : undef;
 }
 
 # isrch is preferred for read-only interfaces if available since it
@@ -181,15 +181,14 @@ sub isrch { $_[0]->{isrch} // search($_[0]) }
 
 sub over {
 	my ($self, $req) = @_;
-	$self->{over} //= eval {
-		my $srch = $self->{search} //= do {
-			_cleanup_later($self);
+	$self->{over} // eval {
+		my $srch = $self->{search} // do {
 			require PublicInbox::Search;
 			PublicInbox::Search->new($self);
 		};
 		my $over = PublicInbox::Over->new("$srch->{xpfx}/over.sqlite3");
 		$over->dbh; # may fail
-		$over;
+		$self->{over} = $over;
 	} // ($req ? croak("E: $@") : undef);
 }
 
@@ -293,7 +292,7 @@ sub imap_url { $_[0]->{-imap_url} //= _x_url($_[0], 'imap', $_[1]) }
 sub nntp_usable {
 	my ($self) = @_;
 	my $ret = mm($self) && over($self);
-	$self->{mm} = $self->{over} = $self->{search} = undef;
+	delete @$self{qw(mm over search)};
 	$ret;
 }
 

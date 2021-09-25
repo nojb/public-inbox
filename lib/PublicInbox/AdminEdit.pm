@@ -27,8 +27,9 @@ sub check_editable ($) {
 		# Make sure it's purged in that case:
 		$ibx->over or die "no over.sqlite3 in $ibx->{inboxdir}\n";
 
-		# $ibx->{search} is populated by $ibx->over call
-		my $xdir_ro = $ibx->{search}->xdir(1);
+		require PublicInbox::Search;
+		my $xdir_ro = PublicInbox::Search->new($ibx)->xdir(1);
+
 		my $nshard = 0;
 		foreach my $shard (<$xdir_ro/*>) {
 			if (-d $shard && $shard =~ m!/[0-9]+\z!) {

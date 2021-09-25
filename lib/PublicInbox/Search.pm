@@ -234,12 +234,12 @@ sub mset_to_artnums {
 
 sub xdb ($) {
 	my ($self) = @_;
-	$self->{xdb} //= do {
+	$self->{xdb} // do {
 		my @xdb = $self->xdb_shards_flat or return;
 		$self->{nshard} = scalar(@xdb);
 		my $xdb = shift @xdb;
 		$xdb->add_database($_) for @xdb;
-		$xdb;
+		$self->{xdb} = $xdb;
 	};
 }
 
@@ -261,10 +261,10 @@ sub new {
 	my ($class, $ibx) = @_;
 	ref $ibx or die "BUG: expected PublicInbox::Inbox object: $ibx";
 	my $xap = $ibx->version > 1 ? 'xap' : 'public-inbox/xapian';
-	bless {
-		xpfx => "$ibx->{inboxdir}/$xap" . SCHEMA_VERSION,
-		altid => $ibx->{altid},
-	}, $class;
+	my $xpfx = "$ibx->{inboxdir}/$xap".SCHEMA_VERSION;
+	my $self = bless { xpfx => $xpfx }, $class;
+	$self->{altid} = $ibx->{altid} if defined($ibx->{altid});
+	$self;
 }
 
 sub reopen {
