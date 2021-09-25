@@ -789,12 +789,15 @@ sub wq_atexit_child {
 # runs on a 1s timer in lei-daemon
 sub augment_inprogress {
 	my ($err, $opt, $dst, $au_noted) = @_;
-	$$au_noted++ and return;
-	print $err '# '.($opt->{'import-before'} ?
-			"importing non-external contents of $dst" : (
-			($opt->{dedupe} // 'content') ne 'none') ?
-			"scanning old contents of $dst for dedupe" :
-			"removing old contents of $dst")." ...\n";
+	eval {
+		return if $$au_noted++ || !$err || !defined(fileno($err));
+		print $err '# '.($opt->{'import-before'} ?
+				"importing non-external contents of $dst" : (
+				($opt->{dedupe} // 'content') ne 'none') ?
+				"scanning old contents of $dst for dedupe" :
+				"removing old contents of $dst")." ...\n";
+	};
+	warn "E: $@" if $@;
 }
 
 # called in top-level lei-daemon when LeiAuth is done
