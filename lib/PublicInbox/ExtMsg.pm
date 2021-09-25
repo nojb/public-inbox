@@ -32,7 +32,7 @@ sub PARTIAL_MAX () { 100 }
 sub search_partial ($$) {
 	my ($ibx, $mid) = @_;
 	return if length($mid) < $MIN_PARTIAL_LEN;
-	my $srch = $ibx->search or return; # NOT ->isrch, we already try ->ALL
+	my $srch = $ibx->isrch or return;
 	my $opt = { limit => PARTIAL_MAX, relevance => -1 };
 	my @try = ("m:$mid*");
 	my $chop = $mid;
