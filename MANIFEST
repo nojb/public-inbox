@@ -207,6 +207,7 @@ lib/PublicInbox/KQNotify.pm
 lib/PublicInbox/LEI.pm
 lib/PublicInbox/LI2Wrap.pm
 lib/PublicInbox/LeiALE.pm
+lib/PublicInbox/LeiAddExternal.pm
 lib/PublicInbox/LeiAddWatch.pm
 lib/PublicInbox/LeiAuth.pm
 lib/PublicInbox/LeiBlob.pm

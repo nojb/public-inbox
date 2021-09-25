@@ -132,59 +132,6 @@ sub lei_ls_external {
 	}
 }
 
-sub add_external_finish {
-	my ($self, $location) = @_;
-	my $cfg = $self->_lei_cfg(1);
-	my $new_boost = $self->{opt}->{boost} // 0;
-	my $key = "external.$location.boost";
-	my $cur_boost = $cfg->{$key};
-	return if defined($cur_boost) && $cur_boost == $new_boost; # idempotent
-	$self->_config($key, $new_boost);
-}
-
-sub lei_add_external {
-	my ($self, $location) = @_;
-	my $opt = $self->{opt};
-	my $mirror = $opt->{mirror} // do {
-		my @fail;
-		for my $sw ($self->index_opt, $self->curl_opt,
-				qw(no-torsocks torsocks inbox-version)) {
-			my ($f) = (split(/|/, $sw, 2))[0];
-			next unless defined $opt->{$f};
-			$f = length($f) == 1 ? "-$f" : "--$f";
-			push @fail, $f;
-		}
-		if (scalar(@fail) == 1) {
-			return $self->("@fail requires --mirror");
-		} elsif (@fail) {
-			my $last = pop @fail;
-			my $fail = join(', ', @fail);
-			return $self->("@fail and $last require --mirror");
-		}
-		undef;
-	};
-	my $new_boost = $opt->{boost} // 0;
-	$location = ext_canonicalize($location);
-	if (defined($mirror) && -d $location) {
-		$self->fail(<<""); # TODO: did you mean "update-external?"
---mirror destination `$location' already exists
-
-	} elsif (-d $location) {
-		index($location, "\n") >= 0 and
-			return $self->fail("`\\n' not allowed in `$location'");
-	}
-	if ($location !~ m!\Ahttps?://! && !-d $location) {
-		$mirror // return $self->fail("$location not a directory");
-		index($location, "\n") >= 0 and
-			return $self->fail("`\\n' not allowed in `$location'");
-		$mirror = ext_canonicalize($mirror);
-		require PublicInbox::LeiMirror;
-		PublicInbox::LeiMirror->start($self, $mirror => $location);
-	} else {
-		add_external_finish($self, $location);
-	}
-}
-
 # returns an anonymous sub which returns an array of potential results
 sub complete_url_prepare {
 	my $argv = $_[-1]; # $_[0] may be $lei
@@ -221,19 +168,6 @@ sub complete_url_prepare {
 		$_[0] =~ /\A$re(\Q$cur\E.*)/ ? ($cur eq $1 ? () : $1) : ()
 	};
 	wantarray ? ($re, $cur, $match_cb) : $match_cb;
-}
-
-sub _complete_add_external { # for bash, this relies on "compopt -o nospace"
-	my ($self, @argv) = @_;
-	my $cfg = $self->_lei_cfg;
-	my $match_cb = complete_url_prepare(\@argv);
-	require URI;
-	map {
-		my $u = URI->new(substr($_, length('external.')));
-		my ($base) = ($u->path =~ m!((?:/?.*)?/)[^/]+/?\z!);
-		$u->path($base);
-		$match_cb->($u->as_string);
-	} grep(m!\Aexternal\.https?://!, @{$cfg->{-section_order}});
 }
 
 1;
