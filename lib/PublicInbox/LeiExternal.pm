@@ -31,7 +31,7 @@ sub externals_each {
 }
 
 sub ext_canonicalize {
-	my ($location) = @_;
+	my $location = $_[-1]; # $_[0] may be $lei
 	if ($location !~ m!\Ahttps?://!) {
 		PublicInbox::Config::rel2abs_collapsed($location);
 	} else {
@@ -185,39 +185,9 @@ sub lei_add_external {
 	}
 }
 
-sub lei_forget_external {
-	my ($self, @locations) = @_;
-	my $cfg = $self->_lei_cfg(1);
-	my $quiet = $self->{opt}->{quiet};
-	my %seen;
-	for my $loc (@locations) {
-		my (@unset, @not_found);
-		for my $l ($loc, ext_canonicalize($loc)) {
-			next if $seen{$l}++;
-			my $key = "external.$l.boost";
-			delete($cfg->{$key});
-			$self->_config('--unset', $key);
-			if ($? == 0) {
-				push @unset, $l;
-			} elsif (($? >> 8) == 5) {
-				push @not_found, $l;
-			} else {
-				$self->err("# --unset $key error");
-				return $self->x_it($?);
-			}
-		}
-		if (@unset) {
-			next if $quiet;
-			$self->err("# $_ gone") for @unset;
-		} elsif (@not_found) {
-			$self->err("# $_ not found") for @not_found;
-		} # else { already exited
-	}
-}
-
 # returns an anonymous sub which returns an array of potential results
 sub complete_url_prepare {
-	my $argv = $_[-1];
+	my $argv = $_[-1]; # $_[0] may be $lei
 	# Workaround bash word-splitting URLs to ['https', ':', '//' ...]
 	# Maybe there's a better way to go about this in
 	# contrib/completion/lei-completion.bash
@@ -251,20 +221,6 @@ sub complete_url_prepare {
 		$_[0] =~ /\A$re(\Q$cur\E.*)/ ? ($cur eq $1 ? () : $1) : ()
 	};
 	wantarray ? ($re, $cur, $match_cb) : $match_cb;
-}
-
-# shell completion helper called by lei__complete
-sub _complete_forget_external {
-	my ($self, @argv) = @_;
-	my $cfg = $self->_lei_cfg;
-	my ($cur, $re, $match_cb) = complete_url_prepare(\@argv);
-	# FIXME: bash completion off "http:" or "https:" when the last
-	# character is a colon doesn't work properly even if we're
-	# returning "//$HTTP_HOST/$PATH_INFO/", not sure why, could
-	# be a bash issue.
-	map {
-		$match_cb->(substr($_, length('external.')));
-	} grep(/\Aexternal\.$re\Q$cur/, @{$cfg->{-section_order}});
 }
 
 sub _complete_add_external { # for bash, this relies on "compopt -o nospace"

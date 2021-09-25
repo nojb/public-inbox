@@ -218,6 +218,7 @@ lib/PublicInbox/LeiEditSearch.pm
 lib/PublicInbox/LeiExportKw.pm
 lib/PublicInbox/LeiExternal.pm
 lib/PublicInbox/LeiFinmsg.pm
+lib/PublicInbox/LeiForgetExternal.pm
 lib/PublicInbox/LeiForgetMailSync.pm
 lib/PublicInbox/LeiForgetSearch.pm
 lib/PublicInbox/LeiHelp.pm

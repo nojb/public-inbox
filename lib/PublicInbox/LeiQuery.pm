@@ -158,11 +158,11 @@ no query allowed on command-line with --stdin
 # shell completion helper called by lei__complete
 sub _complete_q {
 	my ($self, @argv) = @_;
-	my $ext = qr/\A(?:-I|(?:--(?:include|exclude|only)))\z/;
 	my @cur;
+	my $cb = $self->lazy_cb(qw(forget-external _complete_));
 	while (@argv) {
-		if ($argv[-1] =~ $ext) {
-			my @c = $self->_complete_forget_external(@cur);
+		if ($argv[-1] =~ /\A(?:-I|(?:--(?:include|exclude|only)))\z/) {
+			my @c = $cb->($self, @cur);
 			# try basename match:
 			if (scalar(@cur) == 1 && index($cur[0], '/') < 0) {
 				my $all = $self->externals_each;
