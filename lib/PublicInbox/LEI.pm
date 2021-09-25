@@ -1346,6 +1346,8 @@ sub lazy_start {
 	# $daemon pipe to `lei' closed, main loop begins:
 	eval { PublicInbox::DS->EventLoop };
 	warn "event loop error: $@\n" if $@;
+	# exit() may trigger waitpid via various DESTROY, ensure interruptible
+	PublicInbox::DS::sig_setmask($oldset);
 	dump_and_clear_log();
 	exit($exit_code // 0);
 }
