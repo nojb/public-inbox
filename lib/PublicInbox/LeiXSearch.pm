@@ -324,7 +324,7 @@ sub fudge_qstr_time ($$$) {
 	}
 	$lr -= ($rft || (48 * 60 * 60));
 	$lei->qerr("# $uri limiting to ".
-		strftime('%Y-%m-%d %k:%M', localtime($lr)). ' and newer');
+		strftime('%Y-%m-%d %k:%M %z', localtime($lr)). ' and newer');
 	# this should really be rt: (received-time), but no stable
 	# public-inbox releases support it, yet.
 	my $dt = 'dt:'.strftime('%Y%m%d%H%M%S', gmtime($lr)).'..';
