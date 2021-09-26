@@ -9,6 +9,7 @@ use parent qw(PublicInbox::ExtSearch); # PublicInbox::Search->reopen
 use PublicInbox::Search qw(xap_terms);
 use PublicInbox::ContentHash qw(content_digest content_hash);
 use PublicInbox::MID qw(mids mids_for_index);
+use Carp qw(croak);
 
 # get combined docid from over.num:
 # (not generic Xapian, only works with our sharding scheme)
@@ -131,14 +132,19 @@ sub xoids_for {
 # returns true if $eml is indexed by lei/store and keywords don't match
 sub kw_changed {
 	my ($self, $eml, $new_kw_sorted, $docids) = @_;
+	my $cur_kw;
 	if ($eml) {
 		my $xoids = xoids_for($self, $eml) // return;
 		$docids //= [];
 		@$docids = sort { $a <=> $b } values %$xoids;
 	}
-	my $cur_kw = eval { msg_keywords($self, $docids->[0]) };
-	die "E: #$docids->[0] keyword lookup failure: $@\n" if $@;
-
+	for my $id (@$docids) {
+		$cur_kw = eval { msg_keywords($self, $id) } and last;
+	}
+	if (!defined($cur_kw) && $@) {
+		$docids = join(', num:', @$docids);
+		croak "E: num:$docids keyword lookup failure: $@";
+	}
 	# RFC 5550 sec 5.9 on the $Forwarded keyword states:
 	# "Once set, the flag SHOULD NOT be cleared"
 	if (exists($cur_kw->{forwarded}) &&

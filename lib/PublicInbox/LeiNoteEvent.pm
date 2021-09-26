@@ -42,7 +42,9 @@ sub eml_event ($$$$) {
 		$sto->wq_do('index_eml_only', $eml, $vmd, $xoids);
 	} elsif ($state =~ /\Atag-(?:rw|ro)\z/) {
 		my $docids = [];
-		my $c = $self->{lse}->kw_changed($eml, $vmd->{kw}, $docids);
+		my $c = eval {
+			$self->{lse}->kw_changed($eml, $vmd->{kw}, $docids);
+		} // 1; # too new, assume changed since still to-be-committed.
 		if (scalar @$docids) { # already in lei/store
 			$sto->wq_do('set_eml_vmd', undef, $vmd, $docids) if $c;
 		} elsif (my $xoids = $self->{lei}->ale->xoids_for($eml)) {
