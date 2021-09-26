@@ -328,7 +328,7 @@ sub imap_common_init ($;$) {
 		my $sec = uri_section($uri);
 
 		# knobs directly for Mail::IMAPClient->new
-		for my $k (qw(Starttls Debug Compress Ignoresizeerrors)) {
+		for my $k (qw(Starttls Debug Compress)) {
 			my $bool = cfg_bool($cfg, "imap.$k", $$uri) // next;
 			$mic_common->{$sec}->{$k} = $bool;
 		}

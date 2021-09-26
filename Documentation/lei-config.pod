@@ -84,12 +84,6 @@ Small responses for IMAP flags are fetched at 10000 times this value.
 
 Default: 1
 
-=item imap.ignoreSizeErrors
-
-Ignore size mismatches from broken IMAP server implementations.
-
-Default: false
-
 =item color.SLOT
 
 C<quoted>, C<hdrdefault>, C<status>, C<attachment> color slots
