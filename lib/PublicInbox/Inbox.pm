@@ -216,11 +216,11 @@ sub description {
 
 sub cloneurl {
 	my ($self) = @_;
-	($self->{cloneurl} //= do {
+	$self->{cloneurl} // do {
 		my $s = try_cat("$self->{inboxdir}/cloneurl");
 		my @urls = split(/\s+/s, $s);
-		scalar(@urls) ? \@urls : undef
-	}) // [];
+		scalar(@urls) ? ($self->{cloneurl} = \@urls) : undef;
+	} // [];
 }
 
 sub base_url {
