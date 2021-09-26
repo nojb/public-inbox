@@ -11,6 +11,7 @@ use PublicInbox::GzipFilter qw(gzf_maybe);
 use PublicInbox::ConfigIter;
 use PublicInbox::WwwStream;
 use URI::Escape qw(uri_escape_utf8);
+use PublicInbox::MID qw(mid_escape);
 
 sub ibx_entry {
 	my ($ctx, $ibx, $ce) = @_;
@@ -135,6 +136,13 @@ sub response {
 	my ($re, $qs) = $ctx->url_filter;
 	$re // return $ctx->psgi_triple;
 	if (my $ALL = $ctx->{www}->{pi_cfg}->ALL) { # fast path
+		if ($ctx->{qp}->{a} && # "search all inboxes"
+				$ctx->{qp}->{'q'}) {
+			my $u = 'all/?q='.mid_escape($ctx->{qp}->{'q'});
+			return [ 302, [ 'Location' => $u,
+				qw(Content-Type text/plain) ],
+				[ "Redirecting to $u\n" ] ];
+		}
 		# FIXME: test this in t/
 		$ALL->misc->reopen->retry_reopen(\&add_misc_ibx,
 						$ctx, $re, $qs);
@@ -166,11 +174,10 @@ sub mset_nav_top {
 	$qh = qq[\nvalue="$qh"] if $qh ne '';
 	my $rv = <<EOM;
 <form
-action="./"><pre><input
-name=q
-type=text$qh /><input
-type=submit
-value="locate inbox" /></pre></form><pre>
+action="./"><pre><input name=q type=text$qh
+/><input type=submit value="locate inbox"
+/><input type=submit name=a value="search all inboxes"
+/></pre></form><pre>
 EOM
 	chomp $rv;
 	if (defined($q->{'q'})) {
