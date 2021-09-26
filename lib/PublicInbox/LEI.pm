@@ -578,6 +578,7 @@ sub _lei_atfork_child {
 	close $listener if $listener;
 	undef $listener;
 	$dir_idle->force_close if $dir_idle;
+	undef $dir_idle;
 	%PATH2CFG = ();
 	$MDIR2CFGPATH = {};
 	eval 'no warnings; undef $PublicInbox::LeiNoteEvent::to_flush';
@@ -1413,6 +1414,7 @@ sub add_maildir_watch ($$) {
 
 sub refresh_watches {
 	my ($lei) = @_;
+	$dir_idle or return;
 	my $cfg = _lei_cfg($lei) or return;
 	my $old = $cfg->{-watches};
 	my $watches = $cfg->{-watches} //= {};
