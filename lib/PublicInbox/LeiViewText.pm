@@ -96,10 +96,11 @@ sub quote_hdr_buf ($$) {
 	for my $f (qw(To Cc)) {
 		for my $v ($eml->header_raw($f)) {
 			next if $v !~ /\S/;
-			$cc .= $v;
+			$cc .= ", $v";
 			$to //= $v;
 		}
 	}
+	substr($cc, 0, 2, ''); # s/^, //;
 	PublicInbox::View::fold_addresses($to);
 	PublicInbox::View::fold_addresses($cc);
 	_xs($to);
