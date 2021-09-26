@@ -183,7 +183,10 @@ my $start_worker = sub {
 			$tb->reset;
 		}
 		kill 'USR1', $producer if !$eof; # sets $eof in $producer
-		DIE join('', map { "E: $_\n" } @err) if @err;
+		if (@err) { # write to run_log for $sigchld handler
+			syswrite($run_log, "$$ @err\n");
+			DIE join('', map { "E: $_\n" } @err);
+		}
 		exit(0);
 	} else {
 		$pids{$pid} = $j;
