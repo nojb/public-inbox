@@ -6,7 +6,7 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::IPC);
 use URI ();
-use PublicInbox::Spawn qw(popen_rd run_die);
+use PublicInbox::Spawn qw(popen_rd run_die spawn);
 use PublicInbox::Admin;
 use PublicInbox::LEI;
 use PublicInbox::LeiCurl;
@@ -95,6 +95,13 @@ sub get_fingerprint2 {
 	Digest::SHA::sha256(do { local $/; <$rd> });
 }
 
+sub writable_dir ($) {
+	my ($dir) = @_;
+	return unless -d $dir && -w _;
+	my @st = stat($dir);
+	$st[2] & 0222; # any writable bits set? (in case of root)
+}
+
 sub do_fetch { # main entry point
 	my ($cls, $lei, $cd) = @_;
 	my $ibx_ver;
@@ -112,7 +119,7 @@ sub do_fetch { # main entry point
 		my ($git_url, $epoch);
 		for my $nr (@epochs) { # try newest epoch, first
 			my $edir = "$dir/git/$nr.git";
-			unless (-d $edir && -w _) { # must be writable dir
+			if (!writable_dir($edir)) {
 				$skip->{$nr} = 1;
 				next;
 			}
@@ -122,6 +129,10 @@ sub do_fetch { # main entry point
 				$epoch = $nr;
 			} else {
 				warn "W: $edir missing remote.origin.url\n";
+				my $pid = spawn([qw(git config -l)], undef,
+					{ 1 => $lei->{2}, 2 => $lei->{2} });
+				waitpid($pid, 0);
+				$lei->child_error($?) if $?;
 			}
 		}
 		@epochs = grep { !$skip->{$_} } @epochs if $skip;

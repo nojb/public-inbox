@@ -5,6 +5,7 @@ use v5.10.1;
 use PublicInbox::TestCommon;
 use File::Path qw(remove_tree make_path);
 use Cwd qw(abs_path);
+use Carp ();
 use PublicInbox::Spawn qw(which);
 require_git(2.6);
 require_cmd('curl');
@@ -102,7 +103,9 @@ my @new_epochs;
 my $fetch_each_epoch = sub {
 	my %before = map { $_ => 1 } glob("$tmpdir/m/git/*");
 	run_script([qw(-fetch --exit-code -q)], undef, {-C => "$tmpdir/m"}) or
-		xbail '-fetch fail';
+		xbail('-fetch fail ',
+			[ xqx([which('find'), "$tmpdir/m", qw(-type f -ls) ]) ],
+			Carp::longmess());
 	is($?, 0, '--exit-code 0 after fetch updated');
 	my @after = grep { !$before{$_} } glob("$tmpdir/m/git/*");
 	push @new_epochs, @after;
@@ -273,6 +276,10 @@ if ('test read-only epoch dirs') {
 	my @g = glob("$dst/git/*.git");
 	my @w = grep { -w $_ } @g;
 	my @r = grep { ! -w $_ } @g;
+	if ($> == 0) {
+		@w = grep { (stat($_))[2] & 0200 } @g;
+		@r = grep { !((stat($_))[2] & 0200) } @g;
+	}
 	is(scalar(@w), 1, 'one writable directory');
 	my ($w) = ($w[0] =~ m!/([0-9]+)\.git\z!);
 	is((grep {
@@ -287,7 +294,7 @@ if ('test read-only epoch dirs') {
 			"http://$host:$port/v2/", $dst]);
 	my @g2 = glob("$dst/git/*.git") ;
 	is_deeply(\@g2, \@g, 'cloned again');
-	is(scalar(grep { -w $_ } @g2), scalar(@w) + 1,
+	is(scalar(grep { (stat($_))[2] & 0200 } @g2), scalar(@w) + 1,
 		'got one more cloned epoch');
 
 	# make 0.git writable and fetch into it, relies on culled manifest
@@ -377,7 +384,7 @@ EOM
 	@cmd = (qw(-clone -q --epoch=~0), "http://$host:$port/v2", $dst);
 	run_script(\@cmd, undef, { 2 => \($err = '') });
 	is($?, 0, 'partial scraping clone on old PublicInbox::WWW');
-	my @g_last = grep { -w $_ } glob("$dst/git/*.git");
+	my @g_last = grep { (stat($_))[2] & 0200 } glob("$dst/git/*.git");
 	is_deeply(\@g_last, [ $g_all[-1] ], 'partial clone of ~0 worked');
 
 	chmod(0755, $g_all[0]) or xbail "chmod $!";
