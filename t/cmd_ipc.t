@@ -85,7 +85,9 @@ my $do_test = sub { SKIP: {
 			$nsent += $n;
 			fail "sent 0 bytes" if $n == 0;
 		}
-		ok($!{EAGAIN}, "hit EAGAIN on send $desc");
+		ok($!{EAGAIN} || $!{ETOOMANYREFS},
+			"hit EAGAIN || ETOOMANYREFS on send $desc") or
+			diag "send failed with: $!";
 		ok($nsent > 0, 'sent some bytes');
 
 		socketpair($s1, $s2, AF_UNIX, $type, 0) or BAIL_OUT $!;
@@ -105,8 +107,9 @@ my $do_test = sub { SKIP: {
 				diag "sent $nr, retrying with more";
 				$nr += 2 * 1024 * 1024;
 			} else {
-				ok($!{EMSGSIZE}, 'got EMSGSIZE');
-				# diag "$nr bytes hits EMSGSIZE";
+				ok($!{EMSGSIZE} || $!{ENOBUFS},
+					'got EMSGSIZE or ENOBUFS') or
+					diag "$nr bytes fails with: $!";
 				last;
 			}
 		}
