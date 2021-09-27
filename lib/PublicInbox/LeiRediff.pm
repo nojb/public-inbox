@@ -134,6 +134,27 @@ EOM
 	$pid = spawn(\@cmd, $lei->{env}, { 2 => $lei->{2}, 1 => $lei->{1} });
 	waitpid($pid, 0);
 	$lei->child_error($?) if $?; # for git diff --exit-code
+	undef;
+}
+
+sub wait_requote ($$$) { # OnDestroy callback
+	my ($lei, $pid, $old_1) = @_;
+	$lei->{1} = $old_1; # closes stdin of `perl -pE 's/^/> /'`
+	waitpid($pid, 0) == $pid or die "BUG(?) waitpid: \$!=$! \$?=$?";
+	$lei->child_error($?) if $?;
+}
+
+sub requote ($$) {
+	my ($lei, $pfx) = @_;
+	pipe(my($r, $w)) or die "pipe: $!";
+	my $rdr = { 0 => $r, 1 => $lei->{1}, 2 => $lei->{2} };
+	# $^X (perl) is overkill, but maybe there's a weird system w/o sed
+	my $pid = spawn([$^X, '-pE', "s/^/$pfx/"], $lei->{env}, $rdr);
+	my $old_1 = $lei->{1};
+	$w->autoflush(1);
+	binmode $w, ':utf8';
+	$lei->{1} = $w;
+	PublicInbox::OnDestroy->new(\&wait_requote, $lei, $pid, $old_1);
 }
 
 sub extract_oids { # Eml each_part callback
@@ -142,6 +163,10 @@ sub extract_oids { # Eml each_part callback
 	$self->{lei}->out($p->header_obj->as_string, "\n");
 	my ($s, undef) = msg_part_text($p, $p->content_type || 'text/plain');
 	defined $s or return;
+	my $rq;
+	if ($self->{dqre} && $s =~ s/$self->{dqre}//g) { # '> ' prefix(es)
+		$rq = requote($self->{lei}, $1) if $self->{lei}->{opt}->{drq};
+	}
 	my @top = split($PublicInbox::ViewDiff::EXTRACT_DIFFS, $s);
 	undef $s;
 	my $blobs = $self->{blobs}; # blobs to resolve
@@ -191,6 +216,19 @@ sub extract_oids { # Eml each_part callback
 	$ctxq = diff_ctxq($self, $ctxq);
 }
 
+# ensure dequoted parts are available for rebuilding patches:
+sub dequote_add { # Eml each_part callback
+	my ($ary, $self) = @_;
+	my ($p, undef, $idx) = @$ary;
+	my ($s, undef) = msg_part_text($p, $p->content_type || 'text/plain');
+	defined $s or return;
+	if ($s =~ s/$self->{dqre}//g) { # remove '> ' prefix(es)
+		substr($s, 0, 0, "part-dequoted: $idx\n\n");
+		utf8::encode($s);
+		$self->{tmp_sto}->add_eml(PublicInbox::Eml->new(\$s));
+	}
+}
+
 sub input_eml_cb { # callback for all emails
 	my ($self, $eml) = @_;
 	{
@@ -200,6 +238,7 @@ sub input_eml_cb { # callback for all emails
 			warn @_;
 		};
 		$self->{tmp_sto}->add_eml($eml);
+		$eml->each_part(\&dequote_add, $self) if $self->{dqre};
 		$self->{tmp_sto}->done;
 	}
 	$eml->each_part(\&extract_oids, $self, 1);
@@ -207,6 +246,10 @@ sub input_eml_cb { # callback for all emails
 
 sub lei_rediff {
 	my ($lei, @inputs) = @_;
+	($lei->{opt}->{drq} && $lei->{opt}->{'dequote-only'}) and return
+		$lei->fail('--drq and --dequote-only are mutually exclusive');
+	($lei->{opt}->{drq} && !$lei->{opt}->{verbose}) and
+		$lei->{opt}->{quiet} //= 1;
 	$lei->_lei_store(1)->write_prepare($lei);
 	$lei->{opt}->{'in-format'} //= 'eml';
 	# maybe it's a non-email (code) blob from a coderepo
@@ -257,6 +300,10 @@ sub ipc_atfork_child {
 		} @{$self->{lei}->{opt}->{'git-dir'}} ];
 	$lei->{env}->{'psgi.errors'} = $lei->{2}; # ugh...
 	$lei->{env}->{TMPDIR} = $self->{rdtmp}->dirname;
+	if (my $nr = ($lei->{opt}->{drq} || $lei->{opt}->{'dequote-only'})) {
+		my $re = '\s*> ' x $nr;
+		$self->{dqre} = qr/^($re)/ms;
+	}
 	undef;
 }
 

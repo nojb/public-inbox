@@ -80,12 +80,48 @@ test_lei({tmpdir => "$tmpdir/rediff"}, sub {
 	lei_ok(qw(rediff -q -U9 t/solve/0001-simple-mod.patch));
 	like($lei_out, qr!^\Q+++\E b/TODO\n@@ -103,9 \+103,11 @@!sm,
 		'got more context with -U9');
-	lei_ok(qw(rediff -q -U9 t/solve/bare.patch));
+
+	my (undef, $re) = split(/\n\n/, $lei_out, 2);
+	$re =~ s/^/> /sgm;
+	substr($re, 0, 0, <<EOM);
+From: me\@example.com
+Subject: Re: awesome advice
+
+WEB DESIGN EXPERT wrote:
+EOM
+	lei_ok([qw(rediff --abbrev=40 -U16 --drq)], undef,
+		{ 0 => \$re, %$lei_opt });
 	my $exp = <<'EOM';
+From: me@example.com
+Subject: Re: awesome advice
+
+EOM
+	like($lei_out, qr/\Q$exp\E/, '--drq preserved header');
+
+	# n.b. --drq can requote the attribution line ("So-and-so wrote:"),
+	# but it's probably not worth preventing...
+
+	$exp = <<'EOM';
+> ---
+>  TODO | 2 ++
+>  Ω    | 5 --
+>  1 file changed, 2 insertions(+)
+>
+> diff --git a/TODO b/TODO
+> index 605013e4904baabecd4a0a55997aebd8e8477a8f..69df7d565d49fbaaeb0a067910f03dc22cd52bd0 100644
+> --- a/TODO
+> +++ b/TODO
+> @@ -96,16 +96,18 @@ all need to be considered for everything we introduce)
+EOM
+	$exp =~ s/^>$/> /sgm; # re-add trailing white space
+	like($lei_out, qr/\Q$exp\E/, '--drq diffstat + context');
+
+	lei_ok(qw(rediff -q --abbrev=40 -U9 t/solve/bare.patch));
+	$exp = <<'EOM';
 diff --git a/script/public-inbox-extindex b/script/public-inbox-extindex
 old mode 100644
 new mode 100755
-index 15ac20eb..771486c4
+index 15ac20eb871bf47697377e58a27db23102a38fca..771486c425b315bae70fd8a82d62ab0331e0a827
 --- a/script/public-inbox-extindex
 +++ b/script/public-inbox-extindex
 @@ -1,13 +1,12 @@

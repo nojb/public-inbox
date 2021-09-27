@@ -201,7 +201,7 @@ our %CMD = ( # sorted in order of importance/use:
 'rediff' => [ '--stdin|LOCATION...',
 		'regenerate a diff with different options',
 	'stdin|', # /|\z/ must be first for lone dash
-	qw(git-dir=s@ cwd! verbose|v+ color:s no-color),
+	qw(git-dir=s@ cwd! verbose|v+ color:s no-color drq:1 dequote-only:1),
 	@diff_opt, @lxs_opt, @net_opt, @c_opt ],
 
 'add-external' => [ 'LOCATION',

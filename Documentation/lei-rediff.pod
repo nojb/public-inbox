@@ -38,6 +38,33 @@ to C<lei rediff> before piping it to L<git-am(1)>.  The output
 of C<lei rediff> is compatible with C<git am> if its input was a
 patch email.
 
+=item --drq[=COUNT]
+
+De-Re-Quote.  De-quote the input and re-quotes (the output).
+Removes COUNT levels of C<E<gt> > email reply prefixes and
+re-adds them upon regenerating the diff.
+
+This switch is intended as a convenience for running inside a
+pipe-capable text editor when writing replies to a patch email.
+Note: this may over-add C<E<gt> > prefixes if some input lines
+are missing C<E<gt> > prefixes.
+
+COUNT is 1 if unspecified; in other words, C<--drq=1> and
+C<--drq> are equivalent.
+
+It implies L</--quiet> unless L</--verbose> is specified
+since text editors tend to combine stderr with stdout.
+
+=item --dequote-only[=COUNT]
+
+Like L</--drq>, but does not re-add quote prefixes to the output.
+
+This can be useful for feeding a hunk to L<git-apply(1)>
+or L<patch(1)> while writing a reply or further processing
+by another diff viewer.
+
+Unlike L</--drq>, it does NOT implies L</--quiet>.
+
 =item --git-dir=DIR
 
 Specify an additional .git/ directory to scan.  This option may be
