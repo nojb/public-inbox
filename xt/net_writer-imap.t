@@ -122,6 +122,12 @@ test_lei(sub {
 	}
 	$set_cred_helper->("$ENV{HOME}/.gitconfig", $cred_set) if $cred_set;
 
+	# don't combine these two:
+	$ENV{TEST_IMAP_COMPRESS} and lei_ok qw(config imap.compress true);
+	$ENV{TEST_IMAP_DEBUG} and lei_ok qw(config imap.debug true);
+	my $proxy = $ENV{TEST_IMAP_PROXY};
+	lei_ok(qw(config imap.proxy), $proxy) if $proxy;
+
 	lei_ok qw(q f:qp@example.com -o), $folder_url;
 	$nwr->imap_each($folder_uri, $imap_slurp_all, my $res = []);
 	is(scalar(@$res), 1, 'got one deduped result') or diag explain($res);
