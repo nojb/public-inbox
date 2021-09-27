@@ -1425,7 +1425,7 @@ sub refresh_watches {
 		require PublicInbox::LeiWatch;
 		$watches->{$url} //= PublicInbox::LeiWatch->new($url);
 		$seen{$url} = undef;
-		my $state = $cfg->get_1("watch.$url", 'state');
+		my $state = $cfg->get_1("watch.$url.state");
 		if (!watch_state_ok($state)) {
 			$lei->err("watch.$url.state=$state not supported");
 			next;

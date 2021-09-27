@@ -385,10 +385,10 @@ sub rel2abs_collapsed {
 }
 
 sub get_1 {
-	my ($self, $pfx, $k) = @_;
-	my $v = $self->{"$pfx.$k"} // return;
+	my ($self, $key) = @_;
+	my $v = $self->{$key};
 	return $v if !ref($v);
-	warn "W: $pfx.$k has multiple values, only using `$v->[-1]'\n";
+	warn "W: $key has multiple values, only using `$v->[-1]'\n";
 	$v->[-1];
 }
 
@@ -430,7 +430,7 @@ sub _fill_ibx {
 	}
 	for my $k (qw(filter inboxdir newsgroup replyto httpbackendmax feedmax
 			indexlevel indexsequentialshard boost)) {
-		my $v = get_1($self, $pfx, $k) // next;
+		my $v = get_1($self, "$pfx.$k") // next;
 		$ibx->{$k} = $v;
 	}
 
@@ -523,7 +523,7 @@ sub _fill_ei ($$) {
 	}
 	my $es = PublicInbox::ExtSearch->new($d);
 	for my $k (qw(indexlevel indexsequentialshard)) {
-		my $v = get_1($self, $pfx, $k) // next;
+		my $v = get_1($self, "$pfx.$k") // next;
 		$es->{$k} = $v;
 	}
 	for my $k (qw(coderepo hide url infourl)) {

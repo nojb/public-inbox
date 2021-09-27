@@ -32,7 +32,7 @@ sub up1 ($$) {
 		$lei->{opt}->{$k} //= $v;
 	}
 	for my $k ($lss->BOOL_FIELDS, $lss->SINGLE_FIELDS) {
-		my $v = $lss->{-cfg}->get_1('lei.q', $k) // next;
+		my $v = $lss->{-cfg}->get_1("lei.q.$k") // next;
 		$lei->{opt}->{$k} //= $v;
 	}
 	my $o = $lei->{opt}->{output} // '';
