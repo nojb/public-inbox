@@ -3,21 +3,30 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 use File::Spec;
-require_mods(qw(lei -nntpd));
+require_mods(qw(lei));
 my ($ro_home, $cfg_path) = setup_public_inboxes;
 my ($tmpdir, $for_destroy) = tmpdir;
 my $env = { PI_CONFIG => $cfg_path };
+my $srv = {};
 
-my $sock = tcp_server;
-my $cmd = [ '-nntpd', '-W0', "--stdout=$tmpdir/n1", "--stderr=$tmpdir/n2" ];
-my $nntpd = start_script($cmd, $env, { 3 => $sock }) or BAIL_OUT("-nntpd $?");
-my $nntp_host_port = tcp_host_port($sock);
+SKIP: {
+	require_mods(qw(-nntpd Net::NNTP), 1);
+	my $rdr = { 3 => tcp_server };
+	$srv->{nntpd} = start_script(
+		[qw(-nntpd -W0), "--stdout=$tmpdir/n1", "--stderr=$tmpdir/n2"],
+		$env, $rdr) or xbail "nntpd: $?";
+	$srv->{nntp_host_port} = tcp_host_port($rdr->{3});
+}
 
-$sock = tcp_server;
-$cmd = [ '-imapd', '-W0', "--stdout=$tmpdir/i1", "--stderr=$tmpdir/i2" ];
-my $imapd = start_script($cmd, $env, { 3 => $sock }) or BAIL_OUT("-imapd $?");
-my $imap_host_port = tcp_host_port($sock);
-undef $sock;
+SKIP: {
+	require_mods(qw(-imapd Mail::IMAPClient), 1);
+	my $rdr = { 3 => tcp_server };
+	$srv->{imapd} = start_script(
+		[qw(-imapd -W0), "--stdout=$tmpdir/i1", "--stderr=$tmpdir/i2"],
+		$env, $rdr) or xbail("-imapd $?");
+	$srv->{imap_host_port} = tcp_host_port($rdr->{3});
+}
+
 for ('', qw(cur new)) {
 	mkdir "$tmpdir/md/$_" or xbail "mkdir: $!";
 	mkdir "$tmpdir/md1/$_" or xbail "mkdir: $!";
@@ -77,8 +86,10 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	is_deeply(json_utf8->decode($lei_out)->[0]->{'kw'},
 		['seen'], 'keyword set');
 
-	lei_ok('index', "nntp://$nntp_host_port/t.v2");
-	lei_ok('index', "imap://$imap_host_port/t.v2.0");
+	$srv->{nntpd} and
+		lei_ok('index', "nntp://$srv->{nntp_host_port}/t.v2");
+	$srv->{imapd} and
+		lei_ok('index', "imap://$srv->{imap_host_port}/t.v2.0");
 	is_deeply([xqx($all_obj)], \@objs, 'no new objects from NNTP+IMAP');
 
 	lei_ok qw(q m:multipart-html-sucks@11);
