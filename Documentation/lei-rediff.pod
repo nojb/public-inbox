@@ -40,7 +40,7 @@ patch email.
 
 =item --drq[=COUNT]
 
-De-Re-Quote.  De-quote the input and re-quotes (the output).
+De-Re-Quote.  De-quotes the input and re-quotes (the output).
 Removes COUNT levels of C<E<gt> > email reply prefixes and
 re-adds them upon regenerating the diff.
 
@@ -63,7 +63,7 @@ This can be useful for feeding a hunk to L<git-apply(1)>
 or L<patch(1)> while writing a reply or further processing
 by another diff viewer.
 
-Unlike L</--drq>, it does NOT implies L</--quiet>.
+Unlike L</--drq>, it does NOT imply L</--quiet>.
 
 =item --git-dir=DIR
 
