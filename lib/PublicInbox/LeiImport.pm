@@ -122,11 +122,11 @@ sub lei_import { # the main "lei import" method
 sub _complete_import {
 	my ($lei, @argv) = @_;
 	my ($re, $cur, $match_cb) = $lei->complete_url_prepare(\@argv);
-	my @k = $lei->url_folder_cache->keys($argv[-1], 1);
+	my @k = $lei->url_folder_cache->keys($argv[-1] // undef, 1);
 	my @m = map { $match_cb->($_) } @k;
 	my %f = map { $_ => 1 } (@m ? @m : @k);
 	if (my $lms = $lei->lms) {
-		@k = $lms->folders($argv[-1], 1);
+		@k = $lms->folders($argv[-1] // undef, 1);
 		@m = map { $match_cb->($_) } @k;
 		if (@m) { @f{@m} = @m } else { @f{@k} = @k }
 	}

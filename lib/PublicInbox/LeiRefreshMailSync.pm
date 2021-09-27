@@ -101,7 +101,7 @@ sub _complete_refresh_mail_sync {
 	my ($lei, @argv) = @_;
 	my $lms = $lei->lms or return ();
 	my $match_cb = $lei->complete_url_prepare(\@argv);
-	my @k = $lms->folders($argv[-1], 1);
+	my @k = $lms->folders($argv[-1] // undef, 1);
 	my @m = map { $match_cb->($_) } @k;
 	@m ? @m : @k
 }

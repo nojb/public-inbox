@@ -131,7 +131,7 @@ sub _complete_export_kw {
 	my $match_cb = $lei->complete_url_prepare(\@argv);
 	# filter-out read-only sources:
 	my @k = grep(!m!(?://;AUTH=ANONYMOUS\@|\A(?:nntps?|s?news)://)!,
-			$lms->folders($argv[-1], 1));
+			$lms->folders($argv[-1] // undef, 1));
 	my @m = map { $match_cb->($_) } @k;
 	@m ? @m : @k;
 }
