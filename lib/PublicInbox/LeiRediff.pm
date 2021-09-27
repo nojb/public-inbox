@@ -193,8 +193,15 @@ sub extract_oids { # Eml each_part callback
 
 sub input_eml_cb { # callback for all emails
 	my ($self, $eml) = @_;
-	$self->{tmp_sto}->add_eml($eml);
-	$self->{tmp_sto}->done;
+	{
+		local $SIG{__WARN__} = sub {
+			return if "@_" =~ /^no email in From: .*? or Sender:/;
+			return if PublicInbox::Eml::warn_ignore(@_);
+			warn @_;
+		};
+		$self->{tmp_sto}->add_eml($eml);
+		$self->{tmp_sto}->done;
+	}
 	$eml->each_part(\&extract_oids, $self, 1);
 }
 
