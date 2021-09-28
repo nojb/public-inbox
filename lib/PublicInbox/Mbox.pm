@@ -124,8 +124,9 @@ sub thread_cb {
 			return $smsg;
 		}
 		# refill result set
-		$ctx->{msgs} = $msgs = $ctx->{over}->get_thread($ctx->{mid},
-								$ctx->{prev});
+		my $over = $ctx->{ibx}->over or return $ctx->gone('over');
+		$ctx->{msgs} = $msgs = $over->get_thread($ctx->{mid},
+							$ctx->{prev});
 		return unless @$msgs;
 		$ctx->{prev} = $msgs->[-1];
 	}
@@ -136,7 +137,6 @@ sub thread_mbox {
 	my $msgs = $ctx->{msgs} = $over->get_thread($ctx->{mid}, {});
 	return [404, [qw(Content-Type text/plain)], []] if !@$msgs;
 	$ctx->{prev} = $msgs->[-1];
-	$ctx->{over} = $over; # bump refcnt
 	require PublicInbox::MboxGz;
 	PublicInbox::MboxGz::mbox_gz($ctx, \&thread_cb, $msgs->[0]->{subject});
 }
@@ -155,22 +155,23 @@ sub emit_range {
 
 sub all_ids_cb {
 	my ($ctx) = @_;
+	my $over = $ctx->{ibx}->over or return $ctx->gone('over');
 	my $ids = $ctx->{ids};
 	do {
 		while ((my $num = shift @$ids)) {
-			my $smsg = $ctx->{over}->get_art($num) or next;
+			my $smsg = $over->get_art($num) or next;
 			return $smsg;
 		}
-		$ctx->{ids} = $ids = $ctx->{over}->ids_after(\($ctx->{prev}));
+		$ctx->{ids} = $ids = $over->ids_after(\($ctx->{prev}));
 	} while (@$ids);
 }
 
 sub mbox_all_ids {
 	my ($ctx) = @_;
 	my $prev = 0;
-	$ctx->{over} = $ctx->{ibx}->over or
+	my $over = $ctx->{ibx}->over or
 		return PublicInbox::WWW::need($ctx, 'Overview');
-	my $ids = $ctx->{over}->ids_after(\$prev) or return
+	my $ids = $over->ids_after(\$prev) or return
 		[404, [qw(Content-Type text/plain)], ["No results found\n"]];
 	$ctx->{ids} = $ids;
 	$ctx->{prev} = $prev;
@@ -179,22 +180,16 @@ sub mbox_all_ids {
 	PublicInbox::MboxGz::mbox_gz($ctx, \&all_ids_cb, 'all');
 }
 
-sub gone ($$) {
-	my ($ctx, $what) = @_;
-	warn "W: `$ctx->{ibx}->{inboxdir}' $what went away unexpectedly\n";
-	undef;
-}
-
 sub results_cb {
 	my ($ctx) = @_;
-	my $over = $ctx->{ibx}->over or return gone($ctx, 'over');
+	my $over = $ctx->{ibx}->over or return $ctx->gone('over');
 	while (1) {
 		while (defined(my $num = shift(@{$ctx->{ids}}))) {
 			my $smsg = $over->get_art($num) or next;
 			return $smsg;
 		}
 		# refill result set, deprioritize since there's many results
-		my $srch = $ctx->{ibx}->isrch or return gone($ctx, 'search');
+		my $srch = $ctx->{ibx}->isrch or return $ctx->gone('search');
 		my $mset = $srch->mset($ctx->{query}, $ctx->{qopts});
 		my $size = $mset->size or return;
 		$ctx->{qopts}->{offset} += $size;
@@ -206,7 +201,7 @@ sub results_cb {
 sub results_thread_cb {
 	my ($ctx) = @_;
 
-	my $over = $ctx->{ibx}->over or return gone($ctx, 'over');
+	my $over = $ctx->{ibx}->over or return $ctx->gone('over');
 	while (1) {
 		while (defined(my $num = shift(@{$ctx->{xids}}))) {
 			my $smsg = $over->get_art($num) or next;
@@ -217,7 +212,7 @@ sub results_thread_cb {
 		next if $over->expand_thread($ctx);
 
 		# refill result set, deprioritize since there's many results
-		my $srch = $ctx->{ibx}->isrch or return gone($ctx, 'search');
+		my $srch = $ctx->{ibx}->isrch or return $ctx->gone('search');
 		my $mset = $srch->mset($ctx->{query}, $ctx->{qopts});
 		my $size = $mset->size or return;
 		$ctx->{qopts}->{offset} += $size;

@@ -31,7 +31,9 @@ sub msg_page_i {
 	my ($ctx, $eml) = @_;
 	if ($eml) { # called by WwwStream::async_eml or getline
 		my $smsg = $ctx->{smsg};
-		$ctx->{smsg} = $ctx->{over}->next_by_mid(@{$ctx->{next_arg}});
+		my $over = $ctx->{ibx}->over;
+		$ctx->{smsg} = $over ? $over->next_by_mid(@{$ctx->{next_arg}})
+				: $ctx->gone('over');
 		$ctx->{mhref} = ($ctx->{nr} || $ctx->{smsg}) ?
 				"../${\mid_href($smsg->{mid})}/" : '';
 		my $obuf = $ctx->{obuf} = _msg_page_prepare_obuf($eml, $ctx);
@@ -70,7 +72,7 @@ sub msg_page {
 	my ($ctx) = @_;
 	my $ibx = $ctx->{ibx};
 	$ctx->{-obfs_ibx} = $ibx->{obfuscate} ? $ibx : undef;
-	my $over = $ctx->{over} = $ibx->over or return no_over_html($ctx);
+	my $over = $ibx->over or return no_over_html($ctx);
 	my ($id, $prev);
 	my $next_arg = $ctx->{next_arg} = [ $ctx->{mid}, \$id, \$prev ];
 

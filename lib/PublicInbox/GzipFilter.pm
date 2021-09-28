@@ -84,6 +84,12 @@ sub gzip_or_die () {
 	$gz;
 }
 
+sub gone { # what: search/over/mm
+	my ($ctx, $what) = @_;
+	warn "W: `$ctx->{ibx}->{name}' $what went away unexpectedly\n";
+	undef;
+}
+
 # for GetlineBody (via Qspawn) when NOT using $env->{'pi-httpd.async'}
 # Also used for ->getline callbacks
 sub translate ($$) {
