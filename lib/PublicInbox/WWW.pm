@@ -173,16 +173,7 @@ sub preload {
 		$self->cgit;
 		$self->stylesheets_prepare($_) for ('', '../', '../../');
 		$self->news_www;
-		$pi_cfg->each_inbox(\&preload_inbox);
 	}
-}
-
-sub preload_inbox {
-	my $ibx = shift;
-	$ibx->altid_map;
-	$ibx->cloneurl;
-	$ibx->description;
-	$ibx->base_url;
 }
 
 # private functions below

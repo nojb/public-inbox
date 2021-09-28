@@ -33,7 +33,8 @@ sub do_cleanup {
 	for my $git (@{$ibx->{-repo_objs}}) {
 		$live = 1 if $git->cleanup(1);
 	}
-	delete @$ibx{qw(over mm)};
+	delete @$ibx{qw(over mm description cloneurl
+			-altid_map -imap_url -nntp_url)};
 	PublicInbox::DS::add_uniq_timer($ibx+0, 5, \&do_cleanup, $ibx) if $live;
 }
 
@@ -219,15 +220,13 @@ sub base_url {
 		return $url .= $self->{name} . '/';
 	}
 	# called from a non-PSGI environment (e.g. NNTP/POP3):
-	$self->{-base_url} ||= do {
-		my $url = $self->{url} // return undef;
-		$url = $url->[0] // return undef;
-		# expand protocol-relative URLs to HTTPS if we're
-		# not inside a web server
-		$url = "https:$url" if $url =~ m!\A//!;
-		$url .= '/' if $url !~ m!/\z!;
-		$url;
-	};
+	my $url = $self->{url} // return undef;
+	$url = $url->[0] // return undef;
+	# expand protocol-relative URLs to HTTPS if we're
+	# not inside a web server
+	substr($url, 0, 0, 'https:') if substr($url, 0, 2) eq '//';
+	$url .= '/' if substr($url, -1, 1) ne '/';
+	$url;
 }
 
 sub _x_url ($$$) {
@@ -350,7 +349,7 @@ sub modified {
 # (pathname is NOT public, but prefix is used for Xapian queries)
 sub altid_map ($) {
 	my ($self) = @_;
-	$self->{-altid_map} //= eval {
+	eval {
 		require PublicInbox::AltId;
 		my $altid = $self->{altid} or return {};
 		my %h = map {;

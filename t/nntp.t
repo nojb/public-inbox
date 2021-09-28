@@ -126,7 +126,6 @@ use PublicInbox::Config;
 	is_deeply([ $mime->header('Xref') ], [ 'example.com test:1' ],
 		'Xref: set');
 
-	$ibx->{-base_url} = 'http://mirror.example.com/m/';
 	$smsg->{num} = 2;
 	PublicInbox::NNTP::set_nntp_headers($hdr, $smsg);
 	is_deeply([ $mime->header('Message-ID') ], [ "<$mid>" ],
