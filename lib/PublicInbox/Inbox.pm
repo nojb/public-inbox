@@ -10,14 +10,6 @@ use PublicInbox::Eml;
 use List::Util qw(max);
 use Carp qw(croak);
 
-# Long-running "git-cat-file --batch" processes won't notice
-# unlinked packs, so we need to restart those processes occasionally.
-# Xapian and SQLite file handles are mostly stable, but sometimes an
-# admin will attempt to replace them atomically after compact/vacuum
-# and we need to be prepared for that.
-my $cleanup_timer;
-my $CLEANUP = {}; # string(inbox) -> inbox
-
 sub git_cleanup ($) {
 	my ($self) = @_;
 	my $git = $self->{git} // return undef;
@@ -25,7 +17,7 @@ sub git_cleanup ($) {
 	# keep process+pipe counts in check.  ExtSearch may have high startup
 	# cost (e.g. ->ALL) and but likely one per-daemon, so cleanup only
 	# if there's unlinked files
-	my $live = $self->isa(__PACKAGE__) ? $git->cleanup
+	my $live = $self->isa(__PACKAGE__) ? $git->cleanup(1)
 					: $git->cleanup_if_unlinked;
 	delete($self->{git}) unless $live;
 	$live;
@@ -34,29 +26,22 @@ sub git_cleanup ($) {
 # returns true if further checking is required
 sub cleanup_shards { $_[0]->{search} ? $_[0]->{search}->cleanup_shards : undef }
 
-sub cleanup_task () {
-	$cleanup_timer = undef;
-	my $next = {};
-	for my $ibx (values %$CLEANUP) {
-		my $again = git_cleanup($ibx);
-		$ibx->cleanup_shards and $again = 1;
-		for my $git (@{$ibx->{-repo_objs}}) {
-			$again = 1 if $git->cleanup;
-		}
-		check_inodes($ibx);
-		$next->{"$ibx"} = $ibx if $again;
+sub do_cleanup {
+	my ($ibx) = @_;
+	my $live = git_cleanup($ibx);
+	$ibx->cleanup_shards and $live = 1;
+	for my $git (@{$ibx->{-repo_objs}}) {
+		$live = 1 if $git->cleanup(1);
 	}
-	$CLEANUP = $next;
-	$cleanup_timer //= PublicInbox::DS::later(\&cleanup_task);
+	delete @$ibx{qw(over mm)};
+	PublicInbox::DS::add_uniq_timer($ibx+0, 5, \&do_cleanup, $ibx) if $live;
 }
 
 sub _cleanup_later ($) {
 	# no need to require DS, here, if it were enabled another
 	# module would've require'd it, already
-	if (eval { PublicInbox::DS::in_loop() }) {
-		$cleanup_timer //= PublicInbox::DS::later(\&cleanup_task);
-		$CLEANUP->{"$_[0]"} = $_[0]; # $self
-	}
+	eval { PublicInbox::DS::in_loop() } and
+		PublicInbox::DS::add_uniq_timer($_[0]+0, 30, \&do_cleanup, @_)
 }
 
 sub _set_limiter ($$$) {
@@ -156,6 +141,7 @@ sub mm {
 	my ($self, $req) = @_;
 	$self->{mm} //= eval {
 		require PublicInbox::Msgmap;
+		_cleanup_later($self);
 		my $dir = $self->{inboxdir};
 		if ($self->version >= 2) {
 			PublicInbox::Msgmap->new_file("$dir/msgmap.sqlite3");
@@ -186,6 +172,7 @@ sub over {
 			require PublicInbox::Search;
 			PublicInbox::Search->new($self);
 		};
+		_cleanup_later($self);
 		my $over = PublicInbox::Over->new("$srch->{xpfx}/over.sqlite3");
 		$over->dbh; # may fail
 		$self->{over} = $over;
@@ -387,7 +374,7 @@ sub unsubscribe_unlock {
 
 sub check_inodes ($) {
 	my ($self) = @_;
-	for (qw(over mm)) { # TODO: search
+	for (qw(over mm)) {
 		$self->{$_}->check_inodes if $self->{$_};
 	}
 }

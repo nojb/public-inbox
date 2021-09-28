@@ -392,8 +392,10 @@ sub async_wait_all ($) {
 
 # returns true if there are pending "git cat-file" processes
 sub cleanup {
-	my ($self) = @_;
+	my ($self, $lazy) = @_;
 	local $in_cleanup = 1;
+	return 1 if $lazy && (scalar(@{$self->{inflight_c} // []}) ||
+				scalar(@{$self->{inflight} // []}));
 	delete $self->{async_cat};
 	async_wait_all($self);
 	delete $self->{inflight};
@@ -402,7 +404,6 @@ sub cleanup {
 	_destroy($self, qw(chk_rbuf in_c out_c pid_c err_c));
 	defined($self->{pid}) || defined($self->{pid_c});
 }
-
 
 # assuming a well-maintained repo, this should be a somewhat
 # accurate estimation of its size
@@ -526,18 +527,19 @@ sub manifest_entry {
 # returns true if there are pending cat-file processes
 sub cleanup_if_unlinked {
 	my ($self) = @_;
-	return cleanup($self) if $^O ne 'linux';
+	return cleanup($self, 1) if $^O ne 'linux';
 	# Linux-specific /proc/$PID/maps access
 	# TODO: support this inside git.git
 	my $ret = 0;
 	for my $fld (qw(pid pid_c)) {
 		my $pid = $self->{$fld} // next;
-		open my $fh, '<', "/proc/$pid/maps" or return cleanup($self);
+		open my $fh, '<', "/proc/$pid/maps" or return cleanup($self, 1);
 		while (<$fh>) {
 			# n.b. we do not restart for unlinked multi-pack-index
 			# since it's not too huge, and the startup cost may
 			# be higher.
-			return cleanup($self) if /\.(?:idx|pack) \(deleted\)$/;
+			/\.(?:idx|pack) \(deleted\)$/ and
+				return cleanup($self, 1);
 		}
 		++$ret;
 	}
