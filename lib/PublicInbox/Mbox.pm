@@ -174,6 +174,7 @@ sub mbox_all_ids {
 		[404, [qw(Content-Type text/plain)], ["No results found\n"]];
 	$ctx->{ids} = $ids;
 	$ctx->{prev} = $prev;
+	$ctx->{-low_prio} = 1;
 	require PublicInbox::MboxGz;
 	PublicInbox::MboxGz::mbox_gz($ctx, \&all_ids_cb, 'all');
 }
@@ -192,12 +193,13 @@ sub results_cb {
 			my $smsg = $over->get_art($num) or next;
 			return $smsg;
 		}
-		# refill result set
+		# refill result set, deprioritize since there's many results
 		my $srch = $ctx->{ibx}->isrch or return gone($ctx, 'search');
 		my $mset = $srch->mset($ctx->{query}, $ctx->{qopts});
 		my $size = $mset->size or return;
 		$ctx->{qopts}->{offset} += $size;
 		$ctx->{ids} = $srch->mset_to_artnums($mset, $ctx->{qopts});
+		$ctx->{-low_prio} = 1;
 	}
 }
 
@@ -214,12 +216,13 @@ sub results_thread_cb {
 		# refills ctx->{xids}
 		next if $over->expand_thread($ctx);
 
-		# refill result set
+		# refill result set, deprioritize since there's many results
 		my $srch = $ctx->{ibx}->isrch or return gone($ctx, 'search');
 		my $mset = $srch->mset($ctx->{query}, $ctx->{qopts});
 		my $size = $mset->size or return;
 		$ctx->{qopts}->{offset} += $size;
 		$ctx->{ids} = $srch->mset_to_artnums($mset, $ctx->{qopts});
+		$ctx->{-low_prio} = 1;
 	}
 
 }

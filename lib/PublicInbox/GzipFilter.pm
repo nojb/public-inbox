@@ -175,7 +175,12 @@ sub async_blob_cb { # git->cat_async callback
 	$smsg->{blob} eq $oid or bail($self, "BUG: $smsg->{blob} != $oid");
 	eval { $self->async_eml(PublicInbox::Eml->new($bref)) };
 	bail($self, "E: async_eml: $@") if $@;
-	$http->next_step($self->can('async_next'));
+	if ($self->{-low_prio}) {
+		push(@{$self->{www}->{-low_prio_q}}, $self) == 1 and
+				PublicInbox::DS::requeue($self->{www});
+	} else {
+		$http->next_step($self->can('async_next'));
+	}
 }
 
 sub smsg_blob {

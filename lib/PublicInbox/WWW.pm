@@ -659,4 +659,13 @@ sub get_description {
 	};
 }
 
+sub event_step { # called via requeue
+	my ($self) = @_;
+	# gzf = PublicInbox::GzipFilter == $ctx
+	my $gzf = shift(@{$self->{-low_prio_q}}) // return;
+	PublicInbox::DS::requeue($self) if scalar(@{$self->{-low_prio_q}});
+	my $http = $gzf->{env}->{'psgix.io'}; # PublicInbox::HTTP
+	$http->next_step($gzf->can('async_next'));
+}
+
 1;
