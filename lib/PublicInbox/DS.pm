@@ -40,7 +40,7 @@ my $wait_pids; # list of [ pid, callback, callback_arg ]
 my $later_q; # list of callbacks to run at some later interval
 my $EXPMAP; # fd -> idle_time
 our $EXPTIME = 180; # 3 minutes
-my ($reap_armed, $exp_timer);
+my ($reap_armed);
 my $ToClose; # sockets to close when event loop is done
 our (
      %DescriptorMap,             # fd (num) -> PublicInbox::DS object
@@ -77,7 +77,7 @@ sub Reset {
 		# we may be iterating inside one of these on our stack
 		my @q = delete @Stack{keys %Stack};
 		for my $q (@q) { @$q = () }
-		$EXPMAP = {};
+		$EXPMAP = undef;
 		$wait_pids = $later_q = $nextq = $ToClose = undef;
 		$_io = undef; # closes real $Epoll FD
 		$Epoll = undef; # may call DSKQXS::DESTROY
@@ -85,7 +85,7 @@ sub Reset {
 		$later_q || $ToClose || keys(%DescriptorMap) ||
 		$PostLoopCallback || keys(%UniqTimer));
 
-	$reap_armed = $exp_timer = undef;
+	$reap_armed = undef;
 	$LoopTimeout = -1;  # no timeout by default
 }
 
@@ -672,27 +672,25 @@ sub later ($) {
 }
 
 sub expire_old () {
-	my $now = now();
-	my $exp = $EXPTIME;
-	my $old = $now - $exp;
-	my %new;
-	while (my ($fd, $idle_at) = each %$EXPMAP) {
+	my $cur = $EXPMAP or return;
+	$EXPMAP = undef;
+	my $old = now() - $EXPTIME;
+	while (my ($fd, $idle_at) = each %$cur) {
 		if ($idle_at < $old) {
 			my $ds_obj = $DescriptorMap{$fd};
-			$new{$fd} = $idle_at if !$ds_obj->shutdn;
+			$EXPMAP->{$fd} = $idle_at if !$ds_obj->shutdn;
 		} else {
-			$new{$fd} = $idle_at;
+			$EXPMAP->{$fd} = $idle_at;
 		}
 	}
-	$EXPMAP = \%new;
-	$exp_timer = scalar(keys %new) ? later(\&expire_old) : undef;
+	add_uniq_timer('expire', 60, \&expire_old) if $EXPMAP;
 }
 
 sub update_idle_time {
 	my ($self) = @_;
 	my $sock = $self->{sock} or return;
 	$EXPMAP->{fileno($sock)} = now();
-	$exp_timer //= later(\&expire_old);
+	add_uniq_timer('expire', 60, \&expire_old);
 }
 
 sub not_idle_long {
