@@ -62,6 +62,8 @@ sub git_quote ($) {
 
 sub new {
 	my ($class, $git_dir) = @_;
+	$git_dir =~ tr!/!/!s;
+	$git_dir =~ s!/*\z!!s;
 	# may contain {-tmp} field for File::Temp::Dir
 	bless { git_dir => $git_dir, alt_st => '', -git_path => {} }, $class
 }
@@ -110,18 +112,22 @@ sub _bidi_pipe {
 		}
 		return;
 	}
-	my ($out_r, $out_w);
-	pipe($out_r, $out_w) or $self->fail("pipe failed: $!");
-	my @cmd = (qw(git), "--git-dir=$self->{git_dir}",
+	pipe(my ($out_r, $out_w)) or $self->fail("pipe failed: $!");
+	my $rdr = { 0 => $out_r };
+	my $gd = $self->{git_dir};
+	if ($gd =~ s!/([^/]+/[^/]+)\z!/!) {
+		$rdr->{-C} = $gd;
+		$gd = $1;
+	}
+	my @cmd = (qw(git), "--git-dir=$gd",
 			qw(-c core.abbrev=40 cat-file), $batch);
-	my $redir = { 0 => $out_r };
 	if ($err) {
 		my $id = "git.$self->{git_dir}$batch.err";
 		my $fh = tmpfile($id) or $self->fail("tmpfile($id): $!");
 		$self->{$err} = $fh;
-		$redir->{2} = $fh;
+		$rdr->{2} = $fh;
 	}
-	my ($in_r, $p) = popen_rd(\@cmd, undef, $redir);
+	my ($in_r, $p) = popen_rd(\@cmd, undef, $rdr);
 	$self->{$pid} = $p;
 	$self->{"$pid.owner"} = $$;
 	$out_w->autoflush(1);
