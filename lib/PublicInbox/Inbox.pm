@@ -30,7 +30,7 @@ sub do_cleanup {
 	my ($ibx) = @_;
 	my $live = git_cleanup($ibx);
 	$ibx->cleanup_shards and $live = 1;
-	for my $git (@{$ibx->{-repo_objs}}) {
+	for my $git (@{$ibx->{-repo_objs} // []}) {
 		$live = 1 if $git->cleanup(1);
 	}
 	delete @$ibx{qw(over mm description cloneurl
