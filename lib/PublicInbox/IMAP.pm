@@ -316,20 +316,19 @@ sub on_inbox_unlock {
 	}
 }
 
-# called every X minute(s) or so by PublicInbox::DS::later
-my $IDLERS = {};
-my $idle_timer;
+# called every minute or so by PublicInbox::DS::later
+my $IDLERS; # fileno($obj->{sock}) => PublicInbox::IMAP
 sub idle_tick_all {
 	my $old = $IDLERS;
-	$IDLERS = {};
+	$IDLERS = undef;
 	for my $i (values %$old) {
 		next if ($i->{wbuf} || !exists($i->{-idle_tag}));
 		$i->update_idle_time or next;
 		$IDLERS->{fileno($i->{sock})} = $i;
 		$i->write(\"* OK Still here\r\n");
 	}
-	$idle_timer = scalar keys %$IDLERS ?
-			PublicInbox::DS::later(\&idle_tick_all) : undef;
+	$IDLERS and
+		PublicInbox::DS::add_uniq_timer('idle', 60, \&idle_tick_all);
 }
 
 sub cmd_idle ($$) {
@@ -346,7 +345,7 @@ sub cmd_idle ($$) {
 		$ibx->subscribe_unlock($fd, $self);
 		$self->{imapd}->idler_start;
 	}
-	$idle_timer //= PublicInbox::DS::later(\&idle_tick_all);
+	PublicInbox::DS::add_uniq_timer('idle', 60, \&idle_tick_all);
 	$IDLERS->{$fd} = $self;
 	\"+ idling\r\n"
 }

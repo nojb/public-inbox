@@ -37,7 +37,6 @@ our @EXPORT_OK = qw(now msg_more dwaitpid add_timer add_uniq_timer);
 my %Stack;
 my $nextq; # queue for next_tick
 my $wait_pids; # list of [ pid, callback, callback_arg ]
-my $later_q; # list of callbacks to run at some later interval
 my $EXPMAP; # fd -> idle_time
 our $EXPTIME = 180; # 3 minutes
 my ($reap_armed);
@@ -78,11 +77,11 @@ sub Reset {
 		my @q = delete @Stack{keys %Stack};
 		for my $q (@q) { @$q = () }
 		$EXPMAP = undef;
-		$wait_pids = $later_q = $nextq = $ToClose = undef;
+		$wait_pids = $nextq = $ToClose = undef;
 		$_io = undef; # closes real $Epoll FD
 		$Epoll = undef; # may call DSKQXS::DESTROY
 	} while (@Timers || keys(%Stack) || $nextq || $wait_pids ||
-		$later_q || $ToClose || keys(%DescriptorMap) ||
+		$ToClose || keys(%DescriptorMap) ||
 		$PostLoopCallback || keys(%UniqTimer));
 
 	$reap_armed = undef;
@@ -298,7 +297,6 @@ sub EventLoop {
             $obj->event_step;
         }
     } while (PostEventLoop());
-    _run_later();
 }
 
 =head2 C<< CLASS->SetPostLoopCallback( CODEREF ) >>
@@ -656,19 +654,6 @@ sub dwaitpid ($;$$) {
 			carp "waitpid($pid, 0) = $ret, \$!=$!, \$?=$?";
 		}
 	}
-}
-
-sub _run_later () {
-	my $q = $later_q or return;
-	$later_q = undef;
-	$Stack{later_q} = $q;
-	$_->() for @$q;
-	delete $Stack{later_q};
-}
-
-sub later ($) {
-	push @$later_q, $_[0]; # autovivifies @$later_q
-	add_uniq_timer('later', 60, \&_run_later);
 }
 
 sub expire_old () {
