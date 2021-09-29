@@ -89,7 +89,7 @@ Subject: Re: awesome advice
 
 WEB DESIGN EXPERT wrote:
 EOM
-	lei_ok([qw(rediff --abbrev=40 -U16 --drq)], undef,
+	lei_ok([qw(rediff --full-index -U16 --drq)], undef,
 		{ 0 => \$re, %$lei_opt });
 	my $exp = <<'EOM';
 From: me@example.com
@@ -116,7 +116,7 @@ EOM
 	$exp =~ s/^>$/> /sgm; # re-add trailing white space
 	like($lei_out, qr/\Q$exp\E/, '--drq diffstat + context');
 
-	lei_ok(qw(rediff -q --abbrev=40 -U9 t/solve/bare.patch));
+	lei_ok(qw(rediff -q --full-index -U9 t/solve/bare.patch));
 	$exp = <<'EOM';
 diff --git a/script/public-inbox-extindex b/script/public-inbox-extindex
 old mode 100644
