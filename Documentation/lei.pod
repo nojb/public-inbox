@@ -115,6 +115,13 @@ Other subcommands include
 By default storage is located at C<$XDG_DATA_HOME/lei/store>.  The
 configuration for lei resides at C<$XDG_CONFIG_HOME/lei/config>.
 
+=head1 ERRORS
+
+Errors and dianostics for interactive commands are reported to
+stderr.  Some errors for background tasks are emitted via
+L<syslog(3)> as L<lei-daemon(8)> for the top-level daemon,
+and C<lei/store> for the L<lei-store-format(5)> worker.
+
 =head1 CONTACT
 
 Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
@@ -130,4 +137,4 @@ License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
 
 =head1 SEE ALSO
 
-L<lei-overview(7)>
+L<lei-overview(7)>, L<lei-daemon(8)>

@@ -6,7 +6,7 @@ Daemon architecture
 
 The use of a persistent daemon works around slow startup time of
 Perl.  This is especially important for built-in support for
-shell completion.  It will eventually support inotify and EVFILT_VNODE
+shell completion.  It attempts to support inotify and EVFILT_VNODE
 background monitoring of Maildir keyword changes.
 
 If lei were reimplemented in a language with faster startup

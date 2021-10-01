@@ -27,6 +27,7 @@ Documentation/lei-config.pod
 Documentation/lei-convert.pod
 Documentation/lei-daemon-kill.pod
 Documentation/lei-daemon-pid.pod
+Documentation/lei-daemon.pod
 Documentation/lei-edit-search.pod
 Documentation/lei-export-kw.pod
 Documentation/lei-forget-external.pod

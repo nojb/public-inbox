@@ -60,7 +60,7 @@ $v->{-m5} = [ qw(public-inbox-config public-inbox-v1-format
 $v->{-m7} = [ qw(lei-overview lei-security
 		public-inbox-overview public-inbox-tuning
 		public-inbox-glossary) ];
-$v->{-m8} = [ qw(public-inbox-daemon) ];
+$v->{-m8} = [ qw(public-inbox-daemon lei-daemon) ];
 my @sections = (1, 5, 7, 8);
 $v->{check_80} = [];
 $v->{manuals} = [];
