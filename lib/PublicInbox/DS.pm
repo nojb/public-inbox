@@ -44,7 +44,7 @@ my $ToClose; # sockets to close when event loop is done
 our (
      %DescriptorMap,             # fd (num) -> PublicInbox::DS object
      $Epoll,                     # Global epoll fd (or DSKQXS ref)
-     $_io,                       # IO::Handle for Epoll
+     $ep_io,                     # IO::Handle for Epoll
 
      $PostLoopCallback,          # subref to call at the end of each loop, if defined (global)
 
@@ -78,7 +78,7 @@ sub Reset {
 		for my $q (@q) { @$q = () }
 		$EXPMAP = undef;
 		$wait_pids = $nextq = $ToClose = undef;
-		$_io = undef; # closes real $Epoll FD
+		$ep_io = undef; # closes real $Epoll FD
 		$Epoll = undef; # may call DSKQXS::DESTROY
 	} while (@Timers || keys(%Stack) || $nextq || $wait_pids ||
 		$ToClose || keys(%DescriptorMap) ||
@@ -127,32 +127,24 @@ sub add_uniq_timer { # ($name, $secs, $coderef, @args) = @_;
 	$UniqTimer{$_[0]} //= _add_named_timer(@_);
 }
 
-# keeping this around in case we support other FD types for now,
-# epoll_create1(EPOLL_CLOEXEC) requires Linux 2.6.27+...
-sub set_cloexec ($) {
-    my ($fd) = @_;
-
-    open($_io, '+<&=', $fd) or return;
-    defined(my $fl = fcntl($_io, F_GETFD, 0)) or return;
-    fcntl($_io, F_SETFD, $fl | FD_CLOEXEC);
-}
-
 # caller sets return value to $Epoll
-sub _InitPoller
-{
-    if (PublicInbox::Syscall::epoll_defined())  {
-        my $fd = epoll_create();
-        set_cloexec($fd) if (defined($fd) && $fd >= 0);
-	$fd;
-    } else {
-        my $cls;
-        for (qw(DSKQXS DSPoll)) {
-            $cls = "PublicInbox::$_";
-            last if eval "require $cls";
-        }
-        $cls->import(qw(epoll_ctl epoll_wait));
-        $cls->new;
-    }
+sub _InitPoller () {
+	if (PublicInbox::Syscall::epoll_defined())  {
+		my $fd = epoll_create();
+		die "epoll_create: $!" if $fd < 0;
+		open($ep_io, '+<&=', $fd) or return;
+		my $fl = fcntl($ep_io, F_GETFD, 0);
+		fcntl($ep_io, F_SETFD, $fl | FD_CLOEXEC);
+		$fd;
+	} else {
+		my $cls;
+		for (qw(DSKQXS DSPoll)) {
+			$cls = "PublicInbox::$_";
+			last if eval "require $cls";
+		}
+		$cls->import(qw(epoll_ctl epoll_wait));
+		$cls->new;
+	}
 }
 
 sub now () { clock_gettime(CLOCK_MONOTONIC) }
