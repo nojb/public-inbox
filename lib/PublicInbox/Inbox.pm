@@ -10,31 +10,22 @@ use PublicInbox::Eml;
 use List::Util qw(max);
 use Carp qw(croak);
 
-sub git_cleanup ($) {
-	my ($self) = @_;
-	my $git = $self->{git} // return undef;
-	# normal inboxes have low startup cost and there may be many, so
-	# keep process+pipe counts in check.  ExtSearch may have high startup
-	# cost (e.g. ->ALL) and but likely one per-daemon, so cleanup only
-	# if there's unlinked files
-	my $live = $self->isa(__PACKAGE__) ? $git->cleanup(1)
-					: $git->cleanup_if_unlinked;
-	delete($self->{git}) unless $live;
-	$live;
-}
-
 # returns true if further checking is required
 sub cleanup_shards { $_[0]->{search} ? $_[0]->{search}->cleanup_shards : undef }
 
 sub do_cleanup {
 	my ($ibx) = @_;
-	my $live = git_cleanup($ibx);
+	my $live;
+	if (defined $ibx->{git}) {
+		$live = $ibx->isa(__PACKAGE__) ? $ibx->{git}->cleanup(1)
+					: $ibx->{git}->cleanup_if_unlinked;
+		delete($ibx->{git}) unless $live;
+	}
 	$ibx->cleanup_shards and $live = 1;
 	for my $git (@{$ibx->{-repo_objs} // []}) {
 		$live = 1 if $git->cleanup(1);
 	}
-	delete @$ibx{qw(over mm description cloneurl
-			-altid_map -imap_url -nntp_url)};
+	delete(@$ibx{qw(over mm description cloneurl -imap_url -nntp_url)});
 	PublicInbox::DS::add_uniq_timer($ibx+0, 5, \&do_cleanup, $ibx) if $live;
 }
 
@@ -126,7 +117,7 @@ sub max_git_epoch {
 	my $cur = $self->{-max_git_epoch};
 	my $changed;
 	if (!defined($cur) || ($changed = git($self)->alternates_changed)) {
-		git_cleanup($self) if $changed;
+		$self->{git}->cleanup if $changed;
 		my $gits = "$self->{inboxdir}/git";
 		if (opendir my $dh, $gits) {
 			my $max = max(map {
