@@ -399,16 +399,16 @@ sub async_wait_all ($) {
 # returns true if there are pending "git cat-file" processes
 sub cleanup {
 	my ($self, $lazy) = @_;
-	local $in_cleanup = 1;
 	return 1 if $lazy && (scalar(@{$self->{inflight_c} // []}) ||
 				scalar(@{$self->{inflight} // []}));
+	local $in_cleanup = 1;
 	delete $self->{async_cat};
 	async_wait_all($self);
 	delete $self->{inflight};
 	delete $self->{inflight_c};
 	_destroy($self, qw(cat_rbuf in out pid));
 	_destroy($self, qw(chk_rbuf in_c out_c pid_c err_c));
-	defined($self->{pid}) || defined($self->{pid_c});
+	undef;
 }
 
 # assuming a well-maintained repo, this should be a somewhat

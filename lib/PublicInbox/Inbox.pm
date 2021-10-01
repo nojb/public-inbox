@@ -13,6 +13,10 @@ use Carp qw(croak);
 # returns true if further checking is required
 sub cleanup_shards { $_[0]->{search} ? $_[0]->{search}->cleanup_shards : undef }
 
+sub check_inodes ($) {
+	for (qw(over mm)) { $_[0]->{$_}->check_inodes if $_[0]->{$_} }
+}
+
 sub do_cleanup {
 	my ($ibx) = @_;
 	my $live;
@@ -21,11 +25,16 @@ sub do_cleanup {
 					: $ibx->{git}->cleanup_if_unlinked;
 		delete($ibx->{git}) unless $live;
 	}
+	if ($live) {
+		check_inodes($ibx);
+	} else {
+		delete(@$ibx{qw(over mm description cloneurl
+				-imap_url -nntp_url)});
+	}
 	$ibx->cleanup_shards and $live = 1;
 	for my $git (@{$ibx->{-repo_objs} // []}) {
 		$live = 1 if $git->cleanup(1);
 	}
-	delete(@$ibx{qw(over mm description cloneurl -imap_url -nntp_url)});
 	PublicInbox::DS::add_uniq_timer($ibx+0, 5, \&do_cleanup, $ibx) if $live;
 }
 
@@ -360,13 +369,6 @@ sub subscribe_unlock {
 sub unsubscribe_unlock {
 	my ($self, $ident) = @_;
 	delete $self->{unlock_subs}->{$ident};
-}
-
-sub check_inodes ($) {
-	my ($self) = @_;
-	for (qw(over mm)) {
-		$self->{$_}->check_inodes if $self->{$_};
-	}
 }
 
 # called by inotify
