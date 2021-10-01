@@ -7,7 +7,7 @@ use strict;
 use parent 'PublicInbox::DS';
 use Socket qw(SOL_SOCKET SO_KEEPALIVE IPPROTO_TCP TCP_NODELAY);
 use IO::Handle;
-use PublicInbox::Syscall qw(EPOLLIN EPOLLEXCLUSIVE EPOLLET);
+use PublicInbox::Syscall qw(EPOLLIN EPOLLEXCLUSIVE);
 use Errno qw(EAGAIN ECONNABORTED EPERM);
 
 # Warn on transient errors, mostly resource limitations.
@@ -22,7 +22,7 @@ sub new ($$$) {
 	setsockopt($s, IPPROTO_TCP, TCP_NODELAY, 1); # ignore errors on non-TCP
 	listen($s, 2**31 - 1); # kernel will clamp
 	my $self = bless { post_accept => $cb }, $class;
-	$self->SUPER::new($s, EPOLLIN|EPOLLET|EPOLLEXCLUSIVE);
+	$self->SUPER::new($s, EPOLLIN|EPOLLEXCLUSIVE);
 }
 
 sub event_step {
@@ -38,7 +38,6 @@ sub event_step {
 		IO::Handle::blocking($c, 0); # no accept4 :<
 		eval { $self->{post_accept}->($c, $addr, $sock) };
 		warn "E: $@\n" if $@;
-		$self->requeue;
 	} elsif ($! == EAGAIN || $! == ECONNABORTED || $! == EPERM) {
 		# EAGAIN is common and likely
 		# ECONNABORTED is common with bad connections
