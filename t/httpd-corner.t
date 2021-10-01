@@ -36,7 +36,7 @@ if ($^O eq 'linux') {
 	}
 } elsif ($^O eq 'freebsd' && system('kldstat -m accf_data >/dev/null') == 0) {
 	require PublicInbox::Daemon;
-	my $var = PublicInbox::Daemon::SO_ACCEPTFILTER();
+	my $var = $PublicInbox::Daemon::SO_ACCEPTFILTER;
 	$accf_arg = pack('a16a240', 'dataready', '');
 	setsockopt($sock, SOL_SOCKET, $var, $accf_arg) or die "setsockopt: $!";
 }
@@ -596,7 +596,7 @@ SKIP: {
 SKIP: {
 	skip 'SO_ACCEPTFILTER is FreeBSD-only', 1 if $^O ne 'freebsd';
 	skip 'accf_data not loaded: kldload accf_data' if !defined $accf_arg;
-	my $var = PublicInbox::Daemon::SO_ACCEPTFILTER();
+	my $var = $PublicInbox::Daemon::SO_ACCEPTFILTER;
 	defined(my $x = getsockopt($sock, SOL_SOCKET, $var)) or die;
 	is($x, $accf_arg, 'SO_ACCEPTFILTER unchanged if previously set');
 };

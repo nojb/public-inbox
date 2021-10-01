@@ -12,7 +12,6 @@ use IO::Handle; # ->autoflush
 use IO::Socket;
 use POSIX qw(WNOHANG :signal_h);
 use Socket qw(IPPROTO_TCP SOL_SOCKET);
-sub SO_ACCEPTFILTER () { 0x1000 }
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
 use PublicInbox::DS qw(now);
@@ -21,6 +20,7 @@ require PublicInbox::Listener;
 use PublicInbox::EOFpipe;
 use PublicInbox::Sigfd;
 use PublicInbox::GitAsyncCat;
+our $SO_ACCEPTFILTER = 0x1000;
 my @CMD;
 my ($set_user, $oldset);
 my (@cfg_listen, $stdout, $stderr, $group, $user, $pid_file, $daemonize);
@@ -579,10 +579,10 @@ sub defer_accept ($$) {
 		return if $sec > 0; # systemd users may set a higher value
 		setsockopt($s, IPPROTO_TCP, $TCP_DEFER_ACCEPT, 1);
 	} elsif ($^O eq 'freebsd') {
-		my $x = getsockopt($s, SOL_SOCKET, SO_ACCEPTFILTER);
+		my $x = getsockopt($s, SOL_SOCKET, $SO_ACCEPTFILTER);
 		return if defined $x; # don't change if set
 		my $accf_arg = pack('a16a240', $af_name, '');
-		setsockopt($s, SOL_SOCKET, SO_ACCEPTFILTER, $accf_arg);
+		setsockopt($s, SOL_SOCKET, $SO_ACCEPTFILTER, $accf_arg);
 	}
 }
 

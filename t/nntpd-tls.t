@@ -168,10 +168,11 @@ for my $args (
 			skip 'accf_data not loaded? kldload accf_data', 2;
 		}
 		require PublicInbox::Daemon;
-		my $var = PublicInbox::Daemon::SO_ACCEPTFILTER();
-		my $x = getsockopt($nntps, SOL_SOCKET, $var);
+		my $x = getsockopt($nntps, SOL_SOCKET,
+				$PublicInbox::Daemon::SO_ACCEPTFILTER);
 		like($x, qr/\Adataready\0+\z/, 'got dataready accf for NNTPS');
-		$x = getsockopt($starttls, IPPROTO_TCP, $var);
+		$x = getsockopt($starttls, IPPROTO_TCP,
+				$PublicInbox::Daemon::SO_ACCEPTFILTER);
 		is($x, undef, 'no BSD accept filter for plain NNTP');
 	};
 

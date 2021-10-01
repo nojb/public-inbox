@@ -98,8 +98,10 @@ for my $args (
 			skip 'accf_data not loaded? kldload accf_data', 2;
 		}
 		require PublicInbox::Daemon;
-		my $var = PublicInbox::Daemon::SO_ACCEPTFILTER();
-		my $x = getsockopt($https, SOL_SOCKET, $var);
+		ok(defined($PublicInbox::Daemon::SO_ACCEPTFILTER),
+			'SO_ACCEPTFILTER defined');
+		my $x = getsockopt($https, SOL_SOCKET,
+				$PublicInbox::Daemon::SO_ACCEPTFILTER);
 		like($x, qr/\Adataready\0+\z/, 'got dataready accf for https');
 	};
 

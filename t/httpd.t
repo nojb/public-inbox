@@ -109,8 +109,10 @@ SKIP: {
 		skip 'accf_http not loaded: kldload accf_http', 1;
 	}
 	require PublicInbox::Daemon;
-	my $var = PublicInbox::Daemon::SO_ACCEPTFILTER();
-	my $x = getsockopt($sock, SOL_SOCKET, $var);
+	ok(defined($PublicInbox::Daemon::SO_ACCEPTFILTER),
+		'SO_ACCEPTFILTER defined');
+	my $x = getsockopt($sock, SOL_SOCKET,
+			$PublicInbox::Daemon::SO_ACCEPTFILTER);
 	like($x, qr/\Ahttpready\0+\z/, 'got httpready accf for HTTP');
 };
 
