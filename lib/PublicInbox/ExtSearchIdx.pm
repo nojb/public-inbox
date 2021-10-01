@@ -688,6 +688,7 @@ sub prep_id2pos ($) {
 
 sub eidxq_process ($$) { # for reindexing
 	my ($self, $sync) = @_;
+	return unless $self->{cfg};
 
 	return unless eidxq_lock_acquire($self);
 	my $dbh = $self->{oidx}->dbh;
@@ -882,6 +883,7 @@ sub _reindex_inbox ($$$) {
 
 sub eidx_reindex {
 	my ($self, $sync) = @_;
+	return unless $self->{cfg};
 
 	# acquire eidxq_lock early because full reindex takes forever
 	# and incremental -extindex processes can run during our checkpoints
