@@ -103,6 +103,7 @@ sub ipc_worker_spawn {
 	my $pid = fork // die "fork: $!";
 	if ($pid == 0) {
 		srand($seed);
+		eval { Net::SSLeay::randomize() };
 		eval { PublicInbox::DS->Reset };
 		delete @$self{qw(-wq_s1 -wq_s2 -wq_workers -wq_ppid)};
 		$w_req = $r_res = undef;
@@ -346,6 +347,7 @@ sub _wq_worker_start ($$$$) {
 	my $pid = fork // die "fork: $!";
 	if ($pid == 0) {
 		srand($seed);
+		eval { Net::SSLeay::randomize() };
 		undef $bcast1;
 		eval { PublicInbox::DS->Reset };
 		delete @$self{qw(-wq_s1 -wq_ppid)};
