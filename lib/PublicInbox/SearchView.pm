@@ -170,7 +170,7 @@ sub err_txt {
 sub search_nav_top {
 	my ($mset, $q, $ctx) = @_;
 	my $m = $q->qs_html(x => 'm', r => undef, t => undef);
-	my $rv = qq{<form\naction="?$m"\nmethod="post"><pre>};
+	my $rv = qq{<form\nid=d\naction="?$m"\nmethod=post><pre>};
 	my $initial_q = $ctx->{-uxs_retried};
 	if (defined $initial_q) {
 		my $rewritten = $q->{'q'};
@@ -195,17 +195,19 @@ sub search_nav_top {
 	$rv .= ']  view[';
 
 	my $x = $q->{x};
+	my $pfx = "\t\t\t";
 	if ($x eq '') {
 		my $t = $q->qs_html(x => 't');
 		$rv .= qq{<b>summary</b>|<a\nhref="?$t">nested</a>}
-	} elsif ($q->{x} eq 't') {
+	} elsif ($x eq 't') {
 		my $s = $q->qs_html(x => '');
 		$rv .= qq{<a\nhref="?$s">summary</a>|<b>nested</b>};
+		$pfx = "thread overview <a\nhref=#t>below</a> | ";
 	}
 	my $A = $q->qs_html(x => 'A', r => undef);
 	$rv .= qq{|<a\nhref="?$A">Atom feed</a>]};
 	if ($ctx->{ibx}->isrch->has_threadid) {
-		$rv .= qq{\n\t\t\tdownload mbox.gz: } .
+		$rv .= qq{\n${pfx}download mbox.gz: } .
 			# we set name=z w/o using it since it seems required for
 			# lynx (but works fine for w3m).
 			qq{<input\ntype=submit\nname=z\n} .
@@ -213,7 +215,7 @@ sub search_nav_top {
 			qq{|<input\ntype=submit\nname=x\n} .
 				q{value="full threads"/>};
 	} else { # BOFH needs to --reindex
-		$rv .= qq{\n\t\t\t\t\t\tdownload: } .
+		$rv .= qq{\n${pfx}download: } .
 			qq{<input\ntype=submit\nname=z\nvalue="mbox.gz"/>}
 	}
 	$rv .= qq{</pre></form><pre>};
@@ -269,7 +271,9 @@ sub search_nav_bot { # also used by WwwListing for searching extindex miscidx
 	$rv .= qq{<a\nhref="?$prev"\nrel=prev>prev $pd</a>} if $prev;
 
 	my $rev = $q->qs_html(o => $o < 0 ? 0 : -1);
-	$rv .= qq{ | <a\nhref="?$rev">reverse</a></pre>};
+	$rv .= qq{ | <a\nhref="?$rev">reverse</a>} .
+		q{ | sort options + mbox downloads } .
+		q{<a href=#d>above</a></pre>};
 }
 
 sub sort_relevance {
@@ -294,7 +298,9 @@ sub mset_thread {
 	my $rootset = PublicInbox::SearchThread::thread($msgs,
 		$r ? \&sort_relevance : \&PublicInbox::View::sort_ds,
 		$ctx);
-	my $skel = search_nav_bot($mset, $q). "<pre>";
+	my $skel = search_nav_bot($mset, $q).
+		"<pre>-- links below jump to the message on this page --\n";
+
 	$ctx->{-upfx} = '';
 	$ctx->{anchor_idx} = 1;
 	$ctx->{cur_level} = 0;
