@@ -155,13 +155,6 @@ sub _InitPoller
     }
 }
 
-=head2 C<< CLASS->EventLoop() >>
-
-Start processing IO events. In most daemon programs this never exits. See
-C<PostLoopCallback> below for how to exit the loop.
-
-=cut
-
 sub now () { clock_gettime(CLOCK_MONOTONIC) }
 
 sub next_tick () {
@@ -277,26 +270,41 @@ sub PostEventLoop () {
 	$PostLoopCallback ? $PostLoopCallback->(\%DescriptorMap) : 1;
 }
 
-sub EventLoop {
-    $Epoll //= _InitPoller();
-    local $in_loop = 1;
-    my @events;
-    do {
-        my $timeout = RunTimers();
+# Start processing IO events. In most daemon programs this never exits. See
+# C<PostLoopCallback> for how to exit the loop.
+sub event_loop (;$$) {
+	my ($sig, $oldset) = @_;
+	$Epoll //= _InitPoller();
+	require PublicInbox::Sigfd if $sig;
+	my $sigfd = PublicInbox::Sigfd->new($sig, 1) if $sig;
+	local @SIG{keys %$sig} = values(%$sig) if $sig && !$sigfd;
+	local $SIG{PIPE} = 'IGNORE';
+	if (!$sigfd && $sig) {
+		# wake up every second to accept signals if we don't
+		# have signalfd or IO::KQueue:
+		sig_setmask($oldset);
+		PublicInbox::DS->SetLoopTimeout(1000);
+	}
+	$_[0] = $sigfd = $sig = undef; # $_[0] == sig
+	local $in_loop = 1;
+	my @events;
+	do {
+		my $timeout = RunTimers();
 
-        # get up to 1000 events
-        epoll_wait($Epoll, 1000, $timeout, \@events);
-        for my $fd (@events) {
-            # it's possible epoll_wait returned many events, including some at the end
-            # that ones in the front triggered unregister-interest actions.  if we
-            # can't find the %sock entry, it's because we're no longer interested
-            # in that event.
+		# get up to 1000 events
+		epoll_wait($Epoll, 1000, $timeout, \@events);
+		for my $fd (@events) {
+			# it's possible epoll_wait returned many events,
+			# including some at the end that ones in the front
+			# triggered unregister-interest actions.  if we can't
+			# find the %sock entry, it's because we're no longer
+			# interested in that event.
 
-	    # guard stack-not-refcounted w/ Carp + @DB::args
-            my $obj = $DescriptorMap{$fd};
-            $obj->event_step;
-        }
-    } while (PostEventLoop());
+			# guard stack-not-refcounted w/ Carp + @DB::args
+			my $obj = $DescriptorMap{$fd};
+			$obj->event_step;
+		}
+	} while (PostEventLoop());
 }
 
 =head2 C<< CLASS->SetPostLoopCallback( CODEREF ) >>
@@ -326,7 +334,7 @@ sub SetPostLoopCallback {
 =head2 C<< CLASS->new( $socket ) >>
 
 Create a new PublicInbox::DS subclass object for the given I<socket> which will
-react to events on it during the C<EventLoop>.
+react to events on it during the C<event_loop>.
 
 This is normally (always?) called from your subclass via:
 

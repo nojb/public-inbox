@@ -150,7 +150,7 @@ sub ext_msg {
 	};
 }
 
-# called via PublicInbox::DS->EventLoop
+# called via PublicInbox::DS::event_loop
 sub event_step {
 	my ($ctx, $sync) = @_;
 	# can't find a partial match in current inbox, try the others:

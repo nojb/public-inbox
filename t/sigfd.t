@@ -4,7 +4,6 @@ use Test::More;
 use IO::Handle;
 use POSIX qw(:signal_h);
 use Errno qw(ENOSYS);
-use PublicInbox::Syscall qw(SFD_NONBLOCK);
 require_ok 'PublicInbox::Sigfd';
 use PublicInbox::DS;
 
@@ -40,18 +39,18 @@ SKIP: {
 		}
 		$sigfd = undef;
 
-		my $nbsig = PublicInbox::Sigfd->new($sig, SFD_NONBLOCK);
+		my $nbsig = PublicInbox::Sigfd->new($sig, 1);
 		ok($nbsig, 'Sigfd->new SFD_NONBLOCK works');
 		is($nbsig->wait_once, undef, 'nonblocking ->wait_once');
 		ok($! == Errno::EAGAIN, 'got EAGAIN');
 		kill('HUP', $$) or die "kill $!";
 		PublicInbox::DS->SetPostLoopCallback(sub {}); # loop once
-		PublicInbox::DS->EventLoop;
+		PublicInbox::DS::event_loop();
 		is($hit->{HUP}->{sigfd}, 2, 'HUP sigfd fired in event loop') or
 			diag explain($hit); # sometimes fails on FreeBSD 11.x
 		kill('TERM', $$) or die "kill $!";
 		kill('HUP', $$) or die "kill $!";
-		PublicInbox::DS->EventLoop;
+		PublicInbox::DS::event_loop();
 		PublicInbox::DS->Reset;
 		is($hit->{TERM}->{sigfd}, 1, 'TERM sigfd fired in event loop');
 		is($hit->{HUP}->{sigfd}, 3, 'HUP sigfd fired in event loop');

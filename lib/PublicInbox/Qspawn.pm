@@ -12,7 +12,7 @@
 # operate in.  This can be useful to ensure smaller inboxes can
 # be cloned while cloning of large inboxes is maxed out.
 #
-# This does not depend on the PublicInbox::DS->EventLoop or any
+# This does not depend on the PublicInbox::DS::event_loop or any
 # other external scheduling mechanism, you just need to call
 # start() and finish() appropriately. However, public-inbox-httpd
 # (which uses PublicInbox::DS)  will be able to schedule this

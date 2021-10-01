@@ -95,7 +95,7 @@ foreach my $n (1..$nfd) {
 
 	# one step through the event loop
 	# do a little work as we connect:
-	PublicInbox::DS->EventLoop;
+	PublicInbox::DS::event_loop();
 
 	# try not to overflow the listen() backlog:
 	if (!($n % 128) && $DONE != $n) {
@@ -104,7 +104,7 @@ foreach my $n (1..$nfd) {
 		PublicInbox::DS->SetPostLoopCallback(sub { $DONE != $n });
 
 		# clear the backlog:
-		PublicInbox::DS->EventLoop;
+		PublicInbox::DS::event_loop();
 
 		# resume looping
 		PublicInbox::DS->SetLoopTimeout(0);
@@ -117,7 +117,7 @@ diag "done?: @".time." $DONE/$nfd";
 if ($DONE != $nfd) {
 	PublicInbox::DS->SetLoopTimeout(-1);
 	PublicInbox::DS->SetPostLoopCallback(sub { $DONE != $nfd });
-	PublicInbox::DS->EventLoop;
+	PublicInbox::DS::event_loop();
 }
 is($nfd, $DONE, "$nfd/$DONE done");
 if ($^O eq 'linux' && open(my $f, '<', "/proc/$pid/status")) {

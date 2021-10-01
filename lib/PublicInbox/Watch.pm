@@ -12,7 +12,6 @@ use PublicInbox::MdirReader;
 use PublicInbox::NetReader;
 use PublicInbox::Filter::Base qw(REJECT);
 use PublicInbox::Spamcheck;
-use PublicInbox::Sigfd;
 use PublicInbox::DS qw(now add_timer);
 use PublicInbox::MID qw(mids);
 use PublicInbox::ContentHash qw(content_hash);
@@ -570,7 +569,7 @@ sub watch { # main entry point
 	}
 	watch_fs_init($self) if $self->{mdre};
 	PublicInbox::DS->SetPostLoopCallback(sub { !$self->quit_done });
-	PublicInbox::DS->EventLoop; # calls ->event_step
+	PublicInbox::DS::event_loop($sig, $oldset); # calls ->event_step
 	_done_for_now($self);
 }
 

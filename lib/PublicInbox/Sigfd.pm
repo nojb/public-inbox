@@ -6,13 +6,13 @@
 package PublicInbox::Sigfd;
 use strict;
 use parent qw(PublicInbox::DS);
-use PublicInbox::Syscall qw(signalfd EPOLLIN EPOLLET SFD_NONBLOCK);
+use PublicInbox::Syscall qw(signalfd EPOLLIN EPOLLET);
 use POSIX ();
 
 # returns a coderef to unblock signals if neither signalfd or kqueue
 # are available.
 sub new {
-	my ($class, $sig, $flags) = @_;
+	my ($class, $sig, $nonblock) = @_;
 	my %signo = map {;
 		my $cb = $sig->{$_};
 		# SIGWINCH is 28 on FreeBSD, NetBSD, OpenBSD
@@ -24,15 +24,15 @@ sub new {
 	} keys %$sig;
 	my $self = bless { sig => \%signo }, $class;
 	my $io;
-	my $fd = signalfd(-1, [keys %signo], $flags);
+	my $fd = signalfd([keys %signo], $nonblock);
 	if (defined $fd && $fd >= 0) {
 		open($io, '+<&=', $fd) or die "open: $!";
 	} elsif (eval { require PublicInbox::DSKQXS }) {
-		$io = PublicInbox::DSKQXS->signalfd([keys %signo], $flags);
+		$io = PublicInbox::DSKQXS->signalfd([keys %signo], $nonblock);
 	} else {
 		return; # wake up every second to check for signals
 	}
-	if ($flags & SFD_NONBLOCK) { # it can go into the event loop
+	if ($nonblock) { # it can go into the event loop
 		$self->SUPER::new($io, EPOLLIN | EPOLLET);
 	} else { # master main loop
 		$self->{sock} = $io;

@@ -18,8 +18,7 @@ use POSIX qw(strftime);
 use IO::Handle ();
 use Fcntl qw(SEEK_SET);
 use PublicInbox::Config;
-use PublicInbox::Syscall qw(SFD_NONBLOCK EPOLLIN EPOLLET);
-use PublicInbox::Sigfd;
+use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
 use PublicInbox::DS qw(now dwaitpid);
 use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::Lock;
@@ -1291,23 +1290,11 @@ sub lazy_start {
 		USR1 => \&noop,
 		USR2 => \&noop,
 	};
-	my $sigfd = PublicInbox::Sigfd->new($sig, SFD_NONBLOCK);
-	local @SIG{keys %$sig} = values(%$sig) unless $sigfd;
-	undef $sig;
-	local $SIG{PIPE} = 'IGNORE';
 	require PublicInbox::DirIdle;
 	local $dir_idle = PublicInbox::DirIdle->new([$sock_dir], sub {
 		# just rely on wakeup to hit PostLoopCallback set below
 		dir_idle_handler($_[0]) if $_[0]->fullname ne $path;
 	}, 1);
-	if ($sigfd) {
-		undef $sigfd; # unref, already in DS::DescriptorMap
-	} else {
-		# wake up every second to accept signals if we don't
-		# have signalfd or IO::KQueue:
-		PublicInbox::DS::sig_setmask($oldset);
-		PublicInbox::DS->SetLoopTimeout(1000);
-	}
 	PublicInbox::DS->SetPostLoopCallback(sub {
 		my ($dmap, undef) = @_;
 		if (@st = defined($path) ? stat($path) : ()) {
@@ -1344,7 +1331,7 @@ sub lazy_start {
 	open STDERR, '>&STDIN' or die "redirect stderr failed: $!";
 	open STDOUT, '>&STDIN' or die "redirect stdout failed: $!";
 	# $daemon pipe to `lei' closed, main loop begins:
-	eval { PublicInbox::DS->EventLoop };
+	eval { PublicInbox::DS::event_loop($sig, $oldset) };
 	warn "event loop error: $@\n" if $@;
 	# exit() may trigger waitpid via various DESTROY, ensure interruptible
 	PublicInbox::DS::sig_setmask($oldset);

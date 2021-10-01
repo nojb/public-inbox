@@ -19,7 +19,7 @@ if ('close-on-exec for epoll and kqueue') {
 	pipe($r, $w) or die "pipe: $!";
 
 	PublicInbox::DS::add_timer(0, sub { $pid = spawn([qw(sleep 10)]) });
-	PublicInbox::DS->EventLoop;
+	PublicInbox::DS::event_loop();
 	ok($pid, 'subprocess spawned');
 
 	# wait for execve, we need to ensure lsof sees sleep(1)
@@ -56,7 +56,7 @@ SKIP: {
 	for my $i (0..$n) {
 		PublicInbox::DS->SetLoopTimeout(0);
 		PublicInbox::DS->SetPostLoopCallback($cb);
-		PublicInbox::DS->EventLoop;
+		PublicInbox::DS::event_loop();
 		PublicInbox::DS->Reset;
 	}
 	ok(1, "Reset works and doesn't hit RLIMIT_NOFILE ($n)");

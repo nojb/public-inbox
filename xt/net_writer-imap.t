@@ -228,7 +228,7 @@ EOM
 	$pub_cfg->each_inbox(sub { $_[0]->subscribe_unlock('ident', $obj) });
 	my $w = start_script(['-watch'], undef, { 2 => $err_wr });
 	diag 'waiting for initial fetch...';
-	PublicInbox::DS->EventLoop;
+	PublicInbox::DS::event_loop();
 	my $ibx = $pub_cfg->lookup_name('wtest');
 	my $mm = $ibx->mm;
 	ok(defined($mm->num_for('Seen@test.example.com')),

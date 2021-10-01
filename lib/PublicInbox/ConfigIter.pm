@@ -1,7 +1,7 @@
 # Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
-# Intended for PublicInbox::DS->EventLoop in read-only daemons
+# Intended for PublicInbox::DS::event_loop in read-only daemons
 # to avoid each_inbox() monopolizing the event loop when hundreds/thousands
 # of inboxes are in play.
 package PublicInbox::ConfigIter;

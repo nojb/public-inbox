@@ -22,7 +22,7 @@ our @EXPORT_OK = qw(epoll_ctl epoll_create epoll_wait
                   EPOLLIN EPOLLOUT EPOLLET
                   EPOLL_CTL_ADD EPOLL_CTL_DEL EPOLL_CTL_MOD
                   EPOLLONESHOT EPOLLEXCLUSIVE
-                  signalfd SFD_NONBLOCK);
+                  signalfd);
 our %EXPORT_TAGS = (epoll => [qw(epoll_ctl epoll_create epoll_wait
                              EPOLLIN EPOLLOUT
                              EPOLL_CTL_ADD EPOLL_CTL_DEL EPOLL_CTL_MOD
@@ -67,7 +67,6 @@ our (
      );
 
 my $SFD_CLOEXEC = 02000000; # Perl does not expose O_CLOEXEC
-sub SFD_NONBLOCK () { O_NONBLOCK }
 our $no_deprecated = 0;
 
 if ($^O eq "linux") {
@@ -266,14 +265,15 @@ sub epoll_wait_mod8 {
 	}
 }
 
-sub signalfd ($$$) {
-	my ($fd, $signos, $flags) = @_;
+sub signalfd ($$) {
+	my ($signos, $nonblock) = @_;
 	if ($SYS_signalfd4) {
 		my $set = POSIX::SigSet->new(@$signos);
-		syscall($SYS_signalfd4, $fd, "$$set",
+		syscall($SYS_signalfd4, -1, "$$set",
 			# $Config{sig_count} is NSIG, so this is NSIG/8:
 			int($Config{sig_count}/8),
-			$flags|$SFD_CLOEXEC);
+			# SFD_NONBLOCK == O_NONBLOCK for every architecture
+			($nonblock ? O_NONBLOCK : 0) |$SFD_CLOEXEC);
 	} else {
 		$! = ENOSYS;
 		undef;

@@ -439,7 +439,7 @@ sub test_watch {
 	my $w = start_script(['-watch'], undef, { 2 => $err_wr });
 
 	diag 'waiting for initial fetch...';
-	PublicInbox::DS->EventLoop;
+	PublicInbox::DS::event_loop();
 	diag 'inbox unlocked on initial fetch';
 	$w->kill;
 	$w->join;

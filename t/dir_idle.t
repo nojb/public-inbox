@@ -15,7 +15,7 @@ my $end = 3 + now;
 PublicInbox::DS->SetPostLoopCallback(sub { scalar(@x) == 0 && now < $end });
 tick(0.011);
 rmdir("$tmpdir/a/b") or xbail "rmdir $!";
-PublicInbox::DS->EventLoop;
+PublicInbox::DS::event_loop();
 is(scalar(@x), 1, 'got an event') and
 	is($x[0]->[0]->fullname, "$tmpdir/a/b", 'got expected fullname') and
 	ok($x[0]->[0]->IN_DELETE, 'IN_DELETE set');
@@ -24,7 +24,7 @@ tick(0.011);
 rmdir("$tmpdir/a") or xbail "rmdir $!";
 @x = ();
 $end = 3 + now;
-PublicInbox::DS->EventLoop;
+PublicInbox::DS::event_loop();
 is(scalar(@x), 1, 'got an event') and
 	is($x[0]->[0]->fullname, "$tmpdir/a", 'got expected fullname') and
 	ok($x[0]->[0]->IN_DELETE_SELF, 'IN_DELETE_SELF set');
@@ -33,7 +33,7 @@ tick(0.011);
 rename("$tmpdir/c", "$tmpdir/j") or xbail "rmdir $!";
 @x = ();
 $end = 3 + now;
-PublicInbox::DS->EventLoop;
+PublicInbox::DS::event_loop();
 is(scalar(@x), 1, 'got an event') and
 	is($x[0]->[0]->fullname, "$tmpdir/c", 'got expected fullname') and
 	ok($x[0]->[0]->IN_DELETE_SELF || $x[0]->[0]->IN_MOVE_SELF,

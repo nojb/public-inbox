@@ -251,7 +251,7 @@ sub wq_worker_loop ($$) {
 	my $wqw = PublicInbox::WQWorker->new($self, $self->{-wq_s2});
 	PublicInbox::WQWorker->new($self, $bcast2) if $bcast2;
 	PublicInbox::DS->SetPostLoopCallback(sub { $wqw->{sock} });
-	PublicInbox::DS->EventLoop;
+	PublicInbox::DS::event_loop();
 	PublicInbox::DS->Reset;
 }
 
@@ -353,7 +353,6 @@ sub _wq_worker_start ($$$$) {
 		delete @$self{qw(-wq_s1 -wq_ppid)};
 		$self->{-wq_worker_nr} =
 				keys %{delete($self->{-wq_workers}) // {}};
-		$SIG{$_} = 'IGNORE' for (qw(PIPE));
 		$SIG{$_} = 'DEFAULT' for (qw(TTOU TTIN TERM QUIT INT CHLD));
 		local $0 = $one ? $self->{-wq_ident} :
 			"$self->{-wq_ident} $self->{-wq_worker_nr}";

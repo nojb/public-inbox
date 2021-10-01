@@ -199,7 +199,7 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 
 	$em->commit; # wake -watch up
 	diag 'waiting for -watch to import new message';
-	PublicInbox::DS->EventLoop;
+	PublicInbox::DS::event_loop();
 	$wm->kill;
 	$wm->join;
 	$ii->close;

@@ -15,7 +15,6 @@ use Socket qw(IPPROTO_TCP SOL_SOCKET);
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
 use PublicInbox::DS qw(now);
-use PublicInbox::Syscall qw(SFD_NONBLOCK);
 require PublicInbox::Listener;
 use PublicInbox::EOFpipe;
 use PublicInbox::Sigfd;
@@ -513,7 +512,7 @@ EOF
 		},
 		CHLD => \&reap_children,
 	};
-	my $sigfd = PublicInbox::Sigfd->new($sig, 0);
+	my $sigfd = PublicInbox::Sigfd->new($sig);
 	local @SIG{keys %$sig} = values(%$sig) unless $sigfd;
 	PublicInbox::DS::sig_setmask($oldset) if !$sigfd;
 	while (1) { # main loop
@@ -630,20 +629,11 @@ sub daemon_loop ($$$$) {
 		# this calls epoll_create:
 		PublicInbox::Listener->new($_, $tls_cb || $post_accept)
 	} @listeners;
-	my $sigfd = PublicInbox::Sigfd->new($sig, SFD_NONBLOCK);
-	local @SIG{keys %$sig} = values(%$sig) unless $sigfd;
-	if (!$sigfd) {
-		# wake up every second to accept signals if we don't
-		# have signalfd or IO::KQueue:
-		PublicInbox::DS::sig_setmask($oldset);
-		PublicInbox::DS->SetLoopTimeout(1000);
-	}
-	PublicInbox::DS->EventLoop;
+	PublicInbox::DS::event_loop($sig, $oldset);
 }
 
 sub run ($$$;$) {
 	my ($default, $refresh, $post_accept, $tlsd) = @_;
-	local $SIG{PIPE} = 'IGNORE';
 	daemon_prepare($default);
 	my $af_default = $default =~ /:8080\z/ ? 'httpready' : undef;
 	my $for_destroy = daemonize();

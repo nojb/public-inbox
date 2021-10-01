@@ -1305,19 +1305,11 @@ sub eidx_watch { # public-inbox-extindex --watch main loop
 	};
 	my $quit = PublicInbox::SearchIdx::quit_cb($sync);
 	$sig->{QUIT} = $sig->{INT} = $sig->{TERM} = $quit;
-	my $sigfd = PublicInbox::Sigfd->new($sig,
-					$PublicInbox::Syscall::SFD_NONBLOCK);
-	@SIG{keys %$sig} = values(%$sig) if !$sigfd;
 	local $self->{-watch_sync} = $sync; # for ->on_inbox_unlock
-	if (!$sigfd) {
-		# wake up every second to accept signals if we don't
-		# have signalfd or IO::KQueue:
-		PublicInbox::DS::sig_setmask($oldset);
-		PublicInbox::DS->SetLoopTimeout(1000);
-	}
 	PublicInbox::DS->SetPostLoopCallback(sub { !$sync->{quit} });
 	$pr->("initial scan complete, entering event loop\n") if $pr;
-	PublicInbox::DS->EventLoop; # calls InboxIdle->event_step
+	# calls InboxIdle->event_step:
+	PublicInbox::DS::event_loop($sig, $oldset);
 	done($self);
 }
 

@@ -57,7 +57,7 @@ sub gcf2_async ($$$;$) {
 # ensure PublicInbox::Git::cat_async_step never calls cat_async_retry
 sub alternates_changed {}
 
-# DS->EventLoop will call this
+# DS::event_loop will call this
 sub event_step {
 	my ($self) = @_;
 	$self->flush_write;
@@ -74,7 +74,7 @@ sub event_step {
 
 sub DESTROY {
 	my ($self) = @_;
-	delete $self->{sock}; # if outside EventLoop
+	delete $self->{sock}; # if outside event_loop
 	PublicInbox::Git::DESTROY($self);
 }
 

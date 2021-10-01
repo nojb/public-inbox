@@ -466,7 +466,7 @@ SKIP: {
 	my $w = start_script(['-watch'], undef, { 2 => $err_wr });
 
 	diag 'waiting for initial fetch...';
-	PublicInbox::DS->EventLoop;
+	PublicInbox::DS::event_loop();
 	diag 'inbox unlocked on initial fetch, waiting for IDLE';
 
 	tick until (grep(/I: \S+ idling/, <$err>));
@@ -477,7 +477,7 @@ SKIP: {
 		diag "mda error \$?=$?";
 	diag 'waiting for IMAP IDLE wakeup';
 	PublicInbox::DS->SetPostLoopCallback(undef);
-	PublicInbox::DS->EventLoop;
+	PublicInbox::DS::event_loop();
 	diag 'inbox unlocked on IDLE wakeup';
 
 	# try again with polling
@@ -494,7 +494,7 @@ SKIP: {
 
 	diag 'waiting for PollInterval wakeup';
 	PublicInbox::DS->SetPostLoopCallback(undef);
-	PublicInbox::DS->EventLoop;
+	PublicInbox::DS::event_loop();
 	diag 'inbox unlocked (poll)';
 	$w->kill;
 	$w->join;
