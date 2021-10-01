@@ -18,6 +18,9 @@ permissions support.
 It does not use POSIX ACLs, extended attributes, nor any other
 security-related functions which require non-standard Perl modules.
 
+There is preliminary support for "virtual users", but it is
+incomplete and undocumented.
+
 =head1 INTERNAL FILES
 
 lei runs with a umask of 077 to prevent other users on the
@@ -93,7 +96,7 @@ lei uses L<git-credential(1)> to prompt users for IMAP and NNTP
 usernames and passwords.  These passwords are not encrypted in
 memory and get transferred across processes via anonymous UNIX
 sockets and pipes.  They may be exposed via syscall tracing
-tools (e.g. L<strace(1)>).
+tools (e.g. L<strace(1)>), kernel and hardware bugs/attacks.
 
 While credentials are not written to the filesystem by default,
 it is possible for them to end up on disk if processes are
