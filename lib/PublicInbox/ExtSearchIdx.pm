@@ -89,6 +89,7 @@ sub attach_config {
 			$self->{ibx_map}->{$ibx->eidx_key} //= do {
 				push @{$self->{ibx_active}}, $ibx;
 				push @{$self->{ibx_known}}, $ibx;
+				$ibx;
 			}
 		}
 		# invalidate cache
