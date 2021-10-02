@@ -78,22 +78,9 @@ sub inspect_sync_folder ($$) {
 	$ent
 }
 
-sub inspect_docid ($$;$) {
-	my ($lei, $docid, $ent) = @_;
-	require PublicInbox::Search;
-	$ent //= {};
-	my $xdb;
-	if ($xdb = delete $ent->{xdb}) { # from inspect_num
-	} elsif (defined(my $dir = $lei->{opt}->{dir})) {
-		no warnings 'once';
-		$xdb = $PublicInbox::Search::X{Database}->new($dir);
-	} else {
-		$xdb = $lei->{lse}->xdb;
-	}
-	$xdb or return $lei->fail('no Xapian DB');
-	my $doc = $xdb->get_document($docid); # raises
+sub _inspect_doc ($$) {
+	my ($ent, $doc) = @_;
 	my $data = $doc->get_data;
-	$ent->{docid} = $docid;
 	$ent->{data_length} = length($data);
 	$ent->{description} = $doc->get_description;
 	$ent->{$_} = $doc->$_ for (qw(termlist_count values_count));
@@ -119,6 +106,24 @@ sub inspect_docid ($$;$) {
 	$ent;
 }
 
+sub inspect_docid ($$;$) {
+	my ($lei, $docid, $ent) = @_;
+	require PublicInbox::Search;
+	$ent //= {};
+	my $xdb;
+	if ($xdb = delete $ent->{xdb}) { # from inspect_num
+	} elsif (defined(my $dir = $lei->{opt}->{dir})) {
+		no warnings 'once';
+		$xdb = $PublicInbox::Search::X{Database}->new($dir);
+	} elsif ($lei->{lse}) {
+		$xdb = $lei->{lse}->xdb;
+	}
+	$xdb or return $lei->fail('no Xapian DB');
+	my $doc = $xdb->get_document($docid); # raises
+	$ent->{docid} = $docid;
+	_inspect_doc($ent, $doc);
+}
+
 sub dir2ibx ($$) {
 	my ($lei, $dir) = @_;
 	if (-f "$dir/ei.lock") {
@@ -138,11 +143,9 @@ sub inspect_num ($$) {
 	my $ent = { num => $num };
 	if (defined(my $dir = $lei->{opt}->{dir})) {
 		$ibx = dir2ibx($lei, $dir) or return;
-		if ($ent->{xdb} = $ibx->xdb) {
-			my $num2docid = $lei->{lse}->can('num2docid');
-			$docid = $num2docid->($ibx, $num);
-		}
-	} else {
+		$ent->{xdb} = $ibx->xdb and # for inspect_docid
+			$docid = PublicInbox::LeiSearch::num2docid($ibx, $num);
+	} elsif ($lei->{lse}) {
 		$ibx = $lei->{lse};
 		$lei->{lse}->xdb; # set {nshard} for num2docid
 		$docid = $lei->{lse}->num2docid($num);
@@ -156,21 +159,25 @@ sub inspect_num ($$) {
 
 sub inspect_mid ($$) {
 	my ($lei, $mid) = @_;
-	my ($ibx, $over);
+	my $ibx;
 	my $ent = { mid => $mid };
 	if (defined(my $dir = $lei->{opt}->{dir})) {
-		my $num2docid = $lei->{lse}->can('num mid => [ $mid ] 2docid');
-		$ibx = dir2ibx($lei, $dir) or return;
-		# $ent->{xdb} = $ibx->xdb //
-			# return $lei->fail("no Xapian DB for $dir");
+		$ibx = dir2ibx($lei, $dir)
 	} else {
 		$ibx = $lei->{lse};
-		$lei->{lse}->xdb; # set {nshard} for num2docid
 	}
 	if ($ibx && $ibx->over) {
 		my ($id, $prev);
 		while (my $smsg = $ibx->over->next_by_mid($mid, \$id, \$prev)) {
 			push @{$ent->{smsg}}, _json_prep($smsg);
+		}
+	}
+	if ($ibx && $ibx->search) {
+		my $mset = $ibx->search->mset(qq{mid:"$mid"});
+		for (sort { $a->get_docid <=> $b->get_docid } $mset->items) {
+			my $tmp = { docid => $_->get_docid };
+			_inspect_doc($tmp, $_->get_document);
+			push @{$ent->{xdoc}}, $tmp;
 		}
 	}
 	$ent;

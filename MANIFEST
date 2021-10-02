@@ -450,6 +450,7 @@ t/lei-import-maildir.t
 t/lei-import-nntp.t
 t/lei-import.t
 t/lei-index.t
+t/lei-inspect.t
 t/lei-lcat.t
 t/lei-mirror.psgi
 t/lei-mirror.t
