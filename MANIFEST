@@ -237,6 +237,7 @@ lib/PublicInbox/LeiLsMailSource.pm
 lib/PublicInbox/LeiLsMailSync.pm
 lib/PublicInbox/LeiLsSearch.pm
 lib/PublicInbox/LeiLsWatch.pm
+lib/PublicInbox/LeiMailDiff.pm
 lib/PublicInbox/LeiMailSync.pm
 lib/PublicInbox/LeiMirror.pm
 lib/PublicInbox/LeiNoteEvent.pm

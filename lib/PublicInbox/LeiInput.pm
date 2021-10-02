@@ -57,6 +57,12 @@ sub check_input_format ($;$) {
 	1;
 }
 
+sub input_mbox_cb { # base MboxReader callback
+	my ($eml, $self) = @_;
+	$eml->header_set($_) for (qw(Status X-Status));
+	$self->input_eml_cb($eml);
+}
+
 # import a single file handle of $name
 # Subclass must define ->input_eml_cb and ->input_mbox_cb
 sub input_fh {

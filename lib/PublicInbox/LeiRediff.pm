@@ -56,6 +56,34 @@ sub solve_1 ($$$) {
 	$self->{blob}->{$oid_want}; # full OID
 }
 
+sub _lei_diff_prepare ($$) {
+	my ($lei, $cmd) = @_;
+	my $opt = $lei->{opt};
+	push @$cmd, '--'.($opt->{color} && !$opt->{'no-color'} ? '' : 'no-').
+			'color';
+	for my $o (@PublicInbox::LEI::diff_opt) {
+		my $c = '';
+		# remove single char short option
+		$o =~ s/\|([a-z0-9])\b//i and $c = $1;
+		if ($o =~ s/=[is]@\z//) {
+			my $v = $opt->{$o} or next;
+			push @$cmd, map { $c ? "-$c$_" : "--$o=$_" } @$v;
+		} elsif ($o =~ s/=[is]\z//) {
+			my $v = $opt->{$o} // next;
+			push @$cmd, $c ? "-$c$v" : "--$o=$v";
+		} elsif ($o =~ s/:[is]\z//) {
+			my $v = $opt->{$o} // next;
+			push @$cmd, $c ? "-$c$v" :
+					($v eq '' ? "--$o" : "--$o=$v");
+		} elsif ($o =~ s/!\z//) {
+			my $v = $opt->{$o} // next;
+			push @$cmd, $v ? "--$o" : "--no-$o";
+		} elsif ($opt->{$o}) {
+			push @$cmd, $c ? "-$c" : "--$o";
+		}
+	}
+}
+
 sub diff_ctxq ($$) {
 	my ($self, $ctxq) = @_;
 	return unless $ctxq;
@@ -103,35 +131,12 @@ EOM
 	waitpid($pid, 0);
 	die "fast-import failed: \$?=$?" if $?;
 
-	my @cmd = qw(diff);
-	my $opt = $lei->{opt};
-	push @cmd, '--'.($opt->{color} && !$opt->{'no-color'} ? '' : 'no-').
-			'color';
-	for my $o (@PublicInbox::LEI::diff_opt) {
-		my $c = '';
-		# remove single char short option
-		$o =~ s/\|([a-z0-9])\b//i and $c = $1;
-		if ($o =~ s/=[is]@\z//) {
-			my $v = $opt->{$o} or next;
-			push @cmd, map { $c ? "-$c$_" : "--$o=$_" } @$v;
-		} elsif ($o =~ s/=[is]\z//) {
-			my $v = $opt->{$o} // next;
-			push @cmd, $c ? "-$c$v" : "--$o=$v";
-		} elsif ($o =~ s/:[is]\z//) {
-			my $v = $opt->{$o} // next;
-			push @cmd, $c ? "-$c$v" :
-					($v eq '' ? "--$o" : "--$o=$v");
-		} elsif ($o =~ s/!\z//) {
-			my $v = $opt->{$o} // next;
-			push @cmd, $v ? "--$o" : "--no-$o";
-		} elsif ($opt->{$o}) {
-			push @cmd, $c ? "-$c" : "--$o";
-		}
-	}
-	$lei->qerr("# git @cmd");
-	push @cmd, qw(A B);
-	unshift @cmd, 'git', "--git-dir=$rw->{git_dir}";
-	$pid = spawn(\@cmd, $lei->{env}, { 2 => $lei->{2}, 1 => $lei->{1} });
+	my $cmd = [ 'diff' ];
+	_lei_diff_prepare($lei, $cmd);
+	$lei->qerr("# git @$cmd");
+	push @$cmd, qw(A B);
+	unshift @$cmd, 'git', "--git-dir=$rw->{git_dir}";
+	$pid = spawn($cmd, $lei->{env}, { 2 => $lei->{2}, 1 => $lei->{1} });
 	waitpid($pid, 0);
 	$lei->child_error($?) if $?; # for git diff --exit-code
 	undef;

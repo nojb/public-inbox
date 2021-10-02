@@ -52,9 +52,9 @@ sub content_dig_i {
 	$dig->add($s);
 }
 
-sub content_digest ($) {
-	my ($eml) = @_;
-	my $dig = Digest::SHA->new(256);
+sub content_digest ($;$) {
+	my ($eml, $dig) = @_;
+	$dig //= Digest::SHA->new(256);
 
 	# References: and In-Reply-To: get used interchangeably
 	# in some "duplicates" in LKML.  We treat them the same

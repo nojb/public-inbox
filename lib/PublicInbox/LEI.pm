@@ -203,6 +203,11 @@ our %CMD = ( # sorted in order of importance/use:
 	qw(git-dir=s@ cwd! verbose|v+ color:s no-color drq:1 dequote-only:1),
 	@diff_opt, @lxs_opt, @net_opt, @c_opt ],
 
+'mail-diff' => [ '--stdin|LOCATION...', 'diff the contents of emails',
+	'stdin|', # /|\z/ must be first for lone dash
+	qw(verbose|v+ color:s no-color raw-header),
+	@diff_opt, @net_opt, @c_opt ],
+
 'add-external' => [ 'LOCATION',
 	'add/set priority of a publicinbox|extindex for extra matches',
 	qw(boost=i mirror=s inbox-version=i epoch=s verbose|v+),
