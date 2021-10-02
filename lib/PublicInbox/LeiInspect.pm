@@ -13,6 +13,12 @@ use PublicInbox::Config;
 use PublicInbox::MID qw(mids);
 use PublicInbox::NetReader qw(imap_uri nntp_uri);
 
+sub _json_prep ($) {
+	my ($smsg) = @_;
+	$smsg->{$_} += 0 for qw(bytes lines); # integerize
+	+{ %$smsg } # unbless and scalarize
+}
+
 sub inspect_blob ($$) {
 	my ($lei, $oidhex) = @_;
 	my $ent = {};
@@ -143,7 +149,7 @@ sub inspect_num ($$) {
 	}
 	if ($ibx && $ibx->over) {
 		my $smsg = $ibx->over->get_art($num);
-		$ent->{smsg} = { %$smsg } if $smsg;
+		$ent->{smsg} = _json_prep($smsg) if $smsg;
 	}
 	defined($docid) ? inspect_docid($lei, $docid, $ent) : $ent;
 }
@@ -164,7 +170,7 @@ sub inspect_mid ($$) {
 	if ($ibx && $ibx->over) {
 		my ($id, $prev);
 		while (my $smsg = $ibx->over->next_by_mid($mid, \$id, \$prev)) {
-			push @{$ent->{smsg}}, { %$smsg }
+			push @{$ent->{smsg}}, _json_prep($smsg);
 		}
 	}
 	$ent;
