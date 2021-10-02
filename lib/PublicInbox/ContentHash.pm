@@ -20,6 +20,7 @@ use Digest::SHA;
 sub digest_addr ($$$) {
 	my ($dig, $h, $v) = @_;
 	$v =~ tr/"//d;
+	$v =~ tr/\r\n\t / /s;
 	$v =~ s/@([a-z0-9\_\.\-\(\)]*([A-Z])\S*)/'@'.lc($1)/ge;
 	utf8::encode($v);
 	$dig->add("$h\0$v\0");
