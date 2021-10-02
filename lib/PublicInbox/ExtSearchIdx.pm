@@ -223,13 +223,16 @@ sub _blob_missing ($$) { # called when $smsg->{blob} is bad
 	my $xref3 = $self->{oidx}->get_xref3($smsg->{num});
 	my @keep = grep(!/:$smsg->{blob}\z/, @$xref3);
 	if (@keep) {
+		warn "E: $smsg->{blob} gone, removing #$smsg->{num}\n";
 		$keep[0] =~ /:([a-f0-9]{40,}+)\z/ or
 			die "BUG: xref $keep[0] has no OID";
 		my $oidhex = $1;
 		$self->{oidx}->remove_xref3($smsg->{num}, $smsg->{blob});
-		my $upd = $self->{oidx}->update_blob($smsg, $oidhex);
-		my $saved = $self->{oidx}->get_art($smsg->{num});
+		$self->{oidx}->update_blob($smsg, $oidhex) or warn <<EOM;
+E: #$smsg->{num} gone ($smsg->{blob} => $oidhex)
+EOM
 	} else {
+		warn "E: $smsg->{blob} gone, removing #$smsg->{num}\n";
 		$self->{oidx}->delete_by_num($smsg->{num});
 	}
 }
