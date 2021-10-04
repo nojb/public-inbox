@@ -633,7 +633,7 @@ SELECT COUNT(*) FROM xref3 WHERE docid = ?
 		# if deduplication rules in ContentHash change, it's
 		# possible a docid can have multiple rows with the
 		# same ibx_id.  This governs whether or not we call
-		# ->shard_remove_eidx_info in ExtSearchIdx.
+		# ->remove_eidx_info in ExtSearchIdx.
 		$sth = $self->{dbh}->prepare_cached(<<'', undef, 1);
 SELECT COUNT(*) FROM xref3 WHERE docid = ? AND ibx_id = ?
 
