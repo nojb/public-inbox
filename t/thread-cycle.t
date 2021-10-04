@@ -1,19 +1,16 @@
 # Copyright (C) 2016-2021 all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-use strict;
-use warnings;
-use Test::More;
-use PublicInbox::TestCommon;
-require_mods 'Email::Simple';
+use strict; use v5.10.1; use PublicInbox::TestCommon;
 use_ok('PublicInbox::SearchThread');
 my $mt = eval {
 	require Mail::Thread;
 	no warnings 'once';
 	$Mail::Thread::nosubject = 1;
 	$Mail::Thread::noprune = 1;
+	require Email::Simple; # required by Mail::Thread (via Email::Abstract)
 };
 
-sub make_objs {
+my $make_objs = sub {
 	my @simples;
 	my $n = 0;
 	my @msgs = map {
@@ -21,17 +18,19 @@ sub make_objs {
 		$msg->{ds} ||= ++$n;
 		$msg->{references} =~ s/\s+/ /sg if $msg->{references};
 		$msg->{blob} = '0'x40; # any dummy value will do, here
-		my $simple = Email::Simple->create(header => [
-			'Message-ID' => "<$msg->{mid}>",
-			'References' => $msg->{references},
-		]);
-		push @simples, $simple;
+		if ($mt) {
+			my $simple = Email::Simple->create(header => [
+				'Message-ID' => "<$msg->{mid}>",
+				'References' => $msg->{references},
+			]);
+			push @simples, $simple;
+		}
 		bless $msg, 'PublicInbox::Smsg'
 	} @_;
 	(\@simples, \@msgs);
-}
+};
 
-my ($simples, $smsgs) = make_objs(
+my ($simples, $smsgs) = $make_objs->(
 # data from t/testbox-6 in Mail::Thread 2.55:
 	{ mid => '20021124145312.GA1759@nlin.net' },
 	{ mid => 'slrnau448m.7l4.markj+0111@cloaked.freeserve.co.uk',
@@ -79,13 +78,13 @@ my @backwards = (
 	{ mid => 8, references => '' }
 );
 
-($simples, $smsgs) = make_objs(@backwards);
+($simples, $smsgs) = $make_objs->(@backwards);
 my $backward = thread_to_s($smsgs);
 SKIP: {
 	skip 'Mail::Thread missing', 1 unless $mt;
 	check_mt($backward, $simples, 'matches Mail::Thread backwards');
 }
-($simples, $smsgs) = make_objs(reverse @backwards);
+($simples, $smsgs) = $make_objs->(reverse @backwards);
 my $forward = thread_to_s($smsgs);
 unless ('Mail::Thread sorts by Date') {
 	SKIP: {
