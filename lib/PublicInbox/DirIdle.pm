@@ -5,7 +5,7 @@
 package PublicInbox::DirIdle;
 use strict;
 use parent 'PublicInbox::DS';
-use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
+use PublicInbox::Syscall qw(EPOLLIN);
 use PublicInbox::In2Tie;
 
 my ($MAIL_IN, $MAIL_GONE, $ino_cls);
@@ -38,7 +38,7 @@ sub new {
 	if ($ino_cls) {
 		$inot = $ino_cls->new or die "E: $ino_cls->new: $!";
 		my $io = PublicInbox::In2Tie::io($inot);
-		$self->SUPER::new($io, EPOLLIN | EPOLLET);
+		$self->SUPER::new($io, EPOLLIN);
 	} else {
 		require PublicInbox::FakeInotify;
 		$inot = PublicInbox::FakeInotify->new; # starts timer

@@ -7,7 +7,7 @@
 package PublicInbox::InboxIdle;
 use strict;
 use parent qw(PublicInbox::DS);
-use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
+use PublicInbox::Syscall qw(EPOLLIN);
 my $IN_MODIFY = 0x02; # match Linux inotify
 my $ino_cls;
 if ($^O eq 'linux' && eval { require Linux::Inotify2; 1 }) {
@@ -73,7 +73,7 @@ sub new {
 	if ($ino_cls) {
 		$inot = $ino_cls->new or die "E: $ino_cls->new: $!";
 		my $io = PublicInbox::In2Tie::io($inot);
-		$self->SUPER::new($io, EPOLLIN | EPOLLET);
+		$self->SUPER::new($io, EPOLLIN);
 	} else {
 		require PublicInbox::FakeInotify;
 		$inot = PublicInbox::FakeInotify->new;
