@@ -14,7 +14,7 @@
 # wrapper for SWIG-generated highlight.pm bindings
 package PublicInbox::HlMod;
 use strict;
-use warnings;
+use v5.10.1;
 use highlight; # SWIG-generated stuff
 use PublicInbox::Hval qw(src_escape ascii_html);
 my $hl;
@@ -54,8 +54,7 @@ sub _parse_filetypes ($) {
 	(\%ext2lang, \@shebang);
 }
 
-# We only need one instance, so we don't need to do
-# highlight::CodeGenerator::deleteInstance
+# We only need one instance
 sub new {
 	my ($class) = @_;
 	$hl ||= do {
@@ -95,33 +94,26 @@ sub do_hl {
 sub do_hl_lang {
 	my ($self, $str, $lang) = @_;
 
-	my $dir = $self->{-dir};
 	my $langpath;
-
 	if (defined $lang) {
-		$langpath = $dir->getLangPath("$lang.lang") or return;
-		$lang = undef unless -f $langpath
+		$langpath = $self->{-dir}->getLangPath("$lang.lang") or return;
+		undef $lang unless -f $langpath;
 	}
-	unless (defined $lang) {
-		$lang = _shebang2lang($self, $str) or return;
-		$langpath = $dir->getLangPath("$lang.lang") or return;
-		return unless -f $langpath
-	}
-	my $gen = $self->{$langpath} ||= do {
-		my $g = highlight::CodeGenerator::getInstance($highlight::HTML);
-		$g->setFragmentCode(1); # generate html fragment
+	$lang //= _shebang2lang($self, $str) // return;
+	$langpath = $self->{-dir}->getLangPath("$lang.lang") or return;
+	return unless -f $langpath;
 
-		# whatever theme works
-		my $themepath = $dir->getThemePath('print.theme');
-		$g->initTheme($themepath);
-		$g->loadLanguage($langpath);
-		$g->setEncoding('utf-8');
-		$g;
-	};
+	my $g = highlight::CodeGenerator::getInstance($highlight::HTML);
+	$g->setFragmentCode(1); # generate html fragment
 
+	# whatever theme works
+	$g->initTheme($self->{-dir}->getThemePath('print.theme'));
+	$g->loadLanguage($langpath);
+	$g->setEncoding('utf-8');
 	# we assume $$str is valid UTF-8, but the SWIG binding doesn't
 	# know that, so ensure it's marked as UTF-8 even if it isnt...
-	my $out = $gen->generateString($$str);
+	my $out = $g->generateString($$str);
+	highlight::CodeGenerator::deleteInstance($g);
 	utf8::decode($out);
 	src_escape($out);
 	\$out;

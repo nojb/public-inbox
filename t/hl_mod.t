@@ -3,8 +3,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict; use v5.10.1; use PublicInbox::TestCommon; use IO::Handle; # ->autoflush
 use Fcntl qw(:seek);
-eval { require highlight } or
-	plan skip_all => "failed to load highlight.pm for $0";
+require_mods 'highlight';
 use_ok 'PublicInbox::HlMod';
 my $hls = PublicInbox::HlMod->new;
 ok($hls, 'initialized OK');
