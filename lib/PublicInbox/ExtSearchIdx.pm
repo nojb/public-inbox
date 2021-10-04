@@ -120,9 +120,8 @@ sub apply_boost ($$) {
 				||
 		$a->[1] <=> $b->[1] # break ties with {xnum}
 	} @$xr3;
-	my $top_blob = unpack('H*', $xr3->[0]->[2]);
 	my $new_smsg = $req->{new_smsg};
-	return if $top_blob ne $new_smsg->{blob}; # loser
+	return if $xr3->[0]->[2] ne pack('H*', $new_smsg->{blob}); # loser
 
 	# replace the old smsg with the more boosted one
 	$new_smsg->{num} = $smsg->{num};
