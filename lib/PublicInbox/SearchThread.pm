@@ -24,70 +24,74 @@ use PublicInbox::MID qw($MID_EXTRACT);
 
 sub thread {
 	my ($msgs, $ordersub, $ctx) = @_;
+	my (%id_table, @imposters);
+	keys(%id_table) = scalar @$msgs; # pre-size
 
-	# A. put all current $msgs (non-ghosts) into %id_table
-	my %id_table = map {;
+	# A. put all current non-imposter $msgs (non-ghosts) into %id_table
+	# (imposters are messages with reused Message-IDs)
+	# Sadly, we sort here anyways since the fill-in-the-blanks References:
+	# can be shakier if somebody used In-Reply-To with multiple, disparate
+	# messages.  So, take the client Date: into account since we can't
+	# always determine ordering when somebody uses multiple In-Reply-To.
+	my @kids = sort { $a->{ds} <=> $b->{ds} } grep {
 		# this delete saves around 4K across 1K messages
 		# TODO: move this to a more appropriate place, breaks tests
 		# if we do it during psgi_cull
 		delete $_->{num};
 
-		$_->{mid} => PublicInbox::SearchThread::Msg::cast($_);
+		PublicInbox::SearchThread::Msg::cast($_);
+		if (exists $id_table{$_->{mid}}) {
+			$_->{children} = [];
+			push @imposters, $_; # we'll deal with them later
+			undef;
+		} else {
+			$id_table{$_->{mid}} = $_;
+			defined($_->{references});
+		}
 	} @$msgs;
+	for my $smsg (@kids) {
+		# This loop exists to help fill in gaps left from missing
+		# messages.  It is not needed in a perfect world where
+		# everything is perfectly referenced, only the last ref
+		# matters.
+		my $prev;
+		for my $ref ($smsg->{references} =~ m/$MID_EXTRACT/go) {
+			# Find a Container object for the given Message-ID
+			my $cont = $id_table{$ref} //=
+				PublicInbox::SearchThread::Msg::ghost($ref);
 
-	# Sadly, we sort here anyways since the fill-in-the-blanks References:
-	# can be shakier if somebody used In-Reply-To with multiple, disparate
-	# messages.  So, take the client Date: into account since we can't
-	# always determine ordering when somebody uses multiple In-Reply-To.
-	# We'll trust the client Date: header here instead of the Received:
-	# time since this is for display (and not retrieval)
-	_set_parent(\%id_table, $_) for sort { $a->{ds} <=> $b->{ds} } @$msgs;
+			# Link the References field's Containers together in
+			# the order implied by the References header
+			#
+			# * If they are already linked don't change the
+			#   existing links
+			# * Do not add a link if adding that link would
+			#   introduce a loop...
+			if ($prev &&
+				!$cont->{parent} &&  # already linked
+				!$cont->has_descendent($prev) # would loop
+			   ) {
+				$prev->add_child($cont);
+			}
+			$prev = $cont;
+		}
+
+		# C. Set the parent of this message to be the last element in
+		# References.
+		if (defined $prev && !$smsg->has_descendent($prev)) {
+			$prev->add_child($smsg);
+		}
+	}
 	my $ibx = $ctx->{ibx};
-	my $rootset = [ grep {
+	my $rootset = [ grep { # n.b.: delete prevents cyclic refs
 			!delete($_->{parent}) && $_->visible($ibx)
 		} values %id_table ];
 	$rootset = $ordersub->($rootset);
 	$_->order_children($ordersub, $ctx) for @$rootset;
+
+	# parent imposter messages with reused Message-IDs
+	unshift(@{$id_table{$_->{mid}}->{children}}, $_) for @imposters;
 	$rootset;
-}
-
-sub _set_parent ($$) {
-	my ($id_table, $this) = @_;
-
-	# B. For each element in the message's References field:
-	defined(my $refs = $this->{references}) or return;
-
-	# This loop exists to help fill in gaps left from missing
-	# messages.  It is not needed in a perfect world where
-	# everything is perfectly referenced, only the last ref
-	# matters.
-	my $prev;
-	foreach my $ref ($refs =~ m/$MID_EXTRACT/go) {
-		# Find a Container object for the given Message-ID
-		my $cont = $id_table->{$ref} //=
-			PublicInbox::SearchThread::Msg::ghost($ref);
-
-		# Link the References field's Containers together in
-		# the order implied by the References header
-		#
-		# * If they are already linked don't change the
-		#   existing links
-		# * Do not add a link if adding that link would
-		#   introduce a loop...
-		if ($prev &&
-			!$cont->{parent} &&  # already linked
-			!$cont->has_descendent($prev) # would loop
-		   ) {
-			$prev->add_child($cont);
-		}
-		$prev = $cont;
-	}
-
-	# C. Set the parent of this message to be the last element in
-	# References.
-	if (defined $prev && !$this->has_descendent($prev)) { # would loop
-		$prev->add_child($this);
-	}
 }
 
 package PublicInbox::SearchThread::Msg;

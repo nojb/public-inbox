@@ -96,7 +96,26 @@ if ('sorting by Date') {
 	is("\n".$backward, "\n".$forward, 'forward and backward matches');
 }
 
-done_testing();
+SKIP: {
+	require_mods 'Devel::Cycle', 1;
+	Devel::Cycle->import('find_cycle');
+	my @dup = (
+		{ mid => 5, references => '<6>' },
+		{ mid => 5, references => '<6> <1>' },
+	);
+	open my $fh, '+>', \(my $out = '') or xbail "open: $!";
+	(undef, $smsgs) = $make_objs->(@dup);
+	eval 'package EmptyInbox; sub smsg_by_mid { undef }';
+	my $ctx = { ibx => bless {}, 'EmptyInbox' };
+	my $rootset = PublicInbox::SearchThread::thread($smsgs, sub {
+		[ sort { $a->{mid} cmp $b->{mid} } @{$_[0]} ] }, $ctx);
+	my $oldout = select $fh;
+	find_cycle($rootset);
+	select $oldout;
+	is($out, '', 'nothing from find_cycle');
+} # Devel::Cycle check
+
+done_testing;
 
 sub thread_to_s {
 	my ($msgs) = @_;
