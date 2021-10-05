@@ -25,6 +25,8 @@ options:
   --batch-size=BYTES  flush changes to OS after a given number of bytes
   --max-size=BYTES    do not index messages larger than the given size
   --reindex           index previously indexed data (if upgrading)
+  --since=DATE        limit --reindex to changes after DATE
+  --until=DATE        limit --reindex to changes before DATE
   --rethread          regenerate thread IDs (if upgrading, use sparingly)
   --prune             prune git storage on discontiguous history
   --verbose | -v      increase verbosity (may be repeated)
@@ -40,6 +42,7 @@ GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i prune
 		fsync|sync! xapian_only|xapian-only
 		indexlevel|index-level|L=s max_size|max-size=s
 		batch_size|batch-size=s
+		since|after=s until|before=s
 		sequential-shard|seq-shard
 		no-update-extindex update-extindex|E=s@
 		fast-noop|F skip-docdata all C=s@ help|h))

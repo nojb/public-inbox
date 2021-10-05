@@ -750,7 +750,8 @@ sub index_sync {
 	my ($self, $opt) = @_;
 	delete $self->{lock_path} if $opt->{-skip_lock};
 	$self->with_umask(\&_index_sync, $self, $opt);
-	if ($opt->{reindex} && !$opt->{quit}) {
+	if ($opt->{reindex} && !$opt->{quit} &&
+			!grep(defined, @$opt{qw(since until)})) {
 		my %again = %$opt;
 		delete @again{qw(rethread reindex)};
 		index_sync($self, \%again);
@@ -775,8 +776,8 @@ sub v1_checkpoint ($$;$) {
 	# $newest may be undef
 	my $newest = $stk ? $stk->{latest_cmt} : ${$sync->{latest_cmt}};
 	if (defined($newest)) {
-		my $cur = $self->{mm}->last_commit || '';
-		if (need_update($self, $cur, $newest)) {
+		my $cur = $self->{mm}->last_commit;
+		if (need_update($self, $sync, $cur, $newest)) {
 			$self->{mm}->last_commit($newest);
 		}
 	}
@@ -786,7 +787,7 @@ sub v1_checkpoint ($$;$) {
 	my $xdb = $self->{xdb};
 	if ($newest && $xdb) {
 		my $cur = $xdb->get_metadata('last_commit');
-		if (need_update($self, $cur, $newest)) {
+		if (need_update($self, $sync, $cur, $newest)) {
 			$xdb->set_metadata('last_commit', $newest);
 		}
 	}
@@ -870,9 +871,14 @@ sub log2stack ($$$) {
 
 	# Count the new files so they can be added newest to oldest
 	# and still have numbers increasing from oldest to newest
-	my $fh = $git->popen(qw(log --raw -r --pretty=tformat:%at-%ct-%H
-				--no-notes --no-color --no-renames --no-abbrev),
-				$range);
+	my @cmd = qw(log --raw -r --pretty=tformat:%at-%ct-%H
+			--no-notes --no-color --no-renames --no-abbrev);
+	for my $k (qw(since until)) {
+		my $v = $sync->{-opt}->{$k} // next;
+		next if !$sync->{-opt}->{reindex};
+		push @cmd, "--$k=$v";
+	}
+	my $fh = $git->popen(@cmd, $range);
 	my ($at, $ct, $stk, $cmt);
 	while (<$fh>) {
 		return if $sync->{quit};
@@ -928,10 +934,17 @@ sub is_ancestor ($$$) {
 	$? == 0;
 }
 
-sub need_update ($$$) {
-	my ($self, $cur, $new) = @_;
+sub need_update ($$$$) {
+	my ($self, $sync, $cur, $new) = @_;
 	my $git = $self->{ibx}->git;
-	return 1 if $cur && !is_ancestor($git, $cur, $new);
+	$cur //= ''; # XS Search::Xapian ->get_metadata doesn't give undef
+
+	# don't rewind if --{since,until,before,after} are in use
+	return if $cur ne '' &&
+		grep(defined, @{$sync->{-opt}}{qw(since until)}) &&
+		is_ancestor($git, $new, $cur);
+
+	return 1 if $cur ne '' && !is_ancestor($git, $cur, $new);
 	my $range = $cur eq '' ? $new : "$cur..$new";
 	chomp(my $n = $git->qx(qw(rev-list --count), $range));
 	($n eq '' || $n > 0);

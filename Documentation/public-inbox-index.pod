@@ -185,6 +185,16 @@ external indices are configured.
 Do not update the C<all> external index by default.  This negates
 all uses of C<-E> / C<--update-extindex=> on the command-line.
 
+=item --since=DATESTRING
+
+=item --after=DATESTRING
+
+=item --until=DATESTRING
+
+=item --before=DATESTRING
+
+Passed directly to L<git-log(1)> to limit changes for C<--reindex>
+
 =back
 
 =head1 FILES

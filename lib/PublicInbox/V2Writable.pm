@@ -876,6 +876,11 @@ sub update_last_commit {
 		chomp(my $n = $unit->{git}->qx(@cmd));
 		return if $n ne '' && $n == 0;
 	}
+	# don't rewind if --{since,until,before,after} are in use
+	return if (defined($last) &&
+			grep(defined, @{$sync->{-opt}}{qw(since until)}) &&
+			is_ancestor($self->git, $latest_cmt, $last));
+
 	last_epoch_commit($self, $unit->{epoch}, $latest_cmt);
 }
 
@@ -1337,7 +1342,8 @@ sub index_sync {
 	}
 
 	# reindex does not pick up new changes, so we rerun w/o it:
-	if ($opt->{reindex} && !$sync->{quit}) {
+	if ($opt->{reindex} && !$sync->{quit} &&
+			!grep(defined, @$opt{qw(since until)})) {
 		my %again = %$opt;
 		$sync = undef;
 		delete @again{qw(rethread reindex -skip_lock)};

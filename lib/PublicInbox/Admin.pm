@@ -368,6 +368,10 @@ sub index_prepare ($$) {
 					or die "`$git_key=$s' not boolean\n";
 		$opt->{$k} = $v;
 	}
+	for my $k (qw(since until)) {
+		my $v = $opt->{$k} // next;
+		$opt->{reindex} or die "--$k=$v requires --reindex\n";
+	}
 	$env;
 }
 

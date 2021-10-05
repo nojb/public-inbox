@@ -519,6 +519,7 @@ t/psgi_v2-old.eml
 t/psgi_v2.t
 t/purge.t
 t/qspawn.t
+t/reindex-time-range.t
 t/replace.t
 t/reply.t
 t/run.perl
