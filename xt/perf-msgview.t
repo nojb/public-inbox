@@ -1,14 +1,16 @@
-# Copyright (C) 2019-2021 all contributors <meta@public-inbox.org>
+#!perl -w
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
-use warnings;
-use Test::More;
+use v5.10.1;
+use PublicInbox::TestCommon;
 use Benchmark qw(:all);
 use PublicInbox::Inbox;
 use PublicInbox::View;
-use PublicInbox::TestCommon;
+use PublicInbox::Spawn qw(popen_rd);
 
 my $inboxdir = $ENV{GIANT_INBOX_DIR} // $ENV{GIANT_PI_DIR};
+my $blob = $ENV{TEST_BLOB};
 plan skip_all => "GIANT_INBOX_DIR not defined for $0" unless $inboxdir;
 
 my @cat = qw(cat-file --buffer --batch-check --batch-all-objects);
@@ -22,10 +24,13 @@ require_mods qw(Plack::Util);
 use_ok 'Plack::Util';
 my $ibx = PublicInbox::Inbox->new({ inboxdir => $inboxdir, name => 'name' });
 my $git = $ibx->git;
-my $fh = $git->popen(@cat);
-my $vec = '';
-vec($vec, fileno($fh), 1) = 1;
-select($vec, undef, undef, 60) or die "timed out waiting for --batch-check";
+my $fh = $blob ? undef : $git->popen(@cat);
+if ($fh) {
+	my $vec = '';
+	vec($vec, fileno($fh), 1) = 1;
+	select($vec, undef, undef, 60) or
+		die "timed out waiting for --batch-check";
+}
 
 my $ctx = {
 	env => { HTTP_HOST => 'example.com', 'psgi.url_scheme' => 'https' },
@@ -47,11 +52,19 @@ my $cb = sub {
 my $t = timeit(1, sub {
 	$ctx->{obuf} = \$obuf;
 	$ctx->{mhref} = '../';
-	while (<$fh>) {
-		($oid, $type) = split / /;
-		next if $type ne 'blob';
-		++$n;
-		$git->cat_async($oid, $cb);
+	if (defined $blob) {
+		my $nr = $ENV{NR} // 10000;
+		for (1..$nr) {
+			++$n;
+			$git->cat_async($blob, $cb);
+		}
+	} else {
+		while (<$fh>) {
+			($oid, $type) = split / /;
+			next if $type ne 'blob';
+			++$n;
+			$git->cat_async($oid, $cb);
+		}
 	}
 	$git->cat_async_wait;
 });
