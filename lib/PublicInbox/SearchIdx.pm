@@ -637,12 +637,19 @@ sub update_vmd {
 
 sub xdb_remove {
 	my ($self, @docids) = @_;
-	$self->begin_txn_lazy;
-	my $xdb = $self->{xdb} or return;
+	begin_txn_lazy($self);
+	my $xdb = $self->{xdb} // die 'BUG: missing {xdb}';
 	for my $docid (@docids) {
 		eval { $xdb->delete_document($docid) };
 		warn "E: #$docid not in in Xapian? $@\n" if $@;
 	}
+}
+
+sub xdb_remove_quiet {
+	my ($self, $docid) = @_;
+	begin_txn_lazy($self);
+	my $xdb = $self->{xdb} // die 'BUG: missing {xdb}';
+	eval { $xdb->delete_document($docid) };
 }
 
 sub index_git_blob_id {
@@ -1096,27 +1103,6 @@ sub eidx_shard_new {
 	}, $class;
 	$self->{-set_indexlevel_once} = 1 if $self->{indexlevel} eq 'medium';
 	$self;
-}
-
-# ensure there's no stale Xapian docs by treating $over as canonical
-sub over_check {
-	my ($self, $over) = @_;
-	begin_txn_lazy($self);
-	my $sth = $over->dbh->prepare(<<'');
-SELECT COUNT(*) FROM over WHERE num = ?
-
-	my $xdb = $self->{xdb};
-	my $cur = $xdb->postlist_begin('');
-	my $end = $xdb->postlist_end('');
-	my $xdir = $self->xdir;
-	for (; $cur != $end; $cur++) {
-		my $docid = $cur->get_docid;
-		$sth->execute($docid);
-		my $x = $sth->fetchrow_array;
-		next if $x > 0;
-		warn "I: removing $xdir #$docid, not in `over'\n";
-		$xdb->delete_document($docid);
-	}
 }
 
 1;

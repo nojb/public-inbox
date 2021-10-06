@@ -369,19 +369,16 @@ SELECT oidbin FROM xref3 WHERE docid = ? AND ibx_id = ?
 	}
 }
 
-sub eidx_gc {
-	my ($self, $opt) = @_;
-	$self->{cfg} or die "E: GC requires ->attach_config\n";
-	$opt->{-idx_gc} = 1;
-	$self->idx_init($opt); # acquire lock via V2Writable::_idx_init
-
-	my $dbh = $self->{oidx}->dbh;
-	$dbh->do('PRAGMA case_sensitive_like = ON'); # only place we use LIKE
-	my $x3_doc = $dbh->prepare('SELECT docid FROM xref3 WHERE ibx_id = ?');
-	my $ibx_ck = $dbh->prepare('SELECT ibx_id,eidx_key FROM inboxes');
-	my $lc_i = $dbh->prepare(<<'');
-SELECT key FROM eidx_meta WHERE key LIKE ? ESCAPE ?
-
+sub eidx_gc_scan_inboxes ($$) {
+	my ($self, $sync) = @_;
+	my ($x3_doc, $ibx_ck);
+restart:
+	$x3_doc = $self->{oidx}->dbh->prepare(<<EOM);
+SELECT docid FROM xref3 WHERE ibx_id = ?
+EOM
+	$ibx_ck = $self->{oidx}->dbh->prepare(<<EOM);
+SELECT ibx_id,eidx_key FROM inboxes
+EOM
 	$ibx_ck->execute;
 	while (my ($ibx_id, $eidx_key) = $ibx_ck->fetchrow_array) {
 		next if $self->{ibx_map}->{$eidx_key};
@@ -390,44 +387,84 @@ SELECT key FROM eidx_meta WHERE key LIKE ? ESCAPE ?
 		$x3_doc->execute($ibx_id);
 		while (defined(my $docid = $x3_doc->fetchrow_array)) {
 			gc_unref_doc($self, $ibx_id, $eidx_key, $docid);
+			if (checkpoint_due($sync)) {
+				$x3_doc = $ibx_ck = undef;
+				reindex_checkpoint($self, $sync);
+				goto restart;
+			}
 		}
-		$dbh->prepare_cached(<<'')->execute($ibx_id);
+		$self->{oidx}->dbh->do(<<'', undef, $ibx_id);
 DELETE FROM inboxes WHERE ibx_id = ?
 
 		# drop last_commit info
 		my $pat = $eidx_key;
 		$pat =~ s/([_%\\])/\\$1/g;
+		$self->{oidx}->dbh->do('PRAGMA case_sensitive_like = ON');
+		my $lc_i = $self->{oidx}->dbh->prepare(<<'');
+SELECT key FROM eidx_meta WHERE key LIKE ? ESCAPE ?
+
 		$lc_i->execute("lc-%:$pat//%", '\\');
 		while (my ($key) = $lc_i->fetchrow_array) {
 			next if $key !~ m!\Alc-v[1-9]+:\Q$eidx_key\E//!;
 			warn "I: removing $key\n";
-			$dbh->prepare_cached(<<'')->execute($key);
+			$self->{oidx}->dbh->do(<<'', undef, $key);
 DELETE FROM eidx_meta WHERE key = ?
 
 		}
-
 		warn "I: $eidx_key removed\n";
 	}
+}
 
-	# it's not real unless it's in `over', we use parallelism here,
-	# shards will be reading directly from over, so commit
-	$self->{oidx}->commit_lazy;
-	$self->{oidx}->begin_lazy;
-
-	for my $idx (@{$self->{idx_shards}}) {
-		warn "I: cleaning up shard #$idx->{shard}\n";
-		$idx->shard_over_check($self->{oidx});
-	}
-	my $nr = $dbh->do(<<'');
+sub eidx_gc_scan_shards ($$) { # TODO: use for lei/store
+	my ($self, $sync) = @_;
+	my $nr = $self->{oidx}->dbh->do(<<'');
 DELETE FROM xref3 WHERE docid NOT IN (SELECT num FROM over)
 
 	warn "I: eliminated $nr stale xref3 entries\n" if $nr != 0;
 
 	# fixup from old bugs:
-	$nr = $dbh->do(<<'');
+	$nr = $self->{oidx}->dbh->do(<<'');
 DELETE FROM over WHERE num NOT IN (SELECT docid FROM xref3)
 
 	warn "I: eliminated $nr stale over entries\n" if $nr != 0;
+
+	my ($cur) = $self->{oidx}->dbh->selectrow_array(<<EOM);
+SELECT MIN(num) FROM over
+EOM
+	my ($max) = $self->{oidx}->dbh->selectrow_array(<<EOM);
+SELECT MAX(num) FROM over
+EOM
+	my $exists;
+restart:
+	$exists = $self->{oidx}->dbh->prepare(<<EOM);
+SELECT COUNT(num) FROM over WHERE num = ?
+EOM
+	for (; $cur <= $max; $cur++) {
+		$exists->execute($cur);
+		next if $exists->fetchrow_array != 0;
+		$self->idx_shard($cur)->ipc_do('xdb_remove_quiet', $cur);
+		if (checkpoint_due($sync)) {
+			$exists = undef;
+			reindex_checkpoint($self, $sync);
+			goto restart;
+		}
+	}
+}
+
+sub eidx_gc {
+	my ($self, $opt) = @_;
+	$self->{cfg} or die "E: GC requires ->attach_config\n";
+	$opt->{-idx_gc} = 1;
+	my $sync = {
+		need_checkpoint => \(my $need_checkpoint = 0),
+		check_intvl => 10,
+		next_check => now() + 10,
+		checkpoint_unlocks => 1,
+		-opt => $opt,
+	};
+	$self->idx_init($opt); # acquire lock via V2Writable::_idx_init
+	eidx_gc_scan_inboxes($self, $sync);
+	eidx_gc_scan_shards($self, $sync);
 	done($self);
 }
 
