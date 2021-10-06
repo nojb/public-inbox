@@ -145,6 +145,8 @@ sub internaldate { # for IMAP
 
 our $REPLY_RE = qr/^re:\s+/i;
 
+# TODO: see RFC 5256 sec 2.1 "Base Subject" and evaluate compatibility
+# w/ existing indices...
 sub subject_normalized ($) {
 	my ($subj) = @_;
 	$subj =~ s/\A\s+//s; # no leading space

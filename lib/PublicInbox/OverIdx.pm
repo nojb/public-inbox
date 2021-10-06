@@ -243,12 +243,13 @@ sub link_refs {
 	$tid;
 }
 
-# normalize subjects so they are suitable as pathnames for URLs
-# XXX: consider for removal
+# normalize subjects somewhat, they used to be ASCII-only but now
+# we use \w for UTF-8 support.  We may still drop it entirely and
+# rely on Xapian for subject matches...
 sub subject_path ($) {
 	my ($subj) = @_;
 	$subj = subject_normalized($subj);
-	$subj =~ s![^a-zA-Z0-9_\.~/\-]+!_!g;
+	$subj =~ s![^\w\.~/\-]+!_!g;
 	lc($subj);
 }
 
