@@ -624,9 +624,6 @@ sub add_text_body { # callback for each_part
 		$ctx->{-spfx} = $spfx;
 	};
 
-	# some editors don't put trailing newlines at the end:
-	$s .= "\n" unless $s =~ /\n\z/s;
-
 	# split off quoted and unquoted blocks:
 	my @sections = PublicInbox::MsgIter::split_quotes($s);
 	undef $s; # free memory

@@ -245,7 +245,6 @@ sub add_text_buf { # callback for Eml->each_part
 	hdr_buf($self, $part) if $part->{is_submsg};
 	$s =~ s/\r\n/\n/sg;
 	_xs($s);
-	$s .= "\n" unless substr($s, -1, 1) eq "\n";
 	my $diff = ($s =~ /^--- [^\n]+\n\+{3} [^\n]+\n@@ /ms);
 	my @sections = PublicInbox::MsgIter::split_quotes($s);
 	undef $s; # free memory

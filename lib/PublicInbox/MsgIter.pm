@@ -98,12 +98,16 @@ sub msg_part_text ($$) {
 
 # returns an array of quoted or unquoted sections
 sub split_quotes {
+	# some editors don't put trailing newlines at the end,
+	# make sure split_quotes can work:
+	$_[0] .= "\n" if substr($_[0], -1) ne "\n";
+
 	# Quiet "Complex regular subexpression recursion limit" warning
 	# in case an inconsiderate sender quotes 32K of text at once.
 	# The warning from Perl is harmless for us since our callers can
 	# tolerate less-than-ideal matches which work within Perl limits.
 	no warnings 'regexp';
-	split(/((?:^>[^\n]*\n)+)/sm, shift);
+	split(/((?:^>[^\n]*\n)+)/sm, $_[0]);
 }
 
 1;
