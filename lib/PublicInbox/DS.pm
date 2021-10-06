@@ -494,16 +494,15 @@ sub drop {
     $self->close;
 }
 
-# n.b.: use ->write/->read for this buffer to allow compatibility with
-# PerlIO::mmap or PerlIO::scalar if needed
 sub tmpio ($$$) {
 	my ($self, $bref, $off) = @_;
 	my $fh = tmpfile('wbuf', $self->{sock}, O_APPEND) or
 		return drop($self, "tmpfile $!");
 	$fh->autoflush(1);
 	my $len = length($$bref) - $off;
-	print $fh substr($$bref, $off, $len) or
+	my $n = syswrite($fh, $$bref, $len, $off) //
 		return drop($self, "write ($len): $!");
+	$n == $len or return drop($self, "wrote $n < $len bytes");
 	[ $fh, 0 ] # [1] = offset, [2] = length, not set by us
 }
 
