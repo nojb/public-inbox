@@ -158,7 +158,8 @@ SELECT $cols FROM over WHERE over.num = ? LIMIT 1
 
 		foreach (@$nums) {
 			$sth->execute($_->[0]);
-			my $smsg = $sth->fetchrow_hashref;
+			# $cb may delete rows and invalidate nums
+			my $smsg = $sth->fetchrow_hashref // next;
 			$smsg = PublicInbox::Over::load_from_row($smsg);
 			$cb->($self, $smsg, @arg) or return;
 		}
