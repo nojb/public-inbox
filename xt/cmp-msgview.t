@@ -84,7 +84,7 @@ my $t = timeit(1, sub {
 		++$n;
 		$git->cat_async($oid, $git_cb);
 	}
-	$git->cat_async_wait;
+	$git->async_wait_all;
 });
 is($m, $n, 'rendered all messages');
 

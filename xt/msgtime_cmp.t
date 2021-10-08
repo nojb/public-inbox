@@ -64,7 +64,7 @@ while (<$fh>) {
 	next if $type ne 'blob';
 	$git->cat_async($oid, \&compare);
 }
-$git->cat_async_wait;
+$git->async_wait_all;
 ok(1);
 done_testing;
 

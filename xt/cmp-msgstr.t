@@ -100,7 +100,7 @@ my $t = timeit(1, sub {
 		++$n;
 		$git->cat_async($oid, $git_cb);
 	}
-	$git->cat_async_wait;
+	$git->async_wait_all;
 });
 is($m, $n, "$inboxdir rendered all $m <=> $n messages");
 is($ndiff, 0, "$inboxdir $ndiff differences");

@@ -119,13 +119,13 @@ sub xoids_for {
 				$git->cat_async($cur->{blob}, \&_cmp_1st,
 						[$chash, $xoids, $cur, $lms]);
 				if ($min && scalar(keys %$xoids) >= $min) {
-					$git->cat_async_wait;
+					$git->async_wait_all;
 					return $xoids;
 				}
 			}
 		}
 	}
-	$git->cat_async_wait;
+	$git->async_wait_all;
 	scalar(keys %$xoids) ? $xoids : undef;
 }
 

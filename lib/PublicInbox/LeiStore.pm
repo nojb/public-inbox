@@ -305,7 +305,7 @@ sub remove_eml {
 			$git->cat_async($oidhex, \&_remove_if_local, $self);
 		}
 	}
-	$git->cat_async_wait;
+	$git->async_wait_all;
 	remove_docids($self, @docids);
 	\@docids;
 }

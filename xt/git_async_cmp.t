@@ -32,7 +32,7 @@ my $async = timeit($nr, sub {
 		$git->cat_async($oid, $cb);
 	}
 	close $cat or die "cat: $?";
-	$git->cat_async_wait;
+	$git->async_wait_all;
 	push @dig, ['async', $dig->hexdigest ];
 });
 

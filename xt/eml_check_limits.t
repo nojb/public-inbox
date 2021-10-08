@@ -67,7 +67,7 @@ my $t = timeit(1, sub {
 		++$n;
 		$git->cat_async($blob, $cat_cb);
 	}
-	$git->cat_async_wait;
+	$git->async_wait_all;
 });
 is($m, $n, 'scanned all messages');
 diag "$$ $inboxdir took ".timestr($t)." for $n <=> $m messages";

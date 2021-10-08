@@ -69,7 +69,7 @@ while (<$cat>) {
 	my ($oid, $type, $size) = split(/ /);
 	$git->cat_async($oid, $cb) if $size && $type eq 'blob';
 }
-$git->cat_async_wait;
+$git->async_wait_all;
 note "$errs errors";
 note "$ok/$tot messages had text as application/octet-stream";
 ok 1;

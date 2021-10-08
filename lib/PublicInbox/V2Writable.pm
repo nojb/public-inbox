@@ -1031,7 +1031,7 @@ sub sync_prepare ($$) {
 			my $req = { %$sync, oid => $oid };
 			$self->git->cat_async($oid, $unindex_oid, $req);
 		}
-		$self->git->cat_async_wait;
+		$self->git->async_wait_all;
 	}
 	return 0 if $sync->{quit};
 	if (!$regen_max) {
@@ -1113,7 +1113,7 @@ sub unindex_todo ($$$) {
 		$self->git->cat_async($1, $unindex_oid, { %$sync, oid => $1 });
 	}
 	close $fh or die "git log failed: \$?=$?";
-	$self->git->cat_async_wait;
+	$self->git->async_wait_all;
 
 	return unless $sync->{-opt}->{prune};
 	my $after = scalar keys %$unindexed;
@@ -1245,7 +1245,7 @@ sub xapian_only {
 			index_xap_step($self, $sync, $art_beg, 1);
 		}
 	}
-	$self->git->cat_async_wait;
+	$self->git->async_wait_all;
 	$self->{ibx}->cleanup;
 	$self->done;
 }

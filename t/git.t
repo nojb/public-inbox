@@ -61,7 +61,7 @@ use_ok 'PublicInbox::Git';
 		my ($bref, $oid_hex, $type, $size, $arg) = @_;
 		$missing = [ @_ ];
 	}, $arg);
-	$gcf->cat_async_wait;
+	$gcf->async_wait_all;
 	my ($bref, $oid_hex, $type, $size, $arg_res) = @$res;
 	is_deeply([$oid_hex, $type, $size], \@x, 'got expected header');
 	is($arg_res, $arg, 'arg passed to cat_async');
@@ -147,7 +147,7 @@ SKIP: {
 		# trigger cat_async_retry:
 		$gcf->cat_async($remote, $cb, $results);
 	}
-	$gcf->cat_async_wait;
+	$gcf->async_wait_all;
 	my $expect = [ @exist[0..3], [ $remote, 'blob', 5 ], @exist[4..5] ];
 	is_deeply($results, $expect, 'got expected results');
 

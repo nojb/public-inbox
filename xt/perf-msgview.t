@@ -66,7 +66,7 @@ my $t = timeit(1, sub {
 			$git->cat_async($oid, $cb);
 		}
 	}
-	$git->cat_async_wait;
+	$git->async_wait_all;
 });
 diag 'multipart_text_as_html took '.timestr($t)." for $n <=> $m messages";
 is($m, $n, 'rendered all messages');
