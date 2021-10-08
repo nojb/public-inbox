@@ -68,6 +68,30 @@ use_ok 'PublicInbox::Git';
 	is_deeply($raw, $bref, 'blob result matches');
 	is_deeply($missing, [ undef, 'non-existent', 'missing', undef, $arg],
 		'non-existent blob gives expected result');
+
+	$res = [];
+	$gcf->cat_async($oid, sub { push @$res, \@_ });
+	$gcf->cat_async($oid, sub { die 'HI' });
+	$gcf->cat_async($oid, sub { push @$res, \@_ });
+	eval { $gcf->async_wait_all };
+	like($@, qr/\bHI\b/, 'die in callback propagates');
+	is(scalar(@$res), 2, 'two results');
+	is_deeply($res->[0], [ $raw, @x, undef ], '1st cb result');
+	is_deeply($res->[1], [ undef, $oid, undef, undef, undef ],
+		'2nd cb aborted ');
+
+	my @w;
+	local $PublicInbox::Git::async_warn = 1;
+	local $SIG{__WARN__} = sub { push @w, @_ };
+	$res = [];
+	$gcf->cat_async($oid, sub { push @$res, \@_ });
+	$gcf->cat_async($oid, sub { die 'HI' });
+	$gcf->cat_async($oid, sub { push @$res, \@_ });
+	eval { $gcf->async_wait_all };
+	is(scalar(@$res), 2, 'two results');
+	is_deeply($res->[0], [ $raw, @x, undef ], '1st cb result');
+	is_deeply($res->[1], [ $raw, @x, undef ], '2st cb result');
+	like("@w", qr/\bHI\b/, 'die turned to warning');
 }
 
 if (1) {

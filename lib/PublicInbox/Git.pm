@@ -26,6 +26,7 @@ our @EXPORT_OK = qw(git_unquote git_quote);
 our $PIPE_BUFSIZ = 65536; # Linux default
 our $in_cleanup;
 our $RDTIMEO = 60_000; # milliseconds
+our $async_warn; # true in read-only daemons
 
 use constant MAX_INFLIGHT => (POSIX::PIPE_BUF * 3) /
 	65; # SHA-256 hex size + "\n" in preparation for git using non-SHA1
@@ -227,7 +228,7 @@ sub cat_async_step ($$) {
 	}
 	$self->{rbuf} = $rbuf if $$rbuf ne '';
 	eval { $cb->($bref, $oid, $type, $size, $arg) };
-	warn "E: $oid: $@\n" if $@;
+	async_err($self, "E: cat $req ($oid) $@") if $@;
 }
 
 sub cat_async_wait ($) {
@@ -273,7 +274,7 @@ sub check_async_step ($$) {
 	}
 	$self->{rbuf_c} = $rbuf if $$rbuf ne '';
 	eval { $cb->($hex, $type, $size, $arg, $self) };
-	warn "E: check($req) $@\n" if $@;
+	async_err($self, "E: check $req ($hex) $@") if $@;
 }
 
 sub check_async_wait ($) {
@@ -343,7 +344,7 @@ sub async_abort ($) {
 				my ($req, $cb, $arg) = splice(@$q, 0, 3);
 				$req =~ s/ .*//; # drop git_dir for Gcf2Client
 				eval { $cb->(undef, $req, undef, undef, $arg) };
-				warn "E: $req: $@ (in abort)\n" if $@;
+				warn "E: (in abort) $req: $@" if $@;
 			}
 			delete $self->{"inflight$c"};
 			delete $self->{"rbuf$c"};
@@ -356,6 +357,12 @@ sub fail { # may be augmented in subclasses
 	my ($self, $msg) = @_;
 	async_abort($self);
 	croak(ref($self) . ' ' . ($self->{git_dir} // '') . ": $msg");
+}
+
+sub async_err ($$) {
+	my ($self, $msg) = @_;
+	return warn($msg) if $async_warn;
+	$self->fail($msg);
 }
 
 # $git->popen(qw(show f00)); # or

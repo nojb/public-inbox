@@ -18,6 +18,7 @@ use PublicInbox::DS qw(now);
 require PublicInbox::Listener;
 use PublicInbox::EOFpipe;
 use PublicInbox::Sigfd;
+use PublicInbox::Git;
 use PublicInbox::GitAsyncCat;
 our $SO_ACCEPTFILTER = 0x1000;
 my @CMD;
@@ -640,6 +641,7 @@ sub run ($$$;$) {
 
 	# localize GCF2C for tests:
 	local $PublicInbox::GitAsyncCat::GCF2C;
+	local $PublicInbox::Git::async_warn = 1;
 
 	daemon_loop($refresh, $post_accept, $tlsd, $af_default);
 	PublicInbox::DS->Reset;
