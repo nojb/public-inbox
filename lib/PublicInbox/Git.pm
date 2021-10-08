@@ -202,7 +202,7 @@ sub cat_async_step ($$) {
 	my ($self, $inflight) = @_;
 	die 'BUG: inflight empty or odd' if scalar(@$inflight) < 3;
 	my ($req, $cb, $arg) = splice(@$inflight, 0, 3);
-	my $rbuf = delete($self->{cat_rbuf}) // \(my $new = '');
+	my $rbuf = delete($self->{rbuf}) // \(my $new = '');
 	my ($bref, $oid, $type, $size);
 	my $head = my_readline($self->{in}, $rbuf);
 	# ->fail may be called via Gcf2Client.pm
@@ -225,7 +225,7 @@ sub cat_async_step ($$) {
 		my $err = $! ? " ($!)" : '';
 		$self->fail("bad result from async cat-file: $head$err");
 	}
-	$self->{cat_rbuf} = $rbuf if $$rbuf ne '';
+	$self->{rbuf} = $rbuf if $$rbuf ne '';
 	eval { $cb->($bref, $oid, $type, $size, $arg) };
 	warn "E: $oid: $@\n" if $@;
 }
@@ -259,7 +259,7 @@ sub check_async_step ($$) {
 	my ($self, $inflight_c) = @_;
 	die 'BUG: inflight empty or odd' if scalar(@$inflight_c) < 3;
 	my ($req, $cb, $arg) = splice(@$inflight_c, 0, 3);
-	my $rbuf = delete($self->{chk_rbuf}) // \(my $new = '');
+	my $rbuf = delete($self->{rbuf_c}) // \(my $new = '');
 	chomp(my $line = my_readline($self->{in_c}, $rbuf));
 	my ($hex, $type, $size) = split(/ /, $line);
 
@@ -271,7 +271,7 @@ sub check_async_step ($$) {
 		my $ret = my_read($self->{in_c}, $rbuf, $type + 1);
 		$self->fail(defined($ret) ? 'read EOF' : "read: $!") if !$ret;
 	}
-	$self->{chk_rbuf} = $rbuf if $$rbuf ne '';
+	$self->{rbuf_c} = $rbuf if $$rbuf ne '';
 	eval { $cb->($hex, $type, $size, $arg, $self) };
 	warn "E: check($req) $@\n" if $@;
 }
@@ -333,24 +333,28 @@ sub _destroy {
 	dwaitpid($p) if $$ == $self->{"$pid.owner"};
 }
 
-sub cat_async_abort ($) {
+sub async_abort ($) {
 	my ($self) = @_;
-	if (my $inflight = $self->{inflight}) {
-		while (@$inflight) {
-			my ($req, $cb, $arg) = splice(@$inflight, 0, 3);
-			$req =~ s/ .*//; # drop git_dir for Gcf2Client
-			eval { $cb->(undef, $req, undef, undef, $arg) };
-			warn "E: $req: $@ (in abort)\n" if $@;
+	while (scalar(@{$self->{inflight_c} // []}) ||
+			scalar(@{$self->{inflight} // []})) {
+		for my $c ('', '_c') {
+			my $q = $self->{"inflight$c"};
+			while (@$q) {
+				my ($req, $cb, $arg) = splice(@$q, 0, 3);
+				$req =~ s/ .*//; # drop git_dir for Gcf2Client
+				eval { $cb->(undef, $req, undef, undef, $arg) };
+				warn "E: $req: $@ (in abort)\n" if $@;
+			}
+			delete $self->{"inflight$c"};
+			delete $self->{"rbuf$c"};
 		}
-		delete $self->{cat_rbuf};
-		delete $self->{inflight};
 	}
 	cleanup($self);
 }
 
 sub fail { # may be augmented in subclasses
 	my ($self, $msg) = @_;
-	cat_async_abort($self);
+	async_abort($self);
 	croak(ref($self) . ' ' . ($self->{git_dir} // '') . ": $msg");
 }
 
@@ -391,8 +395,8 @@ sub async_wait_all ($) {
 	my ($self) = @_;
 	while (scalar(@{$self->{inflight_c} // []}) ||
 			scalar(@{$self->{inflight} // []})) {
-		$self->check_async_wait;
-		$self->cat_async_wait;
+		check_async_wait($self);
+		cat_async_wait($self);
 	}
 }
 
@@ -406,8 +410,8 @@ sub cleanup {
 	async_wait_all($self);
 	delete $self->{inflight};
 	delete $self->{inflight_c};
-	_destroy($self, qw(cat_rbuf in out pid));
-	_destroy($self, qw(chk_rbuf in_c out_c pid_c err_c));
+	_destroy($self, qw(rbuf in out pid));
+	_destroy($self, qw(rbuf_c in_c out_c pid_c err_c));
 	undef;
 }
 

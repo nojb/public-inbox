@@ -16,7 +16,7 @@ our $GCF2C; # singleton PublicInbox::Gcf2Client
 sub close {
 	my ($self) = @_;
 	if (my $git = delete $self->{git}) {
-		$git->cat_async_abort;
+		$git->async_abort;
 	}
 	$self->SUPER::close; # PublicInbox::DS::close
 }
@@ -32,7 +32,7 @@ sub event_step {
 		# child death?
 		if (($git->{in} // 0) != ($self->{sock} // 1)) {
 			$self->close;
-		} elsif (@$inflight || exists $git->{cat_rbuf}) {
+		} elsif (@$inflight || exists $git->{rbuf}) {
 			# ok, more to do, requeue for fairness
 			$self->requeue;
 		}

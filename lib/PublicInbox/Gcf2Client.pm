@@ -18,7 +18,7 @@ use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
 #	pid.owner => process which spawned {pid}
 #	in => same as {sock}, for compatibility with PublicInbox::Git
 #	inflight => array (see PublicInbox::Git)
-#	cat_rbuf => scalarref, may be non-existent or empty
+#	rbuf => scalarref, may be non-existent or empty
 sub new  {
 	my ($rdr) = @_;
 	my $self = bless {}, __PACKAGE__;
@@ -68,7 +68,7 @@ sub event_step {
 		return $self->close unless $self->{in}; # process died
 
 		# ok, more to do, requeue for fairness
-		$self->requeue if @$inflight || exists($self->{cat_rbuf});
+		$self->requeue if @$inflight || exists($self->{rbuf});
 	}
 }
 
