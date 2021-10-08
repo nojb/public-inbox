@@ -539,6 +539,41 @@ sub perm_fl_ok ($) {
 # may be overridden in NetWriter or Watch
 sub folder_select { $_[0]->{each_old} ? 'select' : 'examine' }
 
+sub _imap_fetch_bodies ($$$$) {
+	my ($self, $mic, $uri, $uids) = @_;
+	my $req = $mic->imap4rev1 ? 'BODY.PEEK[]' : 'RFC822.PEEK';
+	my $key = $req;
+	$key =~ s/\.PEEK//;
+	my $sec = uri_section($uri);
+	my $mbx = $uri->mailbox;
+	my $bs = $self->{cfg_opt}->{$sec}->{batch_size} // 1;
+	my ($last_uid, $err);
+	my $use_fl = $self->{-use_fl};
+
+	while (scalar @$uids) {
+		my @batch = splice(@$uids, 0, $bs);
+		my $batch = join(',', @batch);
+		local $0 = "UID:$batch $mbx $sec";
+		my $r = $mic->fetch_hash($batch, $req, 'FLAGS');
+		unless ($r) { # network error?
+			last if $!{EINTR} && $self->{quit};
+			$err = "E: $uri UID FETCH $batch error: $!";
+			last;
+		}
+		for my $uid (@batch) {
+			# messages get deleted, so holes appear
+			my $per_uid = delete $r->{$uid} // next;
+			my $raw = delete($per_uid->{$key}) // next;
+			my $fl = $use_fl ? $per_uid->{FLAGS} : undef;
+			_imap_do_msg($self, $uri, $uid, \$raw, $fl);
+			$last_uid = $uid;
+			last if $self->{quit};
+		}
+		last if $self->{quit};
+	}
+	($last_uid, $err);
+}
+
 sub _imap_fetch_all ($$$) {
 	my ($self, $mic, $orig_uri) = @_;
 	my $sec = uri_section($orig_uri);
@@ -586,6 +621,7 @@ EOF
 	$mic->Uid(1); # the default, we hope
 	my $err;
 	my $use_fl = perm_fl_ok($perm_fl);
+	local $self->{-use_fl} = $use_fl;
 	if (!defined($single_uid) && $self->{each_old} && $use_fl) {
 		$err = each_old_flags($self, $mic, $uri, $l_uid);
 		return $err if $err;
@@ -597,15 +633,12 @@ EOF
 		my $m = $mod ? " [(UID % $mod) == $shard]" : '';
 		warn "# $uri fetching UID $l_uid:$r_uid$m\n";
 	}
-	my $bs = $self->{cfg_opt}->{$sec}->{batch_size} // 1;
-	my $req = $mic->imap4rev1 ? 'BODY.PEEK[]' : 'RFC822.PEEK';
-	my $key = $req;
-	$key =~ s/\.PEEK//;
-	my ($uids, $batch);
+	my $fetch_cb = \&_imap_fetch_bodies;
 	do {
 		# I wish "UID FETCH $START:*" could work, but:
 		# 1) servers do not need to return results in any order
 		# 2) Mail::IMAPClient doesn't offer a streaming API
+		my $uids;
 		if (defined $single_uid) {
 			$uids = [ $single_uid ];
 		} elsif (!($uids = $mic->search("UID $l_uid:*"))) {
@@ -623,31 +656,8 @@ EOF
 		return if $uids->[0] < $l_uid;
 
 		$l_uid = $uids->[-1] + 1; # for next search
-		my $last_uid;
-		my $n = $self->{max_batch};
-
 		@$uids = grep { ($_ % $mod) == $shard } @$uids if $mod;
-		while (scalar @$uids) {
-			my @batch = splice(@$uids, 0, $bs);
-			$batch = join(',', @batch);
-			local $0 = "UID:$batch $mbx $sec";
-			my $r = $mic->fetch_hash($batch, $req, 'FLAGS');
-			unless ($r) { # network error?
-				last if $!{EINTR} && $self->{quit};
-				$err = "E: $uri UID FETCH $batch error: $!";
-				last;
-			}
-			for my $uid (@batch) {
-				# messages get deleted, so holes appear
-				my $per_uid = delete $r->{$uid} // next;
-				my $raw = delete($per_uid->{$key}) // next;
-				my $fl = $use_fl ? $per_uid->{FLAGS} : undef;
-				_imap_do_msg($self, $uri, $uid, \$raw, $fl);
-				$last_uid = $uid;
-				last if $self->{quit};
-			}
-			last if $self->{quit};
-		}
+		(my $last_uid, $err) = $fetch_cb->($self, $mic, $uri, $uids);
 		run_commit_cb($self);
 		$itrk->update_last($r_uidval, $last_uid) if $itrk;
 	} until ($err || $self->{quit} || defined($single_uid));
