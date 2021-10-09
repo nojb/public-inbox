@@ -26,7 +26,6 @@ use Plack::HTTPParser qw(parse_http_request); # XS or pure Perl
 use Plack::Util;
 use HTTP::Status qw(status_message);
 use HTTP::Date qw(time2str);
-use IO::Handle; # ->write
 use PublicInbox::DS qw(msg_more);
 use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 use PublicInbox::Tmpfile;
@@ -117,15 +116,6 @@ sub rbuf_process {
 	$len ? read_input($self, $rbuf) : app_dispatch($self, undef, $rbuf);
 }
 
-# IO::Handle::write returns boolean, this returns bytes written:
-sub xwrite ($$$) {
-	my ($fh, $rbuf, $max) = @_;
-	my $w = length($$rbuf);
-	$w = $max if $w > $max;
-	$fh->write($$rbuf, $w) or return;
-	$w;
-}
-
 sub read_input ($;$) {
 	my ($self, $rbuf) = @_;
 	$rbuf //= $self->{rbuf} // (\(my $x = ''));
@@ -138,7 +128,7 @@ sub read_input ($;$) {
 
 	while ($len > 0) {
 		if ($$rbuf ne '') {
-			my $w = xwrite($input, $rbuf, $len);
+			my $w = syswrite($input, $$rbuf, $len);
 			return write_err($self, $len) unless $w;
 			$len -= $w;
 			die "BUG: $len < 0 (w=$w)" if $len < 0;
@@ -333,12 +323,6 @@ sub response_write {
 	}
 }
 
-sub input_tmpfile ($) {
-	my $input = tmpfile('http.input', $_[0]->{sock}) or return;
-	$input->autoflush(1);
-	$input;
-}
-
 sub input_prepare {
 	my ($self, $env) = @_;
 	my ($input, $len);
@@ -354,24 +338,22 @@ sub input_prepare {
 		return quit($self, 400) if $hte !~ /\Achunked\z/i;
 
 		$len = CHUNK_START;
-		$input = input_tmpfile($self);
+		$input = tmpfile('http.input', $self->{sock});
 	} else {
 		$len = $env->{CONTENT_LENGTH};
 		if (defined $len) {
 			# rfc7230 3.3.3.4
 			return quit($self, 400) if $len !~ /\A[0-9]+\z/;
-
 			return quit($self, 413) if $len > $MAX_REQUEST_BUFFER;
-			$input = $len ? input_tmpfile($self) : $null_io;
+			$input = $len ? tmpfile('http.input', $self->{sock})
+				: $null_io;
 		} else {
 			$input = $null_io;
 		}
 	}
 
 	# TODO: expire idle clients on ENFILE / EMFILE
-	return unless $input;
-
-	$env->{'psgi.input'} = $input;
+	$env->{'psgi.input'} = $input // return;
 	$self->{env} = $env;
 	$self->{input_left} = $len || 0;
 }
@@ -441,7 +423,7 @@ sub read_input_chunked { # unlikely...
 		# drain the current chunk
 		until ($len <= 0) {
 			if ($$rbuf ne '') {
-				my $w = xwrite($input, $rbuf, $len);
+				my $w = syswrite($input, $$rbuf, $len);
 				return write_err($self, "$len chunk") if !$w;
 				$len -= $w;
 				if ($len == 0) {
