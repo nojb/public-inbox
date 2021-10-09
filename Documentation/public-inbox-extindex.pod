@@ -40,6 +40,28 @@ C<indexlevel> set to C<basic> and their respective Xapian
 public-inboxes where cross-posting is common, this allows
 significant space savings on Xapian indices.
 
+=item --gc
+
+Perform garbage collection instead of indexing.  Use this if
+inboxes are removed from the extindex, or if messages are
+purged or removed from some inboxes.
+
+=item --reindex
+
+Forces a re-index of all messages in the extindex.  This can be
+used for in-place upgrades and bugfixes while read-only server
+processes are utilizing the index.  Keep in mind this roughly
+doubles the size of the already-large Xapian database.
+
+The extindex locks will be released roughly every 10s to
+allow L<public-inbox-mda(1)> and L<public-inbox-watch(1)>
+processes to write to the extindex.
+
+=item --fast
+
+Used with C<--reindex>, it will only look for new and stale
+entries and not touch already-indexed messages.
+
 =back
 
 =head1 FILES

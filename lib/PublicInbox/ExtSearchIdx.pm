@@ -811,7 +811,7 @@ sub _reindex_check_unseen ($$$) {
 	local $sync->{-regen_fmt} =
 			"$ekey checking unseen %u/".$ibx->over->max."\n";
 	${$sync->{nr}} = 0;
-
+	my $fast = $sync->{-opt}->{fast};
 	while (scalar(@{$msgs = $ibx->over->query_xover($beg, $end)})) {
 		${$sync->{nr}} = $beg;
 		$beg = $msgs->[-1]->{num} + 1;
@@ -835,7 +835,7 @@ ibx_id = ? AND xnum = ? AND oidbin = ?
 			# the first time around ASAP:
 			if (scalar(@$docids) == 0) {
 				reindex_unseen($self, $sync, $ibx, $xsmsg);
-			} else { # already seen, reindex later
+			} elsif (!$fast) { # already seen, reindex later
 				for my $r (@$docids) {
 					$self->{oidx}->eidxq_add($r->[0]);
 				}
@@ -853,7 +853,7 @@ sub _reindex_check_stale ($$$) {
 	my $fetching;
 	my $ekey = $ibx->eidx_key;
 	local $sync->{-regen_fmt} =
-			"$ekey check stale/missing %u/".$ibx->over->max."\n";
+			"$ekey checking stale/missing %u/".$ibx->over->max."\n";
 	${$sync->{nr}} = 0;
 	do {
 		if (checkpoint_due($sync)) {

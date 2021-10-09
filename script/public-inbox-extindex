@@ -18,6 +18,8 @@ usage: public-inbox-extindex [options] [EXTINDEX_DIR] [INBOX_DIR...]
   --max-size=BYTES    do not index messages larger than the given size
   --gc                perform garbage collection instead of indexing
   --dedupe[=MSGID]    fix prior deduplication errors (may be repeated)
+  --reindex           index previously indexed inboxes
+  --fast              only reindex unseen/stale messages
   --verbose | -v      increase verbosity (may be repeated)
   --dry-run | -n      dry-run on --dedupe
 
@@ -26,7 +28,7 @@ See public-inbox-extindex(1) man page for full documentation.
 EOF
 my $opt = { quiet => -1, compact => 0, fsync => 1, scan => 1 };
 GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i
-		fsync|sync!
+		fsync|sync! fast
 		indexlevel|index-level|L=s max_size|max-size=s
 		batch_size|batch-size=s
 		dedupe:s@ gc commit-interval=i watch scan! dry-run|n
@@ -59,9 +61,10 @@ if ($opt->{gc}) {
 } else {
 	@ibxs = PublicInbox::Admin::resolve_inboxes(\@ARGV, $opt, $cfg);
 }
-if ($opt->{'dry-run'} && !$opt->{dedupe}) {
+$opt->{'dry-run'} && !$opt->{dedupe} and
 	die "E: --dry-run only affects --dedupe\n";
-}
+$opt->{fast} && !$opt->{reindex} and
+	die "E: --fast only affects --reindex\n";
 
 PublicInbox::Admin::require_or_die(qw(-search));
 PublicInbox::Config::json() or die "Cpanel::JSON::XS or similar missing\n";

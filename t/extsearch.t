@@ -336,6 +336,11 @@ if ('reindex catches missed messages') {
 	$es->{xdb}->reopen;
 	$mset = $es->mset("mid:$new->{mid}");
 	is($mset->size, 0, 'stale mid gone Xapian');
+
+	ok(run_script([qw(-extindex --reindex --all --fast), "$home/extindex"],
+			undef, $opt), '--reindex w/ --fast');
+	ok(!run_script([qw(-extindex --all --fast), "$home/extindex"],
+			undef, $opt), '--fast alone makes no sense');
 }
 
 if ('reindex catches content bifurcation') {
