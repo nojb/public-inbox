@@ -533,6 +533,7 @@ sub attach_link ($$$$;$) {
 
 	my $nl = $idx eq '1' ? '' : "\n"; # like join("\n", ...)
 	my $size = length($part->body);
+	delete $part->{bdy}; # save memory
 
 	# hide attributes normally, unless we want to aid users in
 	# spotting MUA problems:
@@ -632,6 +633,7 @@ sub add_text_body { # callback for each_part
 		attach_link($ctx, $ct, $p, $fn, $err);
 		$$rv .= "\n";
 	}
+	delete $part->{bdy}; # save memory
 	foreach my $cur (@sections) {
 		if ($cur =~ /\A>/) {
 			# we use a <span> here to allow users to specify
