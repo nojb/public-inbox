@@ -111,8 +111,6 @@ sub extract_diff ($$) {
 	my ($self, $want, $smsg) = @$arg;
 	my ($part) = @$p; # ignore $depth and @idx;
 	my $ct = $part->content_type || 'text/plain';
-	my ($s, undef) = msg_part_text($part, $ct);
-	defined $s or return;
 	my $post = $want->{oid_b};
 	my $pre = $want->{oid_a};
 	if (!defined($pre) || $pre !~ /\A[a-f0-9]+\z/) {
@@ -122,11 +120,12 @@ sub extract_diff ($$) {
 	# Email::MIME::Encodings forces QP to be CRLF upon decoding,
 	# change it back to LF:
 	my $cte = $part->header('Content-Transfer-Encoding') || '';
+	my ($s, undef) = msg_part_text($part, $ct);
+	defined $s or return;
+	delete $part->{bdy};
 	if ($cte =~ /\bquoted-printable\b/i && $part->crlf eq "\n") {
 		$s =~ s/\r\n/\n/sg;
 	}
-
-
 	$s =~ m!( # $1 start header lines we save for debugging:
 
 		# everything before ^index is optional, but we don't
@@ -169,6 +168,7 @@ sub extract_diff ($$) {
 		# because git-apply(1) handles that case, too
 		(?:^(?:[\@\+\x20\-\\][^\n]*|)$LF)+
 	)!smx or return;
+	undef $s; # free memory
 
 	my $di = {
 		hdr_lines => $1,
