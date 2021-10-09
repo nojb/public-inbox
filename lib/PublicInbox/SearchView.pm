@@ -122,7 +122,7 @@ sub mset_summary {
 		$min = $pct;
 
 		my $s = ascii_html($smsg->{subject});
-		my $f = ascii_html($smsg->{from_name});
+		my $f = ascii_html(delete $smsg->{from_name});
 		if ($obfs_ibx) {
 			obfuscate_addrs($obfs_ibx, $s);
 			obfuscate_addrs($obfs_ibx, $f);

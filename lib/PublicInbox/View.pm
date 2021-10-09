@@ -978,7 +978,7 @@ sub skel_dump { # walk_thread callback
 		$$skel .= delete($ctx->{sl_note}) || '';
 	}
 
-	my $f = ascii_html($smsg->{from_name});
+	my $f = ascii_html(delete $smsg->{from_name});
 	my $obfs_ibx = $ctx->{-obfs_ibx};
 	obfuscate_addrs($obfs_ibx, $f) if $obfs_ibx;
 

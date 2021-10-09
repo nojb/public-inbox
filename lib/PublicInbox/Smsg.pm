@@ -57,15 +57,12 @@ sub load_from_data ($$) {
 sub psgi_cull ($) {
 	my ($self) = @_;
 
-	# ghosts don't have ->{from}
-	my $from = delete($self->{from}) // '';
-	my @n = PublicInbox::Address::names($from);
-	$self->{from_name} = join(', ', @n);
-
 	# drop NNTP-only fields which aren't relevant to PSGI results:
 	# saves ~80K on a 200 item search result:
 	# TODO: we may need to keep some of these for JMAP...
-	delete @$self{qw(tid to cc bytes lines)};
+	my ($f) = delete @$self{qw(from tid to cc bytes lines)};
+	# ghosts don't have ->{from}
+	$self->{from_name} = join(', ', PublicInbox::Address::names($f // ''));
 	$self;
 }
 
