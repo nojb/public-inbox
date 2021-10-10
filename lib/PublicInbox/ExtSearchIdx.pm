@@ -425,13 +425,13 @@ DELETE FROM xref3 WHERE docid NOT IN (SELECT num FROM over)
 
 	# fixup from old bugs:
 	$nr = $self->{oidx}->dbh->do(<<'');
-DELETE FROM over WHERE num NOT IN (SELECT docid FROM xref3)
+DELETE FROM over WHERE num > 0 AND num NOT IN (SELECT docid FROM xref3)
 
 	warn "I: eliminated $nr stale over entries\n" if $nr != 0;
 	reindex_checkpoint($self, $sync) if checkpoint_due($sync);
 
 	my ($cur) = $self->{oidx}->dbh->selectrow_array(<<EOM);
-SELECT MIN(num) FROM over
+SELECT MIN(num) FROM over WHERE num > 0
 EOM
 	$cur // return; # empty
 	my ($r, $n, %active);
