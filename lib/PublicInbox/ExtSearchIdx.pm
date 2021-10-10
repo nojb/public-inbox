@@ -902,15 +902,14 @@ DELETE FROM xref3 WHERE ibx_id = ? AND xnum = ? AND oidbin = ?
 			$del->execute;
 
 			# get_xref3 over-fetches, but this is a rare path:
-			my $xr3 = $self->{oidx}->get_xref3($docid);
+			my $xr3 = $self->{oidx}->get_xref3($docid, 1);
 			my $idx = $self->idx_shard($docid);
 			if (scalar(@$xr3) == 0) { # all gone
 				$self->{oidx}->delete_by_num($docid);
 				$self->{oidx}->eidxq_del($docid);
 				$idx->ipc_do('xdb_remove', $docid);
 			} else { # enqueue for reindex of remaining messages
-				$idx->ipc_do('remove_eidx_info',
-						$docid, $ibx->eidx_key);
+				$idx->ipc_do('remove_eidx_info', $docid, $ekey);
 				$self->{oidx}->eidxq_add($docid); # yes, add
 			}
 		}
