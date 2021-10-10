@@ -796,7 +796,7 @@ sub augment_inprogress {
 				"scanning old contents of $dst for dedupe" :
 				"removing old contents of $dst")." ...\n";
 	};
-	warn "E: $@" if $@;
+	warn "E: $@ ($dst)" if $@;
 }
 
 # called in top-level lei-daemon when LeiAuth is done
