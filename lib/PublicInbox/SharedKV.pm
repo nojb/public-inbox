@@ -51,7 +51,8 @@ sub new {
 	$base //= '';
 	my $f = $self->{filename} = "$dir/$base.sqlite3";
 	$self->{lock_path} = $opt->{lock_path} // "$dir/$base.flock";
-	unless (-f $f) {
+	unless (-s $f) {
+		PublicInbox::Spawn::nodatacow_dir($dir); # for journal/shm/wal
 		open my $fh, '+>>', $f or die "failed to open $f: $!";
 		PublicInbox::Spawn::nodatacow_fd(fileno($fh));
 	}

@@ -16,9 +16,11 @@ use constant DEFAULT_LIMIT => 1000;
 sub dbh_new {
 	my ($self, $rw) = @_;
 	my $f = delete $self->{filename};
-	if (!-f $f) { # SQLite defaults mode to 0644, we want 0666
+	if (!-s $f) { # SQLite defaults mode to 0644, we want 0666
 		if ($rw) {
 			require PublicInbox::Spawn;
+			my ($dir) = ($f =~ m!(.+)/[^/]+\z!);
+			PublicInbox::Spawn::nodatacow_dir($dir);
 			open my $fh, '+>>', $f or die "failed to open $f: $!";
 			PublicInbox::Spawn::nodatacow_fd(fileno($fh));
 		} else {
