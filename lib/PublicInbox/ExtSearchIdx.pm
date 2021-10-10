@@ -812,6 +812,9 @@ sub _reindex_check_unseen ($$$) {
 	my $ibx_id = $ibx->{-ibx_id};
 	my $slice = 1000;
 	my ($beg, $end) = (1, $slice);
+	my $err = sync_inbox($self, $sync, $ibx) and return;
+	my $max = $ibx->over->max;
+	$end = $max if $end > $max;
 
 	# first, check if we missed any messages in target $ibx
 	my $msgs;
@@ -825,6 +828,7 @@ sub _reindex_check_unseen ($$$) {
 		${$sync->{nr}} = $beg;
 		$beg = $msgs->[-1]->{num} + 1;
 		$end = $beg + $slice;
+		$end = $max if $end > $max;
 		if (checkpoint_due($sync)) {
 			reindex_checkpoint($self, $sync); # release lock
 		}
@@ -952,6 +956,7 @@ sub sync_inbox {
 	my $err = _sync_inbox($self, $sync, $ibx);
 	delete @$ibx{qw(mm over)};
 	warn $err, "\n" if defined($err);
+	$err;
 }
 
 sub dd_smsg { # git->cat_async callback
