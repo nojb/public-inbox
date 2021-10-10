@@ -421,34 +421,43 @@ sub eidx_gc_scan_shards ($$) { # TODO: use for lei/store
 DELETE FROM xref3 WHERE docid NOT IN (SELECT num FROM over)
 
 	warn "I: eliminated $nr stale xref3 entries\n" if $nr != 0;
+	reindex_checkpoint($self, $sync) if checkpoint_due($sync);
 
 	# fixup from old bugs:
 	$nr = $self->{oidx}->dbh->do(<<'');
 DELETE FROM over WHERE num NOT IN (SELECT docid FROM xref3)
 
 	warn "I: eliminated $nr stale over entries\n" if $nr != 0;
+	reindex_checkpoint($self, $sync) if checkpoint_due($sync);
 
 	my ($cur) = $self->{oidx}->dbh->selectrow_array(<<EOM);
 SELECT MIN(num) FROM over
 EOM
-	my ($max) = $self->{oidx}->dbh->selectrow_array(<<EOM);
-SELECT MAX(num) FROM over
-EOM
-	my $exists;
-restart:
-	$exists = $self->{oidx}->dbh->prepare(<<EOM);
-SELECT COUNT(num) FROM over WHERE num = ?
-EOM
-	for (; $cur <= $max; $cur++) {
-		$exists->execute($cur);
-		next if $exists->fetchrow_array != 0;
-		$self->idx_shard($cur)->ipc_do('xdb_remove_quiet', $cur);
+	$cur // return; # empty
+	my ($r, $n, %active);
+	$nr = 0;
+	while (1) {
+		$r = $self->{oidx}->dbh->selectcol_arrayref(<<"", undef, $cur);
+SELECT num FROM over WHERE num >= ? ORDER BY num ASC LIMIT 10000
+
+		last unless scalar(@$r);
+		while (defined($n = shift @$r)) {
+			for my $i ($cur..($n - 1)) {
+				my $idx = idx_shard($self, $i);
+				$idx->ipc_do('xdb_remove_quiet', $i);
+				$active{$idx} = $idx;
+			}
+			$cur = $n + 1;
+		}
 		if (checkpoint_due($sync)) {
-			$exists = undef;
+			for my $idx (values %active) {
+				$nr += $idx->ipc_do('nr_quiet_rm')
+			}
+			%active = ();
 			reindex_checkpoint($self, $sync);
-			goto restart;
 		}
 	}
+	warn "I: eliminated $nr stale Xapian documents\n" if $nr != 0;
 }
 
 sub eidx_gc {

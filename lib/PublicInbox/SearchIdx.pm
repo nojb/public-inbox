@@ -650,7 +650,10 @@ sub xdb_remove_quiet {
 	begin_txn_lazy($self);
 	my $xdb = $self->{xdb} // die 'BUG: missing {xdb}';
 	eval { $xdb->delete_document($docid) };
+	++$self->{-quiet_rm} unless $@;
 }
+
+sub nr_quiet_rm { delete($_[0]->{-quiet_rm}) // 0 }
 
 sub index_git_blob_id {
 	my ($doc, $pfx, $objid) = @_;
