@@ -320,7 +320,7 @@ sub progress_prepare ($;$) {
 	} else {
 		$opt->{verbose} ||= 1;
 		$dst //= *STDERR{GLOB};
-		$opt->{-progress} = sub { print $dst @_ };
+		$opt->{-progress} = sub { print $dst '# ', @_ };
 	}
 }
 
