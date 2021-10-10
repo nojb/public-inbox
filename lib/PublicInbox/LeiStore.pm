@@ -512,7 +512,7 @@ sub xchg_stderr {
 	return unless -e $dir;
 	my $old = delete $self->{-tmp_err};
 	my $pfx = POSIX::strftime('%Y%m%d%H%M%S', gmtime(time));
-	my $err = File::Temp->new(TEMPLATE => "$pfx.$$.lei_storeXXXX",
+	my $err = File::Temp->new(TEMPLATE => "$pfx.$$.err-XXXX",
 				SUFFIX => '.err', DIR => $dir);
 	open STDERR, '>>', $err->filename or die "dup2: $!";
 	STDERR->autoflush(1); # shared with shard subprocesses
