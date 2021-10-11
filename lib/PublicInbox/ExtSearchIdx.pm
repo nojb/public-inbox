@@ -129,32 +129,46 @@ sub apply_boost ($$) {
 	$req->{self}->{oidx}->add_overview($req->{eml}, $new_smsg);
 }
 
+sub _unref_doc ($$$$$;$) {
+	my ($sync, $docid, $ibx, $xnum, $oidbin, $eml) = @_;
+	my $s = 'DELETE FROM xref3 WHERE ibx_id = ? AND oidbin = ?';
+	$s .= ' AND xnum = ?' if defined($xnum);
+	my $del = $sync->{self}->{oidx}->dbh->prepare_cached($s);
+	$del->bind_param(1, $ibx->{-ibx_id});
+	$del->bind_param(2, $oidbin, SQL_BLOB);
+	$del->bind_param(3, $xnum) if defined($xnum);
+	$del->execute;
+	my $xr3 = $sync->{self}->{oidx}->get_xref3($docid, 1);
+	my $idx = $sync->{self}->idx_shard($docid);
+	if (scalar(@$xr3) == 0) { # all gone
+		$sync->{self}->{oidx}->delete_by_num($docid);
+		$sync->{self}->{oidx}->eidxq_del($docid);
+		$idx->ipc_do('xdb_remove', $docid);
+	} else { # enqueue for reindex of remaining messages
+		my $ekey = $ibx->{-gc_eidx_key} // $ibx->eidx_key;
+		$idx->ipc_do('remove_eidx_info', $docid, $ekey, $eml);
+		$sync->{self}->{oidx}->eidxq_add($docid); # yes, add
+	}
+	@$xr3
+}
+
 sub do_xpost ($$) {
 	my ($req, $smsg) = @_;
 	my $self = $req->{self};
 	my $docid = $smsg->{num};
-	my $idx = $self->idx_shard($docid);
 	my $oid = $req->{oid};
 	my $xibx = $req->{ibx};
 	my $eml = $req->{eml};
-	my $eidx_key = $xibx->eidx_key;
 	if (my $new_smsg = $req->{new_smsg}) { # 'm' on cross-posted message
+		my $eidx_key = $xibx->eidx_key;
 		my $xnum = $req->{xnum};
 		$self->{oidx}->add_xref3($docid, $xnum, $oid, $eidx_key);
+		my $idx = $self->idx_shard($docid);
 		$idx->ipc_do('add_eidx_info', $docid, $eidx_key, $eml);
 		apply_boost($req, $smsg) if $req->{boost_in_use};
-	} else { # 'd'
-		my $rm_eidx_info;
-		my $nr = $self->{oidx}->remove_xref3($docid, $oid, $eidx_key,
-							\$rm_eidx_info);
-		if ($nr == 0) {
-			$self->{oidx}->eidxq_del($docid);
-			$idx->ipc_do('xdb_remove', $docid);
-		} elsif ($rm_eidx_info) {
-			$idx->ipc_do('remove_eidx_info',
-					$docid, $eidx_key, $eml);
-			$self->{oidx}->eidxq_add($docid); # yes, add
-		}
+	} else { # 'd' no {xnum}
+		$oid = pack('H*', $oid);
+		_unref_doc($req, $docid, $xibx, undef, $oid, $eml);
 	}
 }
 
@@ -345,36 +359,12 @@ sub _sync_inbox ($$$) {
 	undef;
 }
 
-sub gc_unref_doc ($$$$) {
-	my ($self, $ibx_id, $eidx_key, $docid) = @_;
-	my $remain = 0;
-	# for debug/info purposes, oids may no longer be accessible
-	my $dbh = $self->{oidx}->dbh;
-	my $sth = $dbh->prepare_cached(<<'', undef, 1);
-SELECT oidbin FROM xref3 WHERE docid = ? AND ibx_id = ?
-
-	$sth->execute($docid, $ibx_id);
-	my @oid = map { unpack('H*', $_->[0]) } @{$sth->fetchall_arrayref};
-	for my $oid (@oid) {
-		$remain += $self->{oidx}->remove_xref3($docid, $oid, $eidx_key);
-	}
-	if ($remain) {
-		$self->{oidx}->eidxq_add($docid); # enqueue for reindex
-		for my $oid (@oid) {
-			warn "I: unref #$docid $eidx_key $oid\n";
-		}
-	} else {
-		warn "I: remove #$docid $eidx_key @oid\n";
-		$self->idx_shard($docid)->ipc_do('xdb_remove', $docid);
-	}
-}
-
 sub eidx_gc_scan_inboxes ($$) {
 	my ($self, $sync) = @_;
 	my ($x3_doc, $ibx_ck);
 restart:
 	$x3_doc = $self->{oidx}->dbh->prepare(<<EOM);
-SELECT docid FROM xref3 WHERE ibx_id = ?
+SELECT docid,xnum,oidbin FROM xref3 WHERE ibx_id = ?
 EOM
 	$ibx_ck = $self->{oidx}->dbh->prepare(<<EOM);
 SELECT ibx_id,eidx_key FROM inboxes
@@ -385,8 +375,12 @@ EOM
 		$self->{midx}->remove_eidx_key($eidx_key);
 		warn "I: deleting messages for $eidx_key...\n";
 		$x3_doc->execute($ibx_id);
-		while (defined(my $docid = $x3_doc->fetchrow_array)) {
-			gc_unref_doc($self, $ibx_id, $eidx_key, $docid);
+		my $ibx = { -ibx_id => $ibx_id, -gc_eidx_key => $eidx_key };
+		while (my ($docid, $xnum, $oid) = $x3_doc->fetchrow_array) {
+			my $r = _unref_doc($sync, $docid, $ibx, $xnum, $oid);
+			$oid = unpack('H*', $oid);
+			$r = $r ? 'unref' : 'remove';
+			warn "I: $r #$docid $eidx_key $oid\n";
 			if (checkpoint_due($sync)) {
 				$x3_doc = $ibx_ck = undef;
 				reindex_checkpoint($self, $sync);
@@ -470,6 +464,7 @@ sub eidx_gc {
 		next_check => now() + 10,
 		checkpoint_unlocks => 1,
 		-opt => $opt,
+		self => $self,
 	};
 	$self->idx_init($opt); # acquire lock via V2Writable::_idx_init
 	eidx_gc_scan_inboxes($self, $sync);
@@ -807,27 +802,6 @@ sub reindex_unseen ($$$$) {
 	$self->git->cat_async($xsmsg->{blob}, \&_reindex_unseen, $req);
 }
 
-sub _unref_stale ($$$$$) {
-	my ($sync, $docid, $ibx, $xnum, $oidbin) = @_;
-	my $del = $sync->{self}->{oidx}->dbh->prepare_cached(<<'');
-DELETE FROM xref3 WHERE ibx_id = ? AND xnum = ? AND oidbin = ?
-
-	$del->bind_param(1, $ibx->{-ibx_id});
-	$del->bind_param(2, $xnum);
-	$del->bind_param(3, $oidbin, SQL_BLOB);
-	$del->execute;
-	my $xr3 = $sync->{self}->{oidx}->get_xref3($docid, 1);
-	my $idx = $sync->{self}->idx_shard($docid);
-	if (scalar(@$xr3) == 0) { # all gone
-		$sync->{self}->{oidx}->delete_by_num($docid);
-		$sync->{self}->{oidx}->eidxq_del($docid);
-		$idx->ipc_do('xdb_remove', $docid);
-	} else { # enqueue for reindex of remaining messages
-		$idx->ipc_do('remove_eidx_info', $docid, $ibx->eidx_key);
-		$sync->{self}->{oidx}->eidxq_add($docid); # yes, add
-	}
-}
-
 sub _unref_stale_range ($$$) {
 	my ($sync, $ibx, $lt_or_gt) = @_;
 	my $r;
@@ -843,7 +817,7 @@ EOS
 			my ($docid, $xnum, $oidbin) = @$_;
 			my $hex = unpack('H*', $oidbin);
 			warn("# $xnum:$hex (#$docid): stale\n");
-			_unref_stale($sync, $docid, $ibx, $xnum, $oidbin);
+			_unref_doc($sync, $docid, $ibx, $xnum, $oidbin);
 		}
 	} while (scalar(@$r) == $lim);
 	1;
@@ -913,7 +887,7 @@ ibx_id = ? AND xnum >= ? AND xnum <= ?
 			my $m = defined($exp) ? "mismatch (!= $exp)" : 'stale';
 			warn("# $xnum:$hex (#@$docids): $m\n");
 			for my $i (@$docids) {
-				_unref_stale($sync, $i, $ibx, $xnum, $bin);
+				_unref_doc($sync, $i, $ibx, $xnum, $bin);
 			}
 		}
 	}
