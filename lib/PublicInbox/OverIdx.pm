@@ -606,50 +606,6 @@ INSERT OR IGNORE INTO xref3 (docid, ibx_id, xnum, oidbin) VALUES (?, ?, ?, ?)
 	$sth->execute;
 }
 
-# returns remaining reference count to $docid
-sub remove_xref3 {
-	my ($self, $docid, $oidhex, $eidx_key, $rm_eidx_info) = @_;
-	begin_lazy($self);
-	my $oidbin = pack('H*', $oidhex);
-	my ($sth, $ibx_id);
-	if (defined $eidx_key) {
-		$ibx_id = ibx_id($self, $eidx_key);
-		$sth = $self->{dbh}->prepare_cached(<<'');
-DELETE FROM xref3 WHERE docid = ? AND ibx_id = ? AND oidbin = ?
-
-		$sth->bind_param(1, $docid);
-		$sth->bind_param(2, $ibx_id);
-		$sth->bind_param(3, $oidbin, SQL_BLOB);
-	} else {
-		$sth = $self->{dbh}->prepare_cached(<<'');
-DELETE FROM xref3 WHERE docid = ? AND oidbin = ?
-
-		$sth->bind_param(1, $docid);
-		$sth->bind_param(2, $oidbin, SQL_BLOB);
-	}
-	$sth->execute;
-	$sth = $self->{dbh}->prepare_cached(<<'', undef, 1);
-SELECT COUNT(*) FROM xref3 WHERE docid = ?
-
-	$sth->execute($docid);
-	my $nr = $sth->fetchrow_array;
-	if ($nr == 0) {
-		delete_by_num($self, $docid);
-	} elsif (defined($ibx_id) && $rm_eidx_info) {
-		# if deduplication rules in ContentHash change, it's
-		# possible a docid can have multiple rows with the
-		# same ibx_id.  This governs whether or not we call
-		# ->remove_eidx_info in ExtSearchIdx.
-		$sth = $self->{dbh}->prepare_cached(<<'', undef, 1);
-SELECT COUNT(*) FROM xref3 WHERE docid = ? AND ibx_id = ?
-
-		$sth->execute($docid, $ibx_id);
-		my $count = $sth->fetchrow_array;
-		$$rm_eidx_info = ($count == 0);
-	}
-	$nr;
-}
-
 # for when an xref3 goes missing, this does NOT update {ts}
 sub update_blob {
 	my ($self, $smsg, $oidhex) = @_;

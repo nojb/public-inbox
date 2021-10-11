@@ -138,21 +138,42 @@ sub remove_doc ($$) {
 
 sub _unref_doc ($$$$$;$) {
 	my ($sync, $docid, $ibx, $xnum, $oidbin, $eml) = @_;
-	my $s = 'DELETE FROM xref3 WHERE ibx_id = ? AND oidbin = ?';
+	my $smsg;
+	if (ref($docid)) {
+		$smsg = $docid;
+		$docid = $smsg->{num};
+	}
+	my $s = 'DELETE FROM xref3 WHERE oidbin = ?';
+	$s .= ' AND ibx_id = ?' if defined($ibx);
 	$s .= ' AND xnum = ?' if defined($xnum);
 	my $del = $sync->{self}->{oidx}->dbh->prepare_cached($s);
-	$del->bind_param(1, $ibx->{-ibx_id});
-	$del->bind_param(2, $oidbin, SQL_BLOB);
-	$del->bind_param(3, $xnum) if defined($xnum);
+	my $col = 0;
+	$del->bind_param(++$col, $oidbin, SQL_BLOB);
+	$del->bind_param(++$col, $ibx->{-ibx_id}) if $ibx;
+	$del->bind_param(++$col, $xnum) if defined($xnum);
 	$del->execute;
-	my $xr3 = $sync->{self}->{oidx}->get_xref3($docid, 1);
+	my $xr3 = $sync->{self}->{oidx}->get_xref3($docid);
 	if (scalar(@$xr3) == 0) { # all gone
 		remove_doc($sync->{self}, $docid);
 	} else { # enqueue for reindex of remaining messages
-		my $ekey = $ibx->{-gc_eidx_key} // $ibx->eidx_key;
-		my $idx = $sync->{self}->idx_shard($docid);
-		$idx->ipc_do('remove_eidx_info', $docid, $ekey, $eml);
-		$sync->{self}->{oidx}->eidxq_add($docid); # yes, add
+		if ($ibx) {
+			my $ekey = $ibx->{-gc_eidx_key} // $ibx->eidx_key;
+			my $idx = $sync->{self}->idx_shard($docid);
+			$idx->ipc_do('remove_eidx_info', $docid, $ekey, $eml);
+		} # else: we can't remove_eidx_info in reindex-only path
+
+		# replace invalidated blob ASAP with something which should be
+		# readable since we may commit the transaction on checkpoint.
+		# eidxq processing will re-apply boost
+		$smsg //= $sync->{self}->{oidx}->get_art($docid);
+		my $hex = unpack('H*', $oidbin);
+		if ($smsg && $smsg->{blob} eq $hex) {
+			$xr3->[0] =~ /:([a-f0-9]{40,}+)\z/ or
+				die "BUG: xref $xr3->[0] has no OID";
+			$sync->{self}->{oidx}->update_blob($smsg, $1);
+		}
+		# yes, add, we'll need to re-apply boost
+		$sync->{self}->{oidx}->eidxq_add($docid);
 	}
 	@$xr3
 }
@@ -235,24 +256,12 @@ sub do_step ($) { # main iterator for adding messages to the index
 	do_finalize($req);
 }
 
-sub _blob_missing ($$) { # called when $smsg->{blob} is bad
+sub _blob_missing ($$) { # called when a known $smsg->{blob} is gone
 	my ($req, $smsg) = @_;
-	my $self = $req->{self};
-	my $xref3 = $self->{oidx}->get_xref3($smsg->{num});
-	my @keep = grep(!/:$smsg->{blob}\z/, @$xref3);
-	if (@keep) {
-		warn "E: $smsg->{blob} gone, removing #$smsg->{num}\n";
-		$keep[0] =~ /:([a-f0-9]{40,}+)\z/ or
-			die "BUG: xref $keep[0] has no OID";
-		my $oidhex = $1;
-		$self->{oidx}->remove_xref3($smsg->{num}, $smsg->{blob});
-		$self->{oidx}->update_blob($smsg, $oidhex) or warn <<EOM;
-E: #$smsg->{num} gone ($smsg->{blob} => $oidhex)
-EOM
-	} else {
-		warn "E: $smsg->{blob} gone, removing #$smsg->{num}\n";
-		remove_doc($self, $smsg->{num});
-	}
+	# xnum and ibx are unknown, we only call this when an entry from
+	# /ei*/over.sqlite3 is bad, not on entries from xap*/over.sqlite3
+	my $oidbin = pack('H*', $smsg->{blob});
+	_unref_doc($req, $smsg, undef, undef, $oidbin);
 }
 
 sub ck_existing { # git->cat_async callback
@@ -548,7 +557,8 @@ sub _reindex_finalize ($$$) {
 	for my $ary (values %$by_chash) {
 		for my $x (reverse @$ary) {
 			warn "removing #$docid xref3 $x->{blob}\n";
-			my $n = $self->{oidx}->remove_xref3($docid, $x->{blob});
+			my $bin = pack('H*', $x->{blob});
+			my $n = _unref_doc($sync, $docid, undef, undef, $bin);
 			die "BUG: $x->{blob} invalidated #$docid" if $n == 0;
 		}
 		my $x = pop(@$ary) // die "BUG: #$docid {by_chash} empty";
@@ -579,16 +589,14 @@ sub _reindex_oid { # git->cat_async callback
 	my $expect_oid = $req->{xr3r}->[$req->{ix}]->[2];
 	my $docid = $orig_smsg->{num};
 	if (is_bad_blob($oid, $type, $size, $expect_oid)) {
-		my $remain = $self->{oidx}->remove_xref3($docid, $expect_oid);
+		my $oidbin = pack('H*', $expect_oid);
+		my $remain = _unref_doc($sync, $docid, undef, undef, $oidbin);
 		if ($remain == 0) {
 			warn "W: #$docid gone or corrupted\n";
-			remove_doc($self, $docid);
 		} elsif (my $next_oid = $req->{xr3r}->[++$req->{ix}]->[2]) {
-			# n.b. we can't remove_eidx_info here
 			$self->git->cat_async($next_oid, \&_reindex_oid, $req);
 		} else {
 			warn "BUG: #$docid gone (UNEXPECTED)\n";
-			remove_doc($self, $docid);
 		}
 		return;
 	}

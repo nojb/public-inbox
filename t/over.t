@@ -90,8 +90,9 @@ $over->eidx_prep;
 			'example.kee:2018:deadbeefcafe' ],
 			'xref3 works forw two');
 
-	@arg = qw(1349 adeadba7cafe example.key);
-	is($over->remove_xref3(@arg), 1, 'remove first');
+	is($over->dbh->do(<<''), 1, 'remove first');
+DELETE FROM xref3 WHERE xnum = 2019 AND docid = 1349
+
 	$xref3 = $over->get_xref3(1349);
 	is_deeply($xref3, [ 'example.kee:2018:deadbeefcafe' ],
 		'confirm removal successful');

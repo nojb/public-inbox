@@ -375,7 +375,7 @@ if ('reindex catches content bifurcation') {
 	is($oidx->max, $oldmax, 'oidx->max unchanged');
 	$oidx->dbh_close;
 	ok(run_script([qw(-extindex --reindex --all), "$home/extindex"],
-		undef, $opt), 'extindex --reindex');
+		undef, $opt), 'extindex --reindex') or diag explain($opt);
 	$oidx->dbh;
 	ok($oidx->max > $oldmax, 'oidx->max bumped');
 	like($err, qr/split into 2 due to deduplication change/,
