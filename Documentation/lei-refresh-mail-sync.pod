@@ -10,7 +10,7 @@ lei refresh-mail-sync MFOLDER [MFOLDER...]
 
 =head1 DESCRIPTION
 
-C<lei refresh-mail-sync> is intended to to keep old messages
+C<lei refresh-mail-sync> is intended to keep old messages
 indexed with L<lei-index(1)> retrievable if Maildir flags change
 a filename.  It will prune invalid entries for messages which no
 longer exist in a Maildir.
