@@ -434,7 +434,7 @@ DELETE FROM over WHERE num > 0 AND num NOT IN (SELECT docid FROM xref3)
 SELECT MIN(num) FROM over WHERE num > 0
 EOM
 	$cur // return; # empty
-	my ($r, $n, %active);
+	my ($r, $n, %active_shards);
 	$nr = 0;
 	while (1) {
 		$r = $self->{oidx}->dbh->selectcol_arrayref(<<"", undef, $cur);
@@ -445,15 +445,15 @@ SELECT num FROM over WHERE num >= ? ORDER BY num ASC LIMIT 10000
 			for my $i ($cur..($n - 1)) {
 				my $idx = idx_shard($self, $i);
 				$idx->ipc_do('xdb_remove_quiet', $i);
-				$active{$idx} = $idx;
+				$active_shards{$idx} = $idx;
 			}
 			$cur = $n + 1;
 		}
 		if (checkpoint_due($sync)) {
-			for my $idx (values %active) {
+			for my $idx (values %active_shards) {
 				$nr += $idx->ipc_do('nr_quiet_rm')
 			}
-			%active = ();
+			%active_shards = ();
 			reindex_checkpoint($self, $sync);
 		}
 	}
