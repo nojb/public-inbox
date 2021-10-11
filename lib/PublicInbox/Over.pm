@@ -108,8 +108,8 @@ sub do_get {
 }
 
 sub query_xover {
-	my ($self, $beg, $end) = @_;
-	do_get($self, <<'', {}, $beg, $end);
+	my ($self, $beg, $end, $opt) = @_;
+	do_get($self, <<'', $opt, $beg, $end);
 SELECT num,ts,ds,ddd FROM over WHERE num >= ? AND num <= ?
 ORDER BY num ASC
 

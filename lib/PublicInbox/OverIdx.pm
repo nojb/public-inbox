@@ -543,9 +543,13 @@ CREATE TABLE IF NOT EXISTS xref3 (
 	$dbh->do('CREATE INDEX IF NOT EXISTS idx_docid ON xref3 (docid)');
 
 	# performance critical, this is not UNIQUE since we may need to
-	# tolerate some old bugs from indexing mirrors
-	$dbh->do('CREATE INDEX IF NOT EXISTS idx_nntp ON '.
-		'xref3 (oidbin,xnum,ibx_id)');
+	# tolerate some old bugs from indexing mirrors.  n.b. we used
+	# to index oidbin here, but leaving it out speeds up reindexing
+	# and "XHDR Xref <$MSGID>" isn't any slower w/o oidbin
+	$dbh->do('CREATE INDEX IF NOT EXISTS idx_reindex ON '.
+		'xref3 (xnum,ibx_id)');
+
+	$dbh->do('CREATE INDEX IF NOT EXISTS idx_oidbin ON xref3 (oidbin)');
 
 		$dbh->do(<<'');
 CREATE TABLE IF NOT EXISTS eidx_meta (

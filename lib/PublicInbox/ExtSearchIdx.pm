@@ -807,10 +807,53 @@ sub reindex_unseen ($$$$) {
 	$self->git->cat_async($xsmsg->{blob}, \&_reindex_unseen, $req);
 }
 
-sub _reindex_check_unseen ($$$) {
+sub _unref_stale ($$$$$) {
+	my ($sync, $docid, $ibx, $xnum, $oidbin) = @_;
+	my $del = $sync->{self}->{oidx}->dbh->prepare_cached(<<'');
+DELETE FROM xref3 WHERE ibx_id = ? AND xnum = ? AND oidbin = ?
+
+	$del->bind_param(1, $ibx->{-ibx_id});
+	$del->bind_param(2, $xnum);
+	$del->bind_param(3, $oidbin, SQL_BLOB);
+	$del->execute;
+	my $xr3 = $sync->{self}->{oidx}->get_xref3($docid, 1);
+	my $idx = $sync->{self}->idx_shard($docid);
+	if (scalar(@$xr3) == 0) { # all gone
+		$sync->{self}->{oidx}->delete_by_num($docid);
+		$sync->{self}->{oidx}->eidxq_del($docid);
+		$idx->ipc_do('xdb_remove', $docid);
+	} else { # enqueue for reindex of remaining messages
+		$idx->ipc_do('remove_eidx_info', $docid, $ibx->eidx_key);
+		$sync->{self}->{oidx}->eidxq_add($docid); # yes, add
+	}
+}
+
+sub _unref_stale_range ($$$) {
+	my ($sync, $ibx, $lt_or_gt) = @_;
+	my $r;
+	my $lim = 10000;
+	do {
+		$r = $sync->{self}->{oidx}->dbh->selectall_arrayref(
+			<<EOS, undef, $ibx->{-ibx_id});
+SELECT docid,xnum,oidbin FROM xref3
+WHERE ibx_id = ? AND xnum $lt_or_gt LIMIT $lim
+EOS
+		return if $sync->{quit};
+		for (@$r) { # hopefully rare, not worth optimizing:
+			my ($docid, $xnum, $oidbin) = @$_;
+			my $hex = unpack('H*', $oidbin);
+			warn("# $xnum:$hex (#$docid): stale\n");
+			_unref_stale($sync, $docid, $ibx, $xnum, $oidbin);
+		}
+	} while (scalar(@$r) == $lim);
+	1;
+}
+
+sub _reindex_check_ibx ($$$) {
 	my ($self, $sync, $ibx) = @_;
 	my $ibx_id = $ibx->{-ibx_id};
-	my $slice = 1000;
+	my $slice = 10000;
+	my $opt = { limit => $slice };
 	my ($beg, $end) = (1, $slice);
 	my $err = sync_inbox($self, $sync, $ibx) and return;
 	my $max = $ibx->over->max;
@@ -820,11 +863,12 @@ sub _reindex_check_unseen ($$$) {
 	my $msgs;
 	my $pr = $sync->{-opt}->{-progress};
 	my $ekey = $ibx->eidx_key;
-	local $sync->{-regen_fmt} =
-			"$ekey checking unseen %u/".$ibx->over->max."\n";
+	local $sync->{-regen_fmt} = "$ekey checking %u/$max\n";
 	${$sync->{nr}} = 0;
 	my $fast = $sync->{-opt}->{fast};
-	while (scalar(@{$msgs = $ibx->over->query_xover($beg, $end)})) {
+	my $dsu; # _unref_stale_range (< $lo) called
+	my ($lo, $hi);
+	while (scalar(@{$msgs = $ibx->over->query_xover($beg, $end, $opt)})) {
 		${$sync->{nr}} = $beg;
 		$beg = $msgs->[-1]->{num} + 1;
 		$end = $beg + $slice;
@@ -832,92 +876,48 @@ sub _reindex_check_unseen ($$$) {
 		if (checkpoint_due($sync)) {
 			reindex_checkpoint($self, $sync); # release lock
 		}
+		($lo, $hi) = ($msgs->[0]->{num}, $msgs->[-1]->{num});
+		$dsu //= _unref_stale_range($sync, $ibx, "< $lo");
+		my $x3a = $self->{oidx}->dbh->selectall_arrayref(
+			<<"", undef, $ibx_id, $lo, $hi);
+SELECT xnum,oidbin,docid FROM xref3 WHERE
+ibx_id = ? AND xnum >= ? AND xnum <= ?
 
-		my $inx3 = $self->{oidx}->dbh->prepare_cached(<<'', undef, 1);
-SELECT DISTINCT(docid) FROM xref3 WHERE
-ibx_id = ? AND xnum = ? AND oidbin = ?
-
+		my %x3m;
+		for (@$x3a) {
+			my $k = pack('J', $_->[0]) . $_->[1];
+			push @{$x3m{$k}}, $_->[2];
+		}
+		undef $x3a;
 		for my $xsmsg (@$msgs) {
-			my $oidbin = pack('H*', $xsmsg->{blob});
-			$inx3->bind_param(1, $ibx_id);
-			$inx3->bind_param(2, $xsmsg->{num});
-			$inx3->bind_param(3, $oidbin, SQL_BLOB);
-			$inx3->execute;
-			my $docids = $inx3->fetchall_arrayref;
-			# index messages which were totally missed
-			# the first time around ASAP:
-			if (scalar(@$docids) == 0) {
+			my $k = pack('JH*', $xsmsg->{num}, $xsmsg->{blob});
+			my $docids = delete($x3m{$k});
+			if (!defined($docids)) {
 				reindex_unseen($self, $sync, $ibx, $xsmsg);
-			} elsif (!$fast) { # already seen, reindex later
-				for my $r (@$docids) {
-					$self->{oidx}->eidxq_add($r->[0]);
+			} elsif (!$fast) {
+				for my $num (@$docids) {
+					$self->{oidx}->eidxq_add($num);
 				}
+				return if $sync->{quit};
 			}
-			last if $sync->{quit};
 		}
-		last if $sync->{quit};
+		return if $sync->{quit};
+		next unless scalar keys %x3m;
+
+		# eliminate stale/mismatched entries
+		my %mismatch = map { $_->{num} => $_->{blob} } @$msgs;
+		while (my ($k, $docids) = each %x3m) {
+			my ($xnum, $hex) = unpack('JH*', $k);
+			my $bin = pack('H*', $hex);
+			my $exp = $mismatch{$xnum};
+			my $m = defined($exp) ? "mismatch (!= $exp)" : 'stale';
+			warn("# $xnum:$hex (#@$docids): $m\n");
+			for my $i (@$docids) {
+				_unref_stale($sync, $i, $ibx, $xnum, $bin);
+			}
+		}
 	}
-}
-
-sub _reindex_check_stale ($$$) {
-	my ($self, $sync, $ibx) = @_;
-	my $min = 0;
-	my $pr = $sync->{-opt}->{-progress};
-	my $fetching;
-	my $ekey = $ibx->eidx_key;
-	local $sync->{-regen_fmt} =
-			"$ekey checking stale/missing %u/".$ibx->over->max."\n";
-	${$sync->{nr}} = 0;
-	do {
-		if (checkpoint_due($sync)) {
-			reindex_checkpoint($self, $sync); # release lock
-		}
-		# now, check if there's stale xrefs
-		my $iter = $self->{oidx}->dbh->prepare_cached(<<'', undef, 1);
-SELECT docid,xnum,oidbin FROM xref3 WHERE ibx_id = ? AND docid > ?
-ORDER BY docid,xnum ASC LIMIT 10000
-
-		$iter->execute($ibx->{-ibx_id}, $min);
-		$fetching = undef;
-
-		while (my ($docid, $xnum, $oidbin) = $iter->fetchrow_array) {
-			return if $sync->{quit};
-			${$sync->{nr}} = $xnum;
-
-			$fetching = $min = $docid;
-			my $smsg = $ibx->over->get_art($xnum);
-			my $err;
-			if (!$smsg) {
-				$err = 'stale';
-			} elsif (pack('H*', $smsg->{blob}) ne $oidbin) {
-				$err = "mismatch (!= $smsg->{blob})";
-			} else {
-				next; # likely, all good
-			}
-			# current_info already has eidx_key
-			my $oidhex = unpack('H*', $oidbin);
-			warn "$xnum:$oidhex (#$docid): $err\n";
-			my $del = $self->{oidx}->dbh->prepare_cached(<<'');
-DELETE FROM xref3 WHERE ibx_id = ? AND xnum = ? AND oidbin = ?
-
-			$del->bind_param(1, $ibx->{-ibx_id});
-			$del->bind_param(2, $xnum);
-			$del->bind_param(3, $oidbin, SQL_BLOB);
-			$del->execute;
-
-			# get_xref3 over-fetches, but this is a rare path:
-			my $xr3 = $self->{oidx}->get_xref3($docid, 1);
-			my $idx = $self->idx_shard($docid);
-			if (scalar(@$xr3) == 0) { # all gone
-				$self->{oidx}->delete_by_num($docid);
-				$self->{oidx}->eidxq_del($docid);
-				$idx->ipc_do('xdb_remove', $docid);
-			} else { # enqueue for reindex of remaining messages
-				$idx->ipc_do('remove_eidx_info', $docid, $ekey);
-				$self->{oidx}->eidxq_add($docid); # yes, add
-			}
-		}
-	} while (defined $fetching);
+	_unref_stale_range($sync, $ibx, "> $hi") if defined($hi);
 }
 
 sub _reindex_inbox ($$$) {
@@ -927,8 +927,7 @@ sub _reindex_inbox ($$$) {
 	if (defined(my $err = _ibx_index_reject($ibx))) {
 		warn "W: cannot reindex $ekey ($err)\n";
 	} else {
-		_reindex_check_unseen($self, $sync, $ibx);
-		_reindex_check_stale($self, $sync, $ibx) unless $sync->{quit};
+		_reindex_check_ibx($self, $sync, $ibx);
 	}
 	delete @$ibx{qw(over mm search git)}; # won't need these for a bit
 }
