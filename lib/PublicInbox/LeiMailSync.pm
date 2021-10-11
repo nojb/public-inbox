@@ -47,7 +47,8 @@ sub lms_write_prepare { ($_[0]->{dbh} //= dbh_new($_[0], 1)); $_[0] }
 sub lms_pause {
 	my ($self) = @_;
 	$self->{fmap} = {};
-	delete $self->{dbh};
+	my $dbh = delete $self->{dbh};
+	$dbh->do('PRAGMA optimize') if $dbh;
 }
 
 sub create_tables {

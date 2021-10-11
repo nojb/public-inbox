@@ -622,7 +622,18 @@ sub done {
 		my $m = $err ? 'rollback' : 'commit';
 		eval { $mm->{dbh}->$m };
 		$err .= "msgmap $m: $@\n" if $@;
+		eval { $mm->{dbh}->do('PRAGMA optimize') };
+		$err .= "msgmap optimize: $@\n" if $@;
 	}
+	if ($self->{oidx} && $self->{oidx}->{dbh}) {
+		if ($err) {
+			eval { $self->{oidx}->rollback_lazy };
+			$err .= "overview rollback: $@\n" if $@;
+		}
+		eval { $self->{oidx}->{dbh}->do('PRAGMA optimize') };
+		$err .= "overview optimize: $@\n" if $@;
+	}
+
 	my $shards = delete $self->{idx_shards};
 	if ($shards) {
 		for (@$shards) {
