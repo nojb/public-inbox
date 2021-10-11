@@ -129,6 +129,13 @@ sub apply_boost ($$) {
 	$req->{self}->{oidx}->add_overview($req->{eml}, $new_smsg);
 }
 
+sub remove_doc ($$) {
+	my ($self, $docid) = @_;
+	$self->{oidx}->delete_by_num($docid);
+	$self->{oidx}->eidxq_del($docid);
+	$self->idx_shard($docid)->ipc_do('xdb_remove', $docid);
+}
+
 sub _unref_doc ($$$$$;$) {
 	my ($sync, $docid, $ibx, $xnum, $oidbin, $eml) = @_;
 	my $s = 'DELETE FROM xref3 WHERE ibx_id = ? AND oidbin = ?';
@@ -139,13 +146,11 @@ sub _unref_doc ($$$$$;$) {
 	$del->bind_param(3, $xnum) if defined($xnum);
 	$del->execute;
 	my $xr3 = $sync->{self}->{oidx}->get_xref3($docid, 1);
-	my $idx = $sync->{self}->idx_shard($docid);
 	if (scalar(@$xr3) == 0) { # all gone
-		$sync->{self}->{oidx}->delete_by_num($docid);
-		$sync->{self}->{oidx}->eidxq_del($docid);
-		$idx->ipc_do('xdb_remove', $docid);
+		remove_doc($sync->{self}, $docid);
 	} else { # enqueue for reindex of remaining messages
 		my $ekey = $ibx->{-gc_eidx_key} // $ibx->eidx_key;
+		my $idx = $sync->{self}->idx_shard($docid);
 		$idx->ipc_do('remove_eidx_info', $docid, $ekey, $eml);
 		$sync->{self}->{oidx}->eidxq_add($docid); # yes, add
 	}
@@ -246,7 +251,7 @@ E: #$smsg->{num} gone ($smsg->{blob} => $oidhex)
 EOM
 	} else {
 		warn "E: $smsg->{blob} gone, removing #$smsg->{num}\n";
-		$self->{oidx}->delete_by_num($smsg->{num});
+		remove_doc($self, $smsg->{num});
 	}
 }
 
@@ -424,6 +429,12 @@ DELETE FROM over WHERE num > 0 AND num NOT IN (SELECT docid FROM xref3)
 	warn "I: eliminated $nr stale over entries\n" if $nr != 0;
 	reindex_checkpoint($self, $sync) if checkpoint_due($sync);
 
+	$nr = $self->{oidx}->dbh->do(<<'');
+DELETE FROM eidxq WHERE docid NOT IN (SELECT num FROM over)
+
+	warn "I: eliminated $nr stale reindex queue entries\n" if $nr != 0;
+	reindex_checkpoint($self, $sync) if checkpoint_due($sync);
+
 	my ($cur) = $self->{oidx}->dbh->selectrow_array(<<EOM);
 SELECT MIN(num) FROM over WHERE num > 0
 EOM
@@ -571,12 +582,13 @@ sub _reindex_oid { # git->cat_async callback
 		my $remain = $self->{oidx}->remove_xref3($docid, $expect_oid);
 		if ($remain == 0) {
 			warn "W: #$docid gone or corrupted\n";
-			$self->idx_shard($docid)->ipc_do('xdb_remove', $docid);
+			remove_doc($self, $docid);
 		} elsif (my $next_oid = $req->{xr3r}->[++$req->{ix}]->[2]) {
+			# n.b. we can't remove_eidx_info here
 			$self->git->cat_async($next_oid, \&_reindex_oid, $req);
 		} else {
 			warn "BUG: #$docid gone (UNEXPECTED)\n";
-			$self->idx_shard($docid)->ipc_do('xdb_remove', $docid);
+			remove_doc($self, $docid);
 		}
 		return;
 	}
@@ -609,8 +621,7 @@ sub _reindex_smsg ($$$) {
 		warn <<"";
 BUG? #$docid $smsg->{blob} is not referenced by inboxes during reindex
 
-		$self->{oidx}->delete_by_num($docid);
-		$self->idx_shard($docid)->ipc_do('xdb_remove', $docid);
+		remove_doc($self, $docid);
 		return;
 	}
 
@@ -957,8 +968,7 @@ sub dd_smsg { # git->cat_async callback
 		for my $smsg (@$ary) {
 			my $gone = $smsg->{num};
 			$oidx->merge_xref3($keep->{num}, $gone, $smsg->{blob});
-			$self->idx_shard($gone)->ipc_do('xdb_remove', $gone);
-			$oidx->delete_by_num($gone);
+			remove_doc($self, $gone);
 		}
 	}
 }
