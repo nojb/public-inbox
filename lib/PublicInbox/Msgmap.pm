@@ -61,18 +61,15 @@ sub meta_accessor {
 	my ($self, $key, $value) = @_;
 
 	my $sql = 'SELECT val FROM meta WHERE key = ? LIMIT 1';
-	my $dbh = $self->{dbh};
-	my $prev;
-	defined $value or return $dbh->selectrow_array($sql, undef, $key);
-
-	$prev = $dbh->selectrow_array($sql, undef, $key);
+	my $prev = $self->{dbh}->selectrow_array($sql, undef, $key);
+	$value // return $prev;
 
 	if (defined $prev) {
 		$sql = 'UPDATE meta SET val = ? WHERE key = ?';
-		$dbh->do($sql, undef, $value, $key);
+		$self->{dbh}->do($sql, undef, $value, $key);
 	} else {
 		$sql = 'INSERT INTO meta (key,val) VALUES (?,?)';
-		$dbh->do($sql, undef, $key, $value);
+		$self->{dbh}->do($sql, undef, $key, $value);
 	}
 	$prev;
 }
@@ -109,33 +106,30 @@ sub num_highwater {
 
 sub mid_insert {
 	my ($self, $mid) = @_;
-	my $dbh = $self->{dbh};
-	my $sth = $dbh->prepare_cached(<<'');
+	my $sth = $self->{dbh}->prepare_cached(<<'');
 INSERT INTO msgmap (mid) VALUES (?)
 
 	return unless eval { $sth->execute($mid) };
-	my $num = $dbh->last_insert_id(undef, undef, 'msgmap', 'num');
+	my $num = $self->{dbh}->last_insert_id(undef, undef, 'msgmap', 'num');
 	$self->num_highwater($num) if defined($num);
 	$num;
 }
 
 sub mid_for {
 	my ($self, $num) = @_;
-	my $dbh = $self->{dbh};
-	my $sth = $self->{mid_for} ||=
-		$dbh->prepare('SELECT mid FROM msgmap WHERE num = ? LIMIT 1');
-	$sth->bind_param(1, $num);
-	$sth->execute;
+	my $sth = $self->{dbh}->prepare_cached(<<"", undef, 1);
+SELECT mid FROM msgmap WHERE num = ? LIMIT 1
+
+	$sth->execute($num);
 	$sth->fetchrow_array;
 }
 
 sub num_for {
 	my ($self, $mid) = @_;
-	my $dbh = $self->{dbh};
-	my $sth = $self->{num_for} ||=
-		$dbh->prepare('SELECT num FROM msgmap WHERE mid = ? LIMIT 1');
-	$sth->bind_param(1, $mid);
-	$sth->execute;
+	my $sth = $self->{dbh}->prepare_cached(<<"", undef, 1);
+SELECT num FROM msgmap WHERE mid = ? LIMIT 1
+
+	$sth->execute($mid);
 	$sth->fetchrow_array;
 }
 
@@ -157,18 +151,12 @@ sub minmax {
 
 sub mid_delete {
 	my ($self, $mid) = @_;
-	my $dbh = $self->{dbh};
-	my $sth = $dbh->prepare('DELETE FROM msgmap WHERE mid = ?');
-	$sth->bind_param(1, $mid);
-	$sth->execute;
+	$self->{dbh}->do('DELETE FROM msgmap WHERE mid = ?', undef, $mid);
 }
 
 sub num_delete {
 	my ($self, $num) = @_;
-	my $dbh = $self->{dbh};
-	my $sth = $dbh->prepare('DELETE FROM msgmap WHERE num = ?');
-	$sth->bind_param(1, $num);
-	$sth->execute;
+	$self->{dbh}->do('DELETE FROM msgmap WHERE num = ?', undef, $num);
 }
 
 sub create_tables {
@@ -192,9 +180,8 @@ CREATE TABLE IF NOT EXISTS meta (
 sub msg_range {
 	my ($self, $beg, $end, $cols) = @_;
 	$cols //= 'num,mid';
-	my $dbh = $self->{dbh};
 	my $attr = { Columns => [] };
-	my $mids = $dbh->selectall_arrayref(<<"", $attr, $$beg, $end);
+	my $mids = $self->{dbh}->selectall_arrayref(<<"", $attr, $$beg, $end);
 SELECT $cols FROM msgmap WHERE num >= ? AND num <= ?
 ORDER BY num ASC LIMIT 1000
 
@@ -206,10 +193,9 @@ ORDER BY num ASC LIMIT 1000
 # see scripts/xhdr-num2mid or PublicInbox::Filter::RubyLang for usage
 sub mid_set {
 	my ($self, $num, $mid) = @_;
-	my $sth = $self->{mid_set} ||= do {
-		$self->{dbh}->prepare(
-			'INSERT OR IGNORE INTO msgmap (num,mid) VALUES (?,?)');
-	};
+	my $sth = $self->{dbh}->prepare_cached(<<"");
+INSERT OR IGNORE INTO msgmap (num,mid) VALUES (?,?)
+
 	my $result = $sth->execute($num, $mid);
 	$self->num_highwater($num) if (defined($result) && $result == 1);
 	$result;
