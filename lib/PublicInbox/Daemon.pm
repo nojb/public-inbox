@@ -20,6 +20,7 @@ use PublicInbox::EOFpipe;
 use PublicInbox::Sigfd;
 use PublicInbox::Git;
 use PublicInbox::GitAsyncCat;
+use PublicInbox::Eml;
 our $SO_ACCEPTFILTER = 0x1000;
 my @CMD;
 my ($set_user, $oldset);
@@ -642,6 +643,7 @@ sub run ($$$;$) {
 	# localize GCF2C for tests:
 	local $PublicInbox::GitAsyncCat::GCF2C;
 	local $PublicInbox::Git::async_warn = 1;
+	local $SIG{__WARN__} = \&PublicInbox::Eml::warn_ignore_cb;
 
 	daemon_loop($refresh, $post_accept, $tlsd, $af_default);
 	PublicInbox::DS->Reset;
