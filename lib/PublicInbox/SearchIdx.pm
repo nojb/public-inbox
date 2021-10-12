@@ -793,6 +793,7 @@ sub v1_checkpoint ($$;$) {
 	${$sync->{max}} = $self->{batch_bytes};
 
 	$self->{mm}->{dbh}->commit;
+	eval { $self->{mm}->{dbh}->do('PRAGMA optimize') };
 	my $xdb = $self->{xdb};
 	if ($newest && $xdb) {
 		my $cur = $xdb->get_metadata('last_commit');

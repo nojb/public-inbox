@@ -48,7 +48,7 @@ sub lms_pause {
 	my ($self) = @_;
 	$self->{fmap} = {};
 	my $dbh = delete $self->{dbh};
-	$dbh->do('PRAGMA optimize') if $dbh;
+	eval { $dbh->do('PRAGMA optimize') } if $dbh;
 }
 
 sub create_tables {

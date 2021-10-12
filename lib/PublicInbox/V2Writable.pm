@@ -547,11 +547,11 @@ sub checkpoint ($;$) {
 	}
 	my $shards = $self->{idx_shards};
 	if ($shards) {
-		my $mm = $self->{mm};
-		my $dbh = $mm->{dbh} if $mm;
+		my $dbh = $self->{mm}->{dbh} if $self->{mm};
 
 		# SQLite msgmap data is second in importance
 		$dbh->commit if $dbh;
+		eval { $dbh->do('PRAGMA optimize') };
 
 		# SQLite overview is third
 		$self->{oidx}->commit_lazy;
@@ -620,16 +620,10 @@ sub done {
 		my $m = $err ? 'rollback' : 'commit';
 		eval { $mm->{dbh}->$m };
 		$err .= "msgmap $m: $@\n" if $@;
-		eval { $mm->{dbh}->do('PRAGMA optimize') };
-		$err .= "msgmap optimize: $@\n" if $@;
 	}
-	if ($self->{oidx} && $self->{oidx}->{dbh}) {
-		if ($err) {
-			eval { $self->{oidx}->rollback_lazy };
-			$err .= "overview rollback: $@\n" if $@;
-		}
-		eval { $self->{oidx}->{dbh}->do('PRAGMA optimize') };
-		$err .= "overview optimize: $@\n" if $@;
+	if ($self->{oidx} && $self->{oidx}->{dbh} && $err) {
+		eval { $self->{oidx}->rollback_lazy };
+		$err .= "overview rollback: $@\n" if $@;
 	}
 
 	my $shards = delete $self->{idx_shards};

@@ -434,6 +434,7 @@ sub commit_lazy {
 	my ($self) = @_;
 	delete $self->{txn} or return;
 	$self->{dbh}->commit;
+	eval { $self->{dbh}->do('PRAGMA optimize') };
 }
 
 sub begin_lazy {
