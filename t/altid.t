@@ -15,7 +15,7 @@ my $altid = [ "serial:gmane:file=$alt_file" ];
 my $ibx;
 
 {
-	my $mm = PublicInbox::Msgmap->new_file($alt_file, 1);
+	my $mm = PublicInbox::Msgmap->new_file($alt_file, 2);
 	is($mm->mid_set(1234, 'a@example.com'), 1, 'mid_set once OK');
 	ok(0 == $mm->mid_set(1234, 'a@example.com'), 'mid_set not idempotent');
 	ok(0 == $mm->mid_set(1, 'a@example.com'), 'mid_set fails with dup MID');
@@ -48,7 +48,7 @@ EOF
 };
 
 {
-	my $mm = PublicInbox::Msgmap->new_file($alt_file, 1);
+	my $mm = PublicInbox::Msgmap->new_file($alt_file, 2);
 	my ($min, $max) = $mm->minmax;
 	my $num = $mm->mid_insert('b@example.com');
 	ok($num > $max, 'auto-increment goes beyond mid_set');

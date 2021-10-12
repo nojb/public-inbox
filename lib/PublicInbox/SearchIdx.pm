@@ -453,8 +453,7 @@ sub _msgmap_init ($) {
 	die "BUG: _msgmap_init is only for v1\n" if $self->{ibx}->version != 1;
 	$self->{mm} //= eval {
 		require PublicInbox::Msgmap;
-		my $rw = $self->{ibx}->{-no_fsync} ? 2 : 1;
-		PublicInbox::Msgmap->new($self->{ibx}->{inboxdir}, $rw);
+		PublicInbox::Msgmap->new_file($self->{ibx}, 1);
 	};
 }
 

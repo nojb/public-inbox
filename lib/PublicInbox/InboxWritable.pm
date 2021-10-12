@@ -47,7 +47,7 @@ sub _init_v1 {
 		require PublicInbox::Msgmap;
 		my $sidx = PublicInbox::SearchIdx->new($self, 1); # just create
 		$sidx->begin_txn_lazy;
-		my $mm = PublicInbox::Msgmap->new($self->{inboxdir}, 1);
+		my $mm = PublicInbox::Msgmap->new_file($self, 1);
 		if (defined $skip_artnum) {
 			$mm->{dbh}->begin_work;
 			$mm->skip_artnum($skip_artnum);

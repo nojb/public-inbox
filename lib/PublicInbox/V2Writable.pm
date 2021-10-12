@@ -267,9 +267,7 @@ sub _idx_init { # with_umask callback
 
 	# Now that all subprocesses are up, we can open the FDs
 	# for SQLite:
-	my $mm = $self->{mm} = PublicInbox::Msgmap->new_file(
-				"$ibx->{inboxdir}/msgmap.sqlite3",
-				$ibx->{-no_fsync} ? 2 : 1);
+	my $mm = $self->{mm} = PublicInbox::Msgmap->new_file($ibx, 1);
 	$mm->{dbh}->begin_work;
 }
 

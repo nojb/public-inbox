@@ -44,7 +44,7 @@ EOF
 	$mime = PublicInbox::Eml->new($msg);
 	$ret = $f->delivery($mime);
 	is($ret, $mime, "delivery successful");
-	my $mm = PublicInbox::Msgmap->new($git_dir);
+	my $mm = $ibx->mm;
 	is($mm->num_for('a@b'), 12, 'MM entry created based on X-ML-Count');
 
 	$msg = <<'EOF';

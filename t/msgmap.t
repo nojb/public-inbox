@@ -7,7 +7,8 @@ use PublicInbox::TestCommon;
 require_mods('DBD::SQLite');
 use_ok 'PublicInbox::Msgmap';
 my ($tmpdir, $for_destroy) = tmpdir();
-my $d = PublicInbox::Msgmap->new($tmpdir, 1);
+my $f = "$tmpdir/msgmap.sqlite3";
+my $d = PublicInbox::Msgmap->new_file($f, 1);
 
 my %mid2num;
 my %num2mid;
@@ -50,7 +51,7 @@ is($d->mid_delete('a@b') + 0, 0, 'delete again returns zero');
 is(undef, $d->num_for('a@b'), 'num_for fails on deleted msg');
 $d = undef;
 
-ok($d = PublicInbox::Msgmap->new($tmpdir, 1), 'idempotent DB creation');
+ok($d = PublicInbox::Msgmap->new_file($f, 1), 'idempotent DB creation');
 my ($min, $max) = $d->minmax;
 ok($min > 0, "article min OK");
 ok($max > 0 && $max < 10, "article max OK");

@@ -14,19 +14,17 @@ use DBI;
 use DBD::SQLite;
 use PublicInbox::Over;
 use PublicInbox::Spawn;
-
-sub new {
-	my ($class, $git_dir, $writable) = @_;
-	my $d = "$git_dir/public-inbox";
-	if ($writable && !-d $d && !mkdir $d) {
-		my $err = $!;
-		-d $d or die "$d not created: $err";
-	}
-	new_file($class, "$d/msgmap.sqlite3", $writable);
-}
+use Scalar::Util qw(blessed);
 
 sub new_file {
-	my ($class, $f, $rw) = @_;
+	my ($class, $ibx, $rw) = @_;
+	my $f;
+	if (blessed($ibx)) {
+		$f = $ibx->mm_file;
+		$rw = 2 if $rw && $ibx->{-no_fsync};
+	} else {
+		$f = $ibx;
+	}
 	return if !$rw && !-r $f;
 
 	my $self = bless { filename => $f }, $class;

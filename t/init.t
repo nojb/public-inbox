@@ -199,7 +199,8 @@ SKIP: {
 	$err = '';
 	ok(run_script([qw(-mda --no-precheck)], $env, $rdr), 'deliver V1');
 	diag "err=$err" if $err;
-	$mm = PublicInbox::Msgmap->new("$tmpdir/skip4");
+	$mm = PublicInbox::Msgmap->new_file(
+			"$tmpdir/skip4/public-inbox/msgmap.sqlite3");
 	$n = $mm->num_for($mid);
 	is($n, 13, 'V1 NNTP article numbers skipped via --skip-artnum');
 }

@@ -148,7 +148,7 @@ sub mm {
 	$self->{mm} //= eval {
 		require PublicInbox::Msgmap;
 		_cleanup_later($self);
-		PublicInbox::Msgmap->new_file(mm_file($self));
+		PublicInbox::Msgmap->new_file($self);
 	} // ($req ? croak("E: $@") : undef);
 }
 
