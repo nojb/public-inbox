@@ -9,6 +9,7 @@
 # long_cb: long_response private data
 package PublicInbox::NNTP;
 use strict;
+use v5.10.1;
 use parent qw(PublicInbox::DS);
 use PublicInbox::MID qw(mid_escape $MID_EXTRACT);
 use PublicInbox::Eml;
@@ -381,11 +382,10 @@ sub article_adj ($$) {
 	defined $n or return '420 no current article has been selected';
 
 	$n += $off;
-	my $mid = $ibx->mm(1)->mid_for($n);
-	unless ($mid) {
+	my $mid = $ibx->mm(1)->mid_for($n) // do {
 		$n = $off > 0 ? 'next' : 'previous';
 		return "421 no $n article in this group";
-	}
+	};
 	$self->{article} = $n;
 	"223 $n <$mid> article retrieved - request text separately";
 }
