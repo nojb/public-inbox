@@ -176,7 +176,7 @@ if ('inbox edited') {
 	is($mset->size, 1, 'new message found');
 	$mset = $es->mset('b:"test message"');
 	is($mset->size, 1, 'old message found');
-	delete @$es{qw(git over xdb)}; # fork preparation
+	delete @$es{qw(git over xdb qp)}; # fork preparation
 
 	my $pi_cfg = PublicInbox::Config->new;
 	$pi_cfg->fill_all;

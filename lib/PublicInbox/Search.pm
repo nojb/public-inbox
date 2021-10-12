@@ -253,7 +253,7 @@ sub cleanup_shards {
 	my $nr = grep(/\A[0-9]+\z/, readdir($dh)) or
 		return warn("$xpfx has no shards\n"); # true
 	return reopen($self) if $nr == ($self->{nshard} // -1);
-	delete($self->{xdb});
+	delete @$self{qw(xdb qp)};
 	undef;
 }
 
