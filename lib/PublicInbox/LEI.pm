@@ -522,7 +522,7 @@ sub sigint_reap {
 sub fail ($$;$) {
 	my ($self, $buf, $exit_code) = @_;
 	$self->{failed}++;
-	err($self, $buf) if defined $buf;
+	warn($buf, "\n") if defined $buf;
 	$self->{pkt_op_p}->pkt_do('fail_handler') if $self->{pkt_op_p};
 	x_it($self, ($exit_code // 1) << 8);
 	undef;
@@ -542,7 +542,7 @@ sub puts ($;@) { out(shift, map { "$_\n" } @_) }
 sub child_error { # passes non-fatal curl exit codes to user
 	my ($self, $child_error, $msg) = @_; # child_error is $?
 	$child_error ||= 1 << 8;
-	$self->err($msg) if $msg;
+	warn($msg, "\n") if defined $msg;
 	if ($self->{pkt_op_p}) { # to top lei-daemon
 		$self->{pkt_op_p}->pkt_do('child_error', $child_error);
 	} elsif ($self->{sock}) { # to lei(1) client
@@ -588,8 +588,12 @@ sub _lei_atfork_child {
 	eval 'no warnings; undef $PublicInbox::LeiNoteEvent::to_flush';
 	undef $errors_log;
 	$quit = \&CORE::exit;
-	$self->{-eml_noisy} or # only "lei import" sets this atm
-		$SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
+	if (!$self->{-eml_noisy}) { # only "lei import" sets this atm
+		my $cb = $SIG{__WARN__} // \&CORE::warn;
+		$SIG{__WARN__} = sub {
+			$cb->(@_) unless PublicInbox::Eml::warn_ignore(@_)
+		};
+	}
 	$current_lei = $persist ? undef : $self; # for SIG{__WARN__}
 }
 

@@ -159,6 +159,13 @@ sub event_step { # runs via PublicInbox::DS::requeue
 	delete $l->{opt}->{all};
 	$l->qerr("# updating $self->{out}");
 	$l->{up_op_p} = $self->{op_p}; # ($l => $lei => script/lei)
+	my $cb = $SIG{__WARN__} // \&CORE::warn;
+	my $o = " (output: $self->{out})";
+	local $SIG{__WARN__} = sub {
+		my @m = @_;
+		push(@m, $o) if !@m || $m[-1] !~ s/\n\z/$o\n/;
+		$cb->(@m);
+	};
 	eval { $l->dispatch('up', $self->{out}) };
 	$lei->child_error(0, $@) if $@ || $l->{failed}; # lei->fail()
 
