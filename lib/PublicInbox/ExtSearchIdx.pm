@@ -193,6 +193,7 @@ sub do_xpost ($$) {
 		$idx->ipc_do('add_eidx_info', $docid, $eidx_key, $eml);
 		apply_boost($req, $smsg) if $req->{boost_in_use};
 	} else { # 'd' no {xnum}
+		$self->git->async_wait_all;
 		$oid = pack('H*', $oid);
 		_unref_doc($req, $docid, $xibx, undef, $oid, $eml);
 	}
@@ -261,6 +262,7 @@ sub _blob_missing ($$) { # called when a known $smsg->{blob} is gone
 	# xnum and ibx are unknown, we only call this when an entry from
 	# /ei*/over.sqlite3 is bad, not on entries from xap*/over.sqlite3
 	my $oidbin = pack('H*', $smsg->{blob});
+	$req->{self}->git->async_wait_all;
 	_unref_doc($req, $smsg, undef, undef, $oidbin);
 }
 
@@ -552,6 +554,7 @@ sub _reindex_finalize ($$$) {
 	}
 	return if $nr == 1; # likely, all good
 
+	$self->git->async_wait_all;
 	warn "W: #$docid split into $nr due to deduplication change\n";
 	my @todo;
 	for my $ary (values %$by_chash) {
@@ -896,6 +899,7 @@ ibx_id = ? AND xnum >= ? AND xnum <= ?
 		}
 		return if $sync->{quit};
 		next unless scalar keys %x3m;
+		$self->git->async_wait_all; # wait for reindex_unseen
 
 		# eliminate stale/mismatched entries
 		my %mismatch = map { $_->{num} => $_->{blob} } @$msgs;
