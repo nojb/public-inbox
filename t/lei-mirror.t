@@ -3,8 +3,9 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 use PublicInbox::Inbox;
-require_mods(qw(-httpd lei));
+require_mods(qw(-httpd lei DBD::SQLite));
 require_cmd('curl');
+require PublicInbox::Msgmap;
 my $sock = tcp_server();
 my ($tmpdir, $for_destroy) = tmpdir();
 my $http = 'http://'.tcp_host_port($sock);
@@ -12,25 +13,40 @@ my ($ro_home, $cfg_path) = setup_public_inboxes;
 my $cmd = [ qw(-httpd -W0 ./t/lei-mirror.psgi),
 	"--stdout=$tmpdir/out", "--stderr=$tmpdir/err" ];
 my $td = start_script($cmd, { PI_CONFIG => $cfg_path }, { 3 => $sock });
+my %created;
 test_lei({ tmpdir => $tmpdir }, sub {
 	my $home = $ENV{HOME};
 	my $t1 = "$home/t1-mirror";
+	my $mm_orig = "$ro_home/t1/public-inbox/msgmap.sqlite3";
+	$created{v1} = PublicInbox::Msgmap->new_file($mm_orig)->created_at;
 	lei_ok('add-external', $t1, '--mirror', "$http/t1/", \'--mirror v1');
-	ok(-f "$t1/public-inbox/msgmap.sqlite3", 't1-mirror indexed');
+	my $mm_dup = "$t1/public-inbox/msgmap.sqlite3";
+	ok(-f $mm_dup, 't1-mirror indexed');
 	is(PublicInbox::Inbox::try_cat("$t1/description"),
 		"mirror of $http/t1/\n", 'description set');
 	ok(-f "$t1/Makefile", 'convenience Makefile added (v1)');
+	ok(-f "$t1/inbox.config.example", 'inbox.config.example downloaded');
+	is((stat(_))[9], $created{v1},
+		'inbox.config.example mtime is ->created_at');
+	is((stat(_))[2] & 0222, 0, 'inbox.config.example not writable');
+	my $tb = PublicInbox::Msgmap->new_file($mm_dup)->created_at;
+	is($tb, $created{v1}, 'created_at matched in mirror');
 
 	lei_ok('ls-external');
 	like($lei_out, qr!\Q$t1\E!, 't1 added to ls-externals');
 
 	my $t2 = "$home/t2-mirror";
+	$mm_orig = "$ro_home/t2/msgmap.sqlite3";
+	$created{v2} = PublicInbox::Msgmap->new_file($mm_orig)->created_at;
 	lei_ok('add-external', $t2, '--mirror', "$http/t2/", \'--mirror v2');
-	ok(-f "$t2/msgmap.sqlite3", 't2-mirror indexed');
+	$mm_dup = "$t2/msgmap.sqlite3";
+	ok(-f $mm_dup, 't2-mirror indexed');
 	ok(-f "$t2/description", 't2 description');
 	ok(-f "$t2/Makefile", 'convenience Makefile added (v2)');
 	is(PublicInbox::Inbox::try_cat("$t2/description"),
 		"mirror of $http/t2/\n", 'description set');
+	$tb = PublicInbox::Msgmap->new_file($mm_dup)->created_at;
+	is($tb, $created{v2}, 'created_at matched in v2 mirror');
 
 	lei_ok('ls-external');
 	like($lei_out, qr!\Q$t2\E!, 't2 added to ls-externals');
@@ -150,6 +166,15 @@ SKIP: {
 	ok(unlink("$d/t1/manifest.js.gz"), 'manifest created');
 	my $after = [ glob("$d/t1/*") ];
 	is_deeply($before, $after, 'no new files created');
+
+	ok(run_script([qw(-index -Lbasic), "$d/t1"]), 'index v1');
+	ok(run_script([qw(-index -Lbasic), "$d/t2"]), 'index v2');
+	my $f = "$d/t1/public-inbox/msgmap.sqlite3";
+	my $ca = PublicInbox::Msgmap->new_file($f)->created_at;
+	is($ca, $created{v1}, 'clone + index v1 synced ->created_at');
+	$f = "$d/t2/msgmap.sqlite3";
+	$ca = PublicInbox::Msgmap->new_file($f)->created_at;
+	is($ca, $created{v2}, 'clone + index v1 synced ->created_at');
 }
 
 ok($td->kill, 'killed -httpd');

@@ -96,15 +96,15 @@ sub _get_txt { # non-fatal
 	my $path = $uri->path;
 	chop($path) eq '/' or die "BUG: $uri not canonicalized";
 	$uri->path("$path/$endpoint");
-	my $cmd = $self->{curl}->for_uri($lei, $uri, '--compressed');
-	my $ce = "$self->{dst}/$file";
-	my $ft = File::Temp->new(TEMPLATE => "$file-XXXX",
-				UNLINK => 1, DIR => $self->{dst});
-	my $opt = { 0 => $lei->{0}, 1 => $ft, 2 => $lei->{2} };
+	my $ft = File::Temp->new(TEMPLATE => "$file-XXXX", DIR => $self->{dst});
+	my $f = $ft->filename;
+	my $opt = { 0 => $lei->{0}, 1 => $lei->{1}, 2 => $lei->{2} };
+	my $cmd = $self->{curl}->for_uri($lei, $uri,
+					qw(--compressed -R -o), $f);
 	my $cerr = run_reap($lei, $cmd, $opt);
 	return "$uri missing" if ($cerr >> 8) == 22;
 	return "# @$cmd failed (non-fatal)" if $cerr;
-	my $f = $ft->filename;
+	my $ce = "$self->{dst}/$file";
 	rename($f, $ce) or return "rename($f, $ce): $! (non-fatal)";
 	$ft->unlink_on_destroy(0);
 	undef; # success
@@ -122,6 +122,7 @@ sub _try_config {
 	my $err = _get_txt($self, qw(_/text/config/raw inbox.config.example));
 	return $self->{lei}->err($err) if $err;
 	my $f = "$self->{dst}/inbox.config.example";
+	chmod((stat($f))[2] & 0444, $f) or die "chmod(a-w, $f): $!";
 	my $cfg = PublicInbox::Config->git_config_dump($f, $self->{lei}->{2});
 	my $ibx = $self->{ibx} = {};
 	for my $sec (grep(/\Apublicinbox\./, @{$cfg->{-section_order}})) {

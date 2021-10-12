@@ -8,6 +8,7 @@ use v5.10.1;
 use PublicInbox::Linkify;
 use PublicInbox::WwwStream;
 use PublicInbox::Hval qw(ascii_html prurl);
+use HTTP::Date qw(time2str);
 use URI::Escape qw(uri_escape_utf8);
 use PublicInbox::GzipFilter qw(gzf_maybe);
 our $QP_URL = 'https://xapian.org/docs/queryparser.html';
@@ -171,6 +172,8 @@ sub inbox_config ($$$) {
 	my ($ctx, $hdr, $txt) = @_;
 	my $ibx = $ctx->{ibx};
 	push @$hdr, 'Content-Disposition', 'inline; filename=inbox.config';
+	my $t = eval { $ibx->mm->created_at };
+	push(@$hdr, 'Last-Modified', time2str($t)) if $t;
 	my $name = dq_escape($ibx->{name});
 	my $inboxdir = '/path/to/top-level-inbox';
 	my $base_url = $ibx->base_url($ctx->{env});

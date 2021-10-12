@@ -32,8 +32,15 @@ sub new_file {
 	if ($rw) {
 		$dbh->begin_work;
 		create_tables($dbh);
-		$self->created_at(time) unless $self->created_at;
+		unless ($self->created_at) {
+			my $t;
 
+			if (blessed($ibx) &&
+				-f "$ibx->{inboxdir}/inbox.config.example") {
+				$t = (stat(_))[9]; # mtime set by "curl -R"
+			}
+			$self->created_at($t // time);
+		}
 		$self->num_highwater(max($self));
 		$dbh->commit;
 	}

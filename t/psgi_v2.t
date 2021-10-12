@@ -9,7 +9,7 @@ use PublicInbox::Eml;
 use PublicInbox::Config;
 use PublicInbox::MID qw(mids);
 require_mods(qw(DBD::SQLite Search::Xapian HTTP::Request::Common Plack::Test
-		URI::Escape Plack::Builder));
+		URI::Escape Plack::Builder HTTP::Date));
 use_ok($_) for (qw(HTTP::Request::Common Plack::Test));
 use_ok 'PublicInbox::WWW';
 my ($tmpdir, $for_destroy) = tmpdir();
@@ -113,6 +113,14 @@ $im->done;
 
 my $client1 = sub {
 	my ($cb) = @_;
+	$res = $cb->(GET('/v2test/_/text/config/raw'));
+	my $lm = $res->header('Last-Modified');
+	ok($lm, 'Last-Modified set w/ ->mm');
+	$lm = HTTP::Date::str2time($lm);
+	is($lm, $ibx->mm->created_at,
+		'Last-Modified for text/config/raw matches ->created_at');
+	delete $ibx->{mm};
+
 	$res = $cb->(GET("/v2test/$third/raw"));
 	$raw = $res->content;
 	like($raw, qr/^hello ghosts$/m, 'got third message');
