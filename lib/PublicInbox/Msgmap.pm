@@ -257,21 +257,10 @@ sub skip_artnum {
 
 sub check_inodes {
 	my ($self) = @_;
-	# no filename if in-:memory:
-	my $f = $self->{dbh}->sqlite_db_filename // return;
-	if (my @st = stat($f)) { # did st_dev, st_ino change?
-		my $st = pack('dd', $st[0], $st[1]);
-		if ($st ne ($self->{st} // $st)) {
-			my $tmp = eval { ref($self)->new_file($f) };
-			if ($@) {
-				warn "E: DBI->connect($f): $@\n";
-			} else {
-				%$self = %$tmp;
-			}
-		}
-	} else {
-		warn "W: stat $f: $!\n";
-	}
+	$self->{dbh} // return;
+	my $rw = !$self->{dbh}->{ReadOnly};
+	PublicInbox::Over::check_inodes($self);
+	$self->{dbh} //= PublicInbox::Over::dbh_new($self, !$rw);
 }
 
 1;
