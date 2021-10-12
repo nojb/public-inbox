@@ -6,8 +6,8 @@
 # and/or lossy connections.
 package PublicInbox::Daemon;
 use strict;
-use warnings;
-use Getopt::Long qw/:config gnu_getopt no_ignore_case auto_abbrev/;
+use v5.10.1;
+use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 use IO::Handle; # ->autoflush
 use IO::Socket;
 use POSIX qw(WNOHANG :signal_h);
@@ -15,7 +15,7 @@ use Socket qw(IPPROTO_TCP SOL_SOCKET);
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
 use PublicInbox::DS qw(now);
-require PublicInbox::Listener;
+use PublicInbox::Listener;
 use PublicInbox::EOFpipe;
 use PublicInbox::Sigfd;
 use PublicInbox::Git;
