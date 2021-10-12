@@ -34,7 +34,7 @@ sub mset {
 	if (my $uid_range = $opt{uid_range}) {
 		my ($beg, $end) = @$uid_range;
 		my $ibx_id = $self->{-ibx_id} //= _ibx_id($self);
-		my $dbh = $self->{es}->{over}->dbh;
+		my $dbh = $self->{es}->over->dbh;
 		my $sth = $dbh->prepare_cached(<<'', undef, 1);
 SELECT MIN(docid) FROM xref3 WHERE ibx_id = ? AND xnum >= ? AND xnum <= ?
 
