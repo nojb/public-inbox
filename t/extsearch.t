@@ -447,9 +447,6 @@ SKIP: {
 	ok(ref($es->{xdb}), '{xdb} created');
 	my $nshards1 = $es->{nshard};
 	is($nshards1, 1, 'correct shard count');
-	my $xdb_str = "$es->{xdb}";
-	ok($es->cleanup_shards, 'cleanup_shards noop');
-	is("$es->{xdb}", $xdb_str, '{xdb} unchanged');
 
 	my @ei_dir = glob("$d/ei*/");
 	chmod 0755, $ei_dir[0] or xbail "chmod: $!";
@@ -463,11 +460,8 @@ SKIP: {
 		my $m = sprintf('%04o', 07777 & (stat($dirs[$i]))[2]);
 		is($m, $mode, "shard [$i] mode");
 	}
-	is($es->cleanup_shards, undef, 'cleanup_shards cleaned');
-	ok(!defined($es->{xdb}), 'old {xdb} gone');
-	is($es->cleanup_shards, undef, 'cleanup_shards clean idempotent');
+	delete @$es{qw(xdb qp)};
 	is($es->mset('z:0..')->size, $nresult0, 'new shards, same results');
-	ok($es->cleanup_shards, 'cleanup_shards true after open');
 
 	for my $i (4..5) {
 		is(grep(m!/ei[0-9]+/$i\z!, @dirs), 0, "no shard [$i]");

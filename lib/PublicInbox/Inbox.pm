@@ -11,8 +11,6 @@ use List::Util qw(max);
 use Carp qw(croak);
 
 # returns true if further checking is required
-sub cleanup_shards { $_[0]->{search} ? $_[0]->{search}->cleanup_shards : undef }
-
 sub check_inodes ($) {
 	for (qw(over mm)) { $_[0]->{$_}->check_inodes if $_[0]->{$_} }
 }
@@ -31,7 +29,8 @@ sub do_cleanup {
 		delete(@$ibx{qw(over mm description cloneurl
 				-imap_url -nntp_url)});
 	}
-	$ibx->cleanup_shards and $live = 1;
+	my $srch = $ibx->{search} // $ibx;
+	delete @$srch{qw(xdb qp)};
 	for my $git (@{$ibx->{-repo_objs} // []}) {
 		$live = 1 if $git->cleanup(1);
 	}
@@ -138,17 +137,18 @@ sub max_git_epoch {
 	$cur;
 }
 
+sub mm_file {
+	my ($self) = @_;
+	my $d = $self->{inboxdir};
+	($self->version >= 2 ? $d : "$d/public-inbox").'/msgmap.sqlite3';
+}
+
 sub mm {
 	my ($self, $req) = @_;
 	$self->{mm} //= eval {
 		require PublicInbox::Msgmap;
 		_cleanup_later($self);
-		my $dir = $self->{inboxdir};
-		if ($self->version >= 2) {
-			PublicInbox::Msgmap->new_file("$dir/msgmap.sqlite3");
-		} else {
-			PublicInbox::Msgmap->new($dir);
-		}
+		PublicInbox::Msgmap->new_file(mm_file($self));
 	} // ($req ? croak("E: $@") : undef);
 }
 

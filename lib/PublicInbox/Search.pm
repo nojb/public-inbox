@@ -243,20 +243,6 @@ sub xdb ($) {
 	};
 }
 
-# returns true if a future rescan is desired
-sub cleanup_shards {
-	my ($self) = @_;
-	return unless exists($self->{xdb});
-	my $xpfx = $self->{xpfx};
-	return reopen($self) if $xpfx =~ m!/xapian[0-9]+\z!; # true
-	opendir(my $dh, $xpfx) or return warn("$xpfx gone: $!\n"); # true
-	my $nr = grep(/\A[0-9]+\z/, readdir($dh)) or
-		return warn("$xpfx has no shards\n"); # true
-	return reopen($self) if $nr == ($self->{nshard} // -1);
-	delete @$self{qw(xdb qp)};
-	undef;
-}
-
 sub new {
 	my ($class, $ibx) = @_;
 	ref $ibx or die "BUG: expected PublicInbox::Inbox object: $ibx";
