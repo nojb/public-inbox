@@ -6,8 +6,7 @@ use PublicInbox::TestCommon;
 my ($dir, $for_destroy) = tmpdir();
 use PublicInbox::Import;
 use POSIX qw(strftime);
-
-use_ok 'PublicInbox::Git';
+use PublicInbox::Git;
 
 {
 	PublicInbox::Import::init_bare($dir);
