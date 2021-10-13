@@ -30,7 +30,7 @@ sub rediff_user_cb { # called by solver when done
 
 	# don't try to support all the git-show(1) options for non-blob,
 	# this is just a convenience:
-	$type ne 'blob' and return $lei->err(<<EOF);
+	$type ne 'blob' and return warn(<<EOF);
 # $oid is a $type of $size bytes in:
 # $git->{git_dir} (wanted: $oid_want)
 EOF

@@ -20,10 +20,9 @@ sub lei_forget_external {
 			if ($? == 0) {
 				$lei->qerr("# $l forgotten ");
 			} elsif (($? >> 8) == 5) {
-				$lei->err("# $l not found");
+				warn("# $l not found\n");
 			} else {
-				$lei->err("# --unset $key error");
-				return $lei->x_it($?);
+				$lei->child_error($?, "# --unset $key error");
 			}
 		}
 	}

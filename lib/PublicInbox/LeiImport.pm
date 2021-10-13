@@ -38,7 +38,7 @@ sub pmdir_cb { # called via wq_io_do from LeiPmdir->each_mdir_fn
 	my $lse = $self->{lse} //= $self->{lei}->{sto}->search;
 	my $lms = $self->{-lms_ro} //= $self->{lei}->lms; # may be 0 or undef
 	my @oidbin = $lms ? $lms->name_oidbin($folder, $bn) : ();
-	@oidbin > 1 and $self->{lei}->err("W: $folder/*/$$bn not unique:\n",
+	@oidbin > 1 and warn("W: $folder/*/$$bn not unique:\n",
 				map { "\t".unpack('H*', $_)."\n" } @oidbin);
 	my %seen;
 	my @docids = sort { $a <=> $b } grep { !$seen{$_}++ }
@@ -100,9 +100,8 @@ sub do_import_index ($$@) {
 		my $nproc = $self->detect_nproc;
 		$j = $nproc if $j > $nproc;
 	}
-	if ($lei->{opt}->{'new-only'} && (!$net || !$net->{imap_order})) {
-		$lei->err('# --new-only is only for IMAP');
-	}
+	($lei->{opt}->{'new-only'} && (!$net || !$net->{imap_order})) and
+		warn "# --new-only is only for IMAP\n";
 	my $ops = {};
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
 	$lei->{-eml_noisy} = 1;

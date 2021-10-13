@@ -135,7 +135,7 @@ sub do_p2q { # via wq_do
 	if ($lei->{opt}->{debug}) {
 		my $json = ref(PublicInbox::Config->json)->new;
 		$json->utf8->canonical->pretty;
-		$lei->err($json->encode($lei->{qterms}));
+		print { $lei->{2} } $json->encode($lei->{qterms});
 	}
 	my (@q, %seen);
 	for my $pfx (@want) {

@@ -52,7 +52,7 @@ sub do_manifest ($$$) {
 		$m0 = eval {
 			PublicInbox::LeiMirror::decode_manifest($fh, $mf, $mf)
 		};
-		$lei->err($@) if $@;
+		warn($@) if $@;
 	}
 	my ($bn) = ($fn =~ m!/([^/]+)\z!);
 	my $curl_cmd = $lei->{curl}->for_uri($lei, $muri, qw(-R -o), $bn);

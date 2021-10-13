@@ -36,7 +36,7 @@ sub ck_update_kw { # via wq_io_do
 	my ($self, $url, $uid, $kw) = @_;
 	my @oidbin = $self->{-lms_ro}->num_oidbin($url, $uid);
 	my $uid_url = "$url/;UID=$uid";
-	@oidbin > 1 and $self->{lei}->err("W: $uid_url not unique:\n",
+	@oidbin > 1 and warn("W: $uid_url not unique:\n",
 				map { "\t".unpack('H*', $_)."\n" } @oidbin);
 	my %seen;
 	my @docids = sort { $a <=> $b } grep { !$seen{$_}++ }

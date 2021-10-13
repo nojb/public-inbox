@@ -40,7 +40,7 @@ sub solver_user_cb { # called by solver when done
 	# don't try to support all the git-show(1) options for non-blob,
 	# this is just a convenience:
 	$type ne 'blob' and
-		$lei->err("# $oid is a $type of $size bytes in:\n#\t$gd");
+		warn "# $oid is a $type of $size bytes in:\n#\t$gd\n";
 
 	my $cmd = [ 'git', "--git-dir=$gd", 'show', $oid ];
 	my $rdr = { 1 => $lei->{1}, 2 => $lei->{2} };

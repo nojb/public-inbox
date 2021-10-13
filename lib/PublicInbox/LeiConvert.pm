@@ -41,7 +41,7 @@ sub process_inputs { # via wq_do
 	delete $lei->{1};
 	delete $self->{wcb}; # commit
 	my $nr = delete($lei->{-nr_write}) // 0;
-	$lei->err("# converted $nr messages") if $lei->{opt}->{verbose};
+	$lei->qerr("# converted $nr messages");
 }
 
 sub lei_convert { # the main "lei convert" method

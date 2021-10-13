@@ -343,8 +343,8 @@ $input is `eml', not --in-format=$in_fmt
 --mail-sync specified but no inputs support it
 
 		# non-fatal if some inputs support support sync
-		$lei->err("# --mail-sync will only be used for @{$sync->{ok}}");
-		$lei->err("# --mail-sync is not supported for: @{$sync->{no}}");
+		warn("# --mail-sync will only be used for @{$sync->{ok}}\n");
+		warn("# --mail-sync is not supported for: @{$sync->{no}}\n");
 	}
 	if ($net) {
 		$net->{-can_die} = 1;

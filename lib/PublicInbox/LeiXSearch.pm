@@ -16,6 +16,7 @@ use PublicInbox::Spawn qw(popen_rd spawn which);
 use PublicInbox::MID qw(mids);
 use PublicInbox::Smsg;
 use PublicInbox::Eml;
+use PublicInbox::LEI;
 use Fcntl qw(SEEK_SET F_SETFL O_APPEND O_RDWR);
 use PublicInbox::ContentHash qw(git_sha);
 use POSIX qw(strftime);
@@ -392,11 +393,11 @@ sub query_remote_mboxrd {
 		$err = '';
 		if (-s $cerr) {
 			seek($cerr, 0, SEEK_SET) or
-					$lei->err("seek($cmd stderr): $!");
+					warn "seek($cmd stderr): $!";
 			$err = do { local $/; <$cerr> } //
-					"read($cmd stderr): $!";
+					warn "read($cmd stderr): $!";
 			truncate($cerr, 0) or
-					$lei->err("truncate($cmd stderr): $!");
+					warn "truncate($cmd stderr): $!";
 		}
 		next if (($? >> 8) == 22 && $err =~ /\b404\b/);
 		$uri->query_form(q => $qstr);
@@ -416,6 +417,7 @@ sub xsearch_done_wait { # dwaitpid callback
 
 sub query_done { # EOF callback for main daemon
 	my ($lei) = @_;
+	local $PublicInbox::LEI::current_lei = $lei;
 	my $l2m = delete $lei->{l2m};
 	$l2m->wq_wait_old(\&xsearch_done_wait, $lei) if $l2m;
 	if (my $lxs = delete $lei->{lxs}) {
@@ -462,6 +464,7 @@ Error closing $lei->{ovv}->{dst}: $!
 
 sub do_post_augment {
 	my ($lei) = @_;
+	local $PublicInbox::LEI::current_lei = $lei;
 	my $l2m = $lei->{l2m} or return; # client disconnected
 	$lei->fchdir or return;
 	my $err;
@@ -497,9 +500,10 @@ sub concurrency {
 	$nl + $nr;
 }
 
-sub start_query ($;$) { # always runs in main (lei-daemon) process
-	my ($self, $l2m) = @_;
-	if ($self->{opt_threads} || ($l2m && !$self->{opt_sort})) {
+sub start_query ($$) { # always runs in main (lei-daemon) process
+	my ($self, $lei) = @_;
+	local $PublicInbox::LEI::current_lei = $lei;
+	if ($self->{opt_threads} || ($lei->{l2m} && !$self->{opt_sort})) {
 		for my $ibxish (locals($self)) {
 			$self->wq_io_do('query_one_mset', [], $ibxish);
 		}
@@ -521,9 +525,10 @@ sub start_query ($;$) { # always runs in main (lei-daemon) process
 }
 
 sub incr_start_query { # called whenever an l2m shard starts do_post_auth
-	my ($self, $l2m) = @_;
+	my ($self, $lei) = @_;
+	my $l2m = $lei->{l2m};
 	return if ++$self->{nr_start_query} != $l2m->{-wq_nr_workers};
-	start_query($self, $l2m);
+	start_query($self, $lei);
 }
 
 sub ipc_atfork_child {
@@ -545,7 +550,7 @@ sub do_query {
 		'l2m_progress' => [ \&l2m_progress, $lei ],
 		'x_it' => [ $lei ],
 		'child_error' => [ $lei ],
-		'incr_start_query' => [ $self, $l2m ],
+		'incr_start_query' => [ $self, $lei ],
 	};
 	$lei->{auth}->op_merge($ops, $l2m) if $l2m && $lei->{auth};
 	my $end = $lei->pkt_op_pair;
@@ -586,7 +591,7 @@ sub do_query {
 	if ($l2m) {
 		$l2m->net_merge_all_done($lei) unless $lei->{auth};
 	} else {
-		start_query($self);
+		start_query($self, $lei);
 	}
 	$lei->event_step_init; # wait for shutdowns
 	$lei->wait_wq_events($op_c, $ops);

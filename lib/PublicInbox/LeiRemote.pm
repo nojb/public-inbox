@@ -75,7 +75,7 @@ sub smsg_eml {
 	if (my $bref = $self->{lei}->ale->git->cat_file($smsg->{blob})) {
 		return PublicInbox::Eml->new($bref);
 	}
-	$self->{lei}->err("E: $self->{uri} $smsg->{blob} gone <$smsg->{mid}>");
+	warn("E: $self->{uri} $smsg->{blob} gone <$smsg->{mid}>\n");
 	undef;
 }
 

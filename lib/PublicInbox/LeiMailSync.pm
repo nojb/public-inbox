@@ -466,7 +466,7 @@ sub arg2folder {
 # using `$res' instead of `$orig'
 EOM
 			} else {
-				$lei->err($res) if defined $res;
+				warn($res, "\n") if defined $res;
 				push @no, $orig;
 			}
 		} elsif (m!\A(?:nntps?|s?news)://!i) {
@@ -478,7 +478,7 @@ EOM
 # using `$res' instead of `$orig'
 EOM
 			} else {
-				$lei->err($res) if defined $res;
+				warn($res, "\n") if defined $res;
 				push @no, $orig;
 			}
 		} else {

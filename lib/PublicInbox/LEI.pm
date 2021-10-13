@@ -471,6 +471,7 @@ sub _drop_wq {
 # pronounced "exit": x_it(1 << 8) => exit(1); x_it(13) => SIGPIPE
 sub x_it ($$) {
 	my ($self, $code) = @_;
+	local $current_lei = $self;
 	# make sure client sees stdout before exit
 	$self->{1}->autoflush(1) if $self->{1};
 	stop_pager($self);
@@ -504,6 +505,7 @@ sub qfin { # show message on finalization (LeiFinmsg)
 
 sub fail_handler ($;$$) {
 	my ($lei, $code, $io) = @_;
+	local $current_lei = $lei;
 	close($io) if $io; # needed to avoid warnings on SIGPIPE
 	_drop_wq($lei);
 	x_it($lei, $code // (1 << 8));
@@ -521,6 +523,7 @@ sub sigint_reap {
 
 sub fail ($$;$) {
 	my ($self, $buf, $exit_code) = @_;
+	local $current_lei = $self;
 	$self->{failed}++;
 	warn($buf, "\n") if defined $buf;
 	$self->{pkt_op_p}->pkt_do('fail_handler') if $self->{pkt_op_p};
@@ -541,6 +544,7 @@ sub puts ($;@) { out(shift, map { "$_\n" } @_) }
 
 sub child_error { # passes non-fatal curl exit codes to user
 	my ($self, $child_error, $msg) = @_; # child_error is $?
+	local $current_lei = $self;
 	$child_error ||= 1 << 8;
 	warn($msg, "\n") if defined $msg;
 	if ($self->{pkt_op_p}) { # to top lei-daemon
@@ -1019,7 +1023,7 @@ sub poke_mua { # forces terminal MUAs to wake up and hopefully notice new mail
 			$cmd = [ Text::ParseWords::shellwords($cmd) ];
 			send($sock, exec_buf($cmd, {}), MSG_EOR) if $sock;
 		} else {
-			err($self, "W: unsupported --alert=$op"); # non-fatal
+			warn("W: unsupported --alert=$op\n"); # non-fatal
 		}
 	}
 }
@@ -1068,7 +1072,7 @@ sub start_pager {
 # display a message for user before spawning full-screen $VISUAL
 sub pgr_err {
 	my ($self, @msg) = @_;
-	return $self->err(@msg) unless $self->{sock} && -t $self->{2};
+	return warn(@msg) unless $self->{sock} && -t $self->{2};
 	start_pager($self, { LESS => 'RX' }); # no 'F' so we prompt
 	print { $self->{2} } @msg;
 	$self->{2}->autoflush(1);
@@ -1118,6 +1122,7 @@ sub accept_dispatch { # Listener {post_accept} callback
 
 sub dclose {
 	my ($self) = @_;
+	local $current_lei = $self;
 	delete $self->{-progress};
 	_drop_wq($self) if $self->{failed};
 	$self->close if $self->{-event_init_done}; # PublicInbox::DS::close
@@ -1369,6 +1374,7 @@ sub DESTROY {
 sub wq_done_wait { # dwaitpid callback
 	my ($arg, $pid) = @_;
 	my ($wq, $lei) = @$arg;
+	local $current_lei = $lei;
 	my $err_type = $lei->{-err_type};
 	$? and $lei->child_error($?,
 			$err_type ? "$err_type errors during $lei->{cmd}" : ());
@@ -1383,6 +1389,7 @@ sub fchdir {
 
 sub wq_eof { # EOF callback for main daemon
 	my ($lei) = @_;
+	local $current_lei = $lei;
 	my $wq1 = delete $lei->{wq1} // return $lei->fail; # already failed
 	$wq1->wq_wait_old($wq1->can('_wq_done_wait') // \&wq_done_wait, $lei);
 }
@@ -1423,7 +1430,7 @@ sub refresh_watches {
 		$seen{$url} = undef;
 		my $state = $cfg->get_1("watch.$url.state");
 		if (!watch_state_ok($state)) {
-			$lei->err("watch.$url.state=$state not supported");
+			warn("watch.$url.state=$state not supported\n");
 			next;
 		}
 		if ($url =~ /\Amaildir:(.+)/i) {
@@ -1492,6 +1499,7 @@ sub lms {
 
 sub sto_done_request {
 	my ($lei, $sock) = @_;
+	local $current_lei = $lei;
 	eval {
 		if ($sock //= $lei->{sock}) { # issue, async wait
 			$lei->{sto}->wq_io_do('done', [ $sock ]);
@@ -1499,14 +1507,14 @@ sub sto_done_request {
 			my $wait = $lei->{sto}->wq_do('done');
 		}
 	};
-	$lei->err($@) if $@;
+	warn($@) if $@;
 }
 
 sub cfg_dump ($$) {
 	my ($lei, $f) = @_;
 	my $ret = eval { PublicInbox::Config->git_config_dump($f, $lei->{2}) };
 	return $ret if !$@;
-	$lei->err($@);
+	warn($@);
 	undef;
 }
 

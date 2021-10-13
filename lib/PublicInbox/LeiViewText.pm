@@ -77,7 +77,7 @@ sub new {
 	my $cfg = PublicInbox::Config::config_fh_parse($r, "\0", "\n");
 	waitpid($pid, 0);
 	if ($?) {
-		$lei->err("# git-config failed, no color (non-fatal)");
+		warn "# git-config failed, no color (non-fatal)\n";
 		return $self;
 	}
 	$self->{-colored} = \&my_colored;

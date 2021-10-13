@@ -20,7 +20,7 @@ sub _wq_done_wait { # dwaitpid callback (via wq_eof)
 	if ($?) {
 		$lei->child_error($?);
 	} elsif (!unlink($f)) {
-		$lei->err("unlink($f): $!") unless $!{ENOENT};
+		warn("unlink($f): $!\n") unless $!{ENOENT};
 	} else {
 		if ($lei->{cmd} ne 'public-inbox-clone') {
 			$lei->lazy_cb('add-external', '_finish_'
@@ -120,7 +120,7 @@ sub _try_config {
 		-d $dst or die "mkpath($dst): $!\n";
 	}
 	my $err = _get_txt($self, qw(_/text/config/raw inbox.config.example));
-	return $self->{lei}->err($err) if $err;
+	return warn($err, "\n") if $err;
 	my $f = "$self->{dst}/inbox.config.example";
 	chmod((stat($f))[2] & 0444, $f) or die "chmod(a-w, $f): $!";
 	my $cfg = PublicInbox::Config->git_config_dump($f, $self->{lei}->{2});
@@ -151,7 +151,7 @@ sub index_cloned_inbox {
 	my ($self, $iv) = @_;
 	my $lei = $self->{lei};
 	my $err = _get_txt($self, qw(description description));
-	$lei->err($err) if $err; # non fatal
+	warn($err, "\n") if $err; # non fatal
 	eval { set_description($self) };
 	warn $@ if $@;
 
@@ -380,7 +380,7 @@ sub try_manifest {
 	my ($path_pfx, $v1_path, @v2_epochs) = deduce_epochs($m, $path);
 	if (@v2_epochs) {
 		# It may be possible to have v1 + v2 in parallel someday:
-		$lei->err(<<EOM) if defined $v1_path;
+		warn(<<EOM) if defined $v1_path;
 # `$v1_path' appears to be a v1 inbox while v2 epochs exist:
 # @v2_epochs
 # ignoring $v1_path (use --inbox-version=1 to force v1 instead)
