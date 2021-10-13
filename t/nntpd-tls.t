@@ -151,7 +151,8 @@ for my $args (
 			\'STARTTLS not used by default';
 		ok(!lei(qw(ls-mail-source -c nntp.starttls=true),
 			"nntp://$starttls_addr"), 'STARTTLS verify fails');
-		diag $lei_err;
+		like $lei_err, qr/STARTTLS requested/,
+			'STARTTLS noted in stderr';
 	});
 
 	SKIP: {
