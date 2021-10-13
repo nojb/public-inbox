@@ -43,6 +43,15 @@ If you wish to re-enable fetches to the epoch:
 
 Quiets down progress messages, also passed to L<git-fetch(1)>.
 
+=item -T REMOTE
+
+=item --try-remote REMOTE
+
+Try a given remote name instead of C<origin> or C<_grokmirror>.
+May be specified more than once.
+
+Default: C<origin>, C<_grokmirror>
+
 =item --exit-code
 
 Exit with C<127> if no updates are done.  This can be used in

@@ -16,12 +16,14 @@ options:
   --torsocks VAL      whether or not to wrap git and curl commands with
                       torsocks (default: `auto')
                       Must be one of: `auto', `no' or `yes'
+  -T NAME             Name of remote(s) to try (may be repeated)
+                      default: `origin' and `_grokmirror'
   --exit-code         exit with 127 if no updates
   --verbose | -v      increase verbosity (may be repeated)
     --quiet | -q      increase verbosity (may be repeated)
     -C DIR            chdir to specified directory
 EOF
-GetOptions($opt, qw(help|h quiet|q verbose|v+ C=s@ c=s@
+GetOptions($opt, qw(help|h quiet|q verbose|v+ C=s@ c=s@ try-remote|T=s@
 	no-torsocks torsocks=s exit-code)) or die $help;
 if ($opt->{help}) { print $help; exit };
 require PublicInbox::Fetch; # loads Admin

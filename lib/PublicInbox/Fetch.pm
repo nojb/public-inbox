@@ -31,13 +31,17 @@ sub fetch_args ($$) {
 }
 
 sub remote_url ($$) {
-	my ($lei, $dir) = @_; # TODO: support non-"origin"?
-	my $cmd = [ qw(git config remote.origin.url) ];
-	my $fh = popen_rd($cmd, undef, { -C => $dir, 2 => $lei->{2} });
-	my $url = <$fh>;
-	close $fh or return;
-	$url =~ s!/*\n!!s;
-	$url;
+	my ($lei, $dir) = @_;
+	my $rn = $lei->{opt}->{'try-remote'} // [ 'origin', '_grokmirror' ];
+	for my $r (@$rn) {
+		my $cmd = [ qw(git config), "remote.$r.url" ];
+		my $fh = popen_rd($cmd, undef, { -C => $dir, 2 => $lei->{2} });
+		my $url = <$fh>;
+		close $fh or next;
+		$url =~ s!/*\n!!s;
+		return $url;
+	}
+	undef
 }
 
 sub do_manifest ($$$) {
@@ -110,7 +114,7 @@ sub do_fetch { # main entry point
 	my ($ibx_uri, @git_dir, @epochs, $mg, @new_epoch, $skip);
 	if ($ibx_ver == 1) {
 		my $url = remote_url($lei, $dir) //
-			die "E: $dir missing remote.origin.url\n";
+			die "E: $dir missing remote.*.url\n";
 		$ibx_uri = URI->new($url);
 	} else { # v2:
 		require PublicInbox::MultiGit;
@@ -128,7 +132,7 @@ sub do_fetch { # main entry point
 				$git_url = $url;
 				$epoch = $nr;
 			} else {
-				warn "W: $edir missing remote.origin.url\n";
+				warn "W: $edir missing remote.*.url\n";
 				my $pid = spawn([qw(git config -l)], undef,
 					{ 1 => $lei->{2}, 2 => $lei->{2} });
 				waitpid($pid, 0);
