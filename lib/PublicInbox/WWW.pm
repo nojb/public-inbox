@@ -170,6 +170,7 @@ sub preload {
 		if (defined($pi_cfg->{'publicinbox.cgitrc'})) {
 			$pi_cfg->limiter('-cgit');
 		}
+		$pi_cfg->ALL and require PublicInbox::Isearch;
 		$self->cgit;
 		$self->stylesheets_prepare($_) for ('', '../', '../../');
 		$self->news_www;
