@@ -754,9 +754,8 @@ sub prep_id2pos ($) {
 
 sub eidxq_process ($$) { # for reindexing
 	my ($self, $sync) = @_;
-	return unless $self->{cfg};
-
-	return unless eidxq_lock_acquire($self);
+	local $self->{current_info} = 'eidxq process';
+	return unless ($self->{cfg} && eidxq_lock_acquire($self));
 	my $dbh = $self->{oidx}->dbh;
 	my $tot = $dbh->selectrow_array('SELECT COUNT(*) FROM eidxq') or return;
 	${$sync->{nr}} = 0;
