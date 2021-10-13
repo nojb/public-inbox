@@ -28,7 +28,7 @@ package PublicInbox::Eml;
 use strict;
 use v5.10.1;
 use Carp qw(croak);
-use Encode qw(find_encoding decode encode); # stdlib
+use Encode qw(find_encoding); # stdlib
 use Text::Wrap qw(wrap); # stdlib, we need Perl 5.6+ for $huge
 use MIME::Base64 3.05; # Perl 5.10.0 / 5.9.2
 use MIME::QuotedPrint 3.05; # ditto
@@ -334,9 +334,14 @@ sub body_set {
 
 sub body_str_set {
 	my ($self, $body_str) = @_;
-	my $charset = ct($self)->{attributes}->{charset} or
+	my $cs = ct($self)->{attributes}->{charset} //
 		croak('body_str was given, but no charset is defined');
-	body_set($self, \(encode($charset, $body_str, Encode::FB_CROAK)));
+	my $enc = find_encoding($cs) // croak "unknown encoding `$cs'";
+	$body_str = do {
+		local $SIG{__WARN__} = \&croak;
+		$enc->encode($body_str, Encode::FB_WARN);
+	};
+	body_set($self, \$body_str);
 }
 
 sub content_type { scalar header($_[0], 'Content-Type') }
@@ -452,15 +457,17 @@ sub body {
 sub body_str {
 	my ($self) = @_;
 	my $ct = ct($self);
-	my $charset = $ct->{attributes}->{charset};
-	if (!$charset) {
-		if ($STR_TYPE{$ct->{type}} && $STR_SUBTYPE{$ct->{subtype}}) {
+	my $cs = $ct->{attributes}->{charset} // do {
+		($STR_TYPE{$ct->{type}} && $STR_SUBTYPE{$ct->{subtype}}) and
 			return body($self);
-		}
 		croak("can't get body as a string for ",
 			join("\n\t", header_raw($self, 'Content-Type')));
-	}
-	decode($charset, body($self), Encode::FB_CROAK);
+	};
+	my $enc = find_encoding($cs) or croak "unknown encoding `$cs'";
+	my $tmp = body($self);
+	# workaround https://rt.cpan.org/Public/Bug/Display.html?id=139622
+	local $SIG{__WARN__} = \&croak;
+	$enc->decode($tmp, Encode::FB_WARN);
 }
 
 sub as_string {
