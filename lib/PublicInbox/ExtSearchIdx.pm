@@ -595,11 +595,11 @@ sub _reindex_oid { # git->cat_async callback
 		my $oidbin = pack('H*', $expect_oid);
 		my $remain = _unref_doc($sync, $docid, undef, undef, $oidbin);
 		if ($remain == 0) {
-			warn "W: #$docid gone or corrupted\n";
+			warn "W: #$docid ($oid) gone or corrupt\n";
 		} elsif (my $next_oid = $req->{xr3r}->[++$req->{ix}]->[2]) {
 			$self->git->cat_async($next_oid, \&_reindex_oid, $req);
 		} else {
-			warn "BUG: #$docid gone (UNEXPECTED)\n";
+			warn "BUG: #$docid ($oid) gone (UNEXPECTED)\n";
 		}
 		return;
 	}
