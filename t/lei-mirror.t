@@ -167,6 +167,7 @@ SKIP: {
 	my $after = [ glob("$d/t1/*") ];
 	is_deeply($before, $after, 'no new files created');
 
+	local $ENV{HOME} = $tmpdir;
 	ok(run_script([qw(-index -Lbasic), "$d/t1"]), 'index v1');
 	ok(run_script([qw(-index -Lbasic), "$d/t2"]), 'index v2');
 	my $f = "$d/t1/public-inbox/msgmap.sqlite3";
