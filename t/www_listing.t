@@ -130,27 +130,31 @@ SKIP: {
 	tiny_test($json, $host, $port, 1);
 	undef $sock;
 
+	skip 'TEST_GROK unset', 12 unless $ENV{TEST_GROK};
 	my $grok_pull = require_cmd('grok-pull', 1) or
 		skip('grok-pull not available', 12);
 	my ($grok_version) = (xqx([$grok_pull, "--version"])
 			=~ /(\d+)\.(?:\d+)(?:\.(\d+))?/);
 	$grok_version >= 2 or
 		skip('grok-pull v2 or later not available', 12);
+	my $grok_loglevel = $ENV{TEST_GROK_LOGLEVEL} // 'info';
 
 	ok(mkdir("$tmpdir/mirror"), 'prepare grok mirror dest');
-	open $fh, '>', "$tmpdir/repos.conf" or die;
-	print $fh <<"" or die;
+	my $tail = tail_f("$tmpdir/grok.log");
+	open $fh, '>', "$tmpdir/repos.conf" or xbail $!;
+	print $fh <<"" or xbail $!;
 [core]
 toplevel = $tmpdir/mirror
 manifest = $tmpdir/local-manifest.js.gz
+log = $tmpdir/grok.log
+loglevel = $grok_loglevel
 [remote]
 site = http://$host:$port
 manifest = \${site}/manifest.js.gz
 [pull]
 [fsck]
 
-	close $fh or die;
-
+	close $fh or xbail $!;
 	xsys($grok_pull, '-c', "$tmpdir/repos.conf");
 	is($? >> 8, 0, 'grok-pull exit code as expected');
 	for (qw(alt bare v2/git/0.git v2/git/1.git v2/git/2.git)) {
@@ -159,18 +163,20 @@ manifest = \${site}/manifest.js.gz
 
 	# support per-inbox manifests, handy for v2:
 	# /$INBOX/v2/manifest.js.gz
-	open $fh, '>', "$tmpdir/per-inbox.conf" or die;
-	print $fh <<"" or die;
+	open $fh, '>', "$tmpdir/per-inbox.conf" or xbail $!;
+	print $fh <<"" or xbail $!;
 [core]
 toplevel = $tmpdir/per-inbox
 manifest = $tmpdir/per-inbox-manifest.js.gz
+log = $tmpdir/grok.log
+loglevel = $grok_loglevel
 [remote]
 site = http://$host:$port
 manifest = \${site}/v2/manifest.js.gz
 [pull]
 [fsck]
 
-	close $fh or die;
+	close $fh or xbail $!;
 	ok(mkdir("$tmpdir/per-inbox"), 'prepare single-v2-inbox mirror');
 	xsys($grok_pull, '-c', "$tmpdir/per-inbox.conf");
 	is($? >> 8, 0, 'grok-pull exit code as expected');
