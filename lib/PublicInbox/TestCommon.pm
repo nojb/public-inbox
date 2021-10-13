@@ -12,13 +12,14 @@ use IO::Socket::INET;
 use File::Spec;
 our @EXPORT;
 my $lei_loud = $ENV{TEST_LEI_ERR_LOUD};
+my $tail_cmd = $ENV{TAIL};
 our ($lei_opt, $lei_out, $lei_err, $lei_cwdfh);
 BEGIN {
 	@EXPORT = qw(tmpdir tcp_server tcp_connect require_git require_mods
 		run_script start_script key2sub xsys xsys_e xqx eml_load tick
 		have_xapian_compact json_utf8 setup_public_inboxes create_inbox
 		tcp_host_port test_lei lei lei_ok $lei_out $lei_err $lei_opt
-		test_httpd xbail require_cmd is_xdeeply);
+		test_httpd xbail require_cmd is_xdeeply tail_f);
 	require Test::More;
 	my @methods = grep(!/\W/, @Test::More::EXPORT);
 	eval(join('', map { "*$_=\\&Test::More::$_;" } @methods));
@@ -280,11 +281,20 @@ sub run_script ($;$$) {
 	my $sub = $run_mode == 0 ? undef : key2sub($key);
 	my $fhref = [];
 	my $spawn_opt = {};
+	my @tail_paths;
 	for my $fd (0..2) {
 		my $redir = $opt->{$fd};
 		my $ref = ref($redir);
 		if ($ref eq 'SCALAR') {
-			open my $fh, '+>', undef or die "open: $!";
+			my $fh;
+			if ($tail_cmd && $ENV{TAIL_ALL} && $fd > 0) {
+				require File::Temp;
+				$fh = File::Temp->new("fd.$fd-XXXX", TMPDIR=>1);
+				push @tail_paths, $fh->filename;
+			} else {
+				open $fh, '+>', undef;
+			}
+			$fh or xbail $!;
 			$fhref->[$fd] = $fh;
 			$spawn_opt->{$fd} = $fh;
 			next if $fd > 0;
@@ -297,6 +307,7 @@ sub run_script ($;$$) {
 			die "unable to deal with $ref $redir";
 		}
 	}
+	my $tail = @tail_paths ? tail_f(@tail_paths) : undef;
 	if ($key =~ /-(index|convert|extindex|convert|xcpdb)\z/) {
 		unshift @argv, '--no-fsync';
 	}
@@ -337,6 +348,7 @@ sub run_script ($;$$) {
 		umask($umask);
 	}
 
+	{ local $?; undef $tail };
 	# slurp the redirects back into user-supplied strings
 	for my $fd (1..2) {
 		my $fh = $fhref->[$fd] or next;
@@ -355,13 +367,13 @@ sub tick (;$) {
 	1;
 }
 
-sub wait_for_tail ($;$) {
+sub wait_for_tail {
 	my ($tail_pid, $want) = @_;
-	my $wait = 2;
+	my $wait = 2; # "tail -F" sleeps 1.0s at-a-time w/o inotify/kevent
 	if ($^O eq 'linux') { # GNU tail may use inotify
 		state $tail_has_inotify;
-		return tick if $want < 0 && $tail_has_inotify;
-		my $end = time + $wait;
+		return tick if !$want && $tail_has_inotify; # before TERM
+		my $end = time + $wait; # wait for startup:
 		my @ino;
 		do {
 			@ino = grep {
@@ -410,13 +422,23 @@ sub xqx {
 	wantarray ? split(/^/m, $out) : $out;
 }
 
+sub tail_f (@) {
+	$tail_cmd or return; # "tail -F" or "tail -f"
+	for (@_) { open(my $fh, '>>', $_) or die $! };
+	my $cmd = [ split(/ /, $tail_cmd), @_ ];
+	require PublicInbox::Spawn;
+	my $pid = PublicInbox::Spawn::spawn($cmd, undef, { 1 => 2 });
+	wait_for_tail($pid, scalar @_);
+	PublicInboxTestProcess->new($pid, \&wait_for_tail);
+}
+
 sub start_script {
 	my ($cmd, $env, $opt) = @_;
 	my ($key, @argv) = @$cmd;
 	my $run_mode = $ENV{TEST_RUN_MODE} // $opt->{run_mode} // 2;
 	my $sub = $run_mode == 0 ? undef : key2sub($key);
-	my $tail_pid;
-	if (my $tail_cmd = $ENV{TAIL}) {
+	my $tail;
+	if ($tail_cmd) {
 		my @paths;
 		for (@argv) {
 			next unless /\A--std(?:err|out)=(.+)\z/;
@@ -434,17 +456,7 @@ sub start_script {
 				}
 			}
 		}
-		if (@paths) {
-			$tail_pid = fork // die "fork: $!";
-			if ($tail_pid == 0) {
-				# make sure files exist, first
-				open my $fh, '>>', $_ for @paths;
-				open(STDOUT, '>&STDERR') or die "1>&2: $!";
-				exec(split(' ', $tail_cmd), @paths);
-				die "$tail_cmd failed: $!";
-			}
-			wait_for_tail($tail_pid, scalar @paths);
-		}
+		$tail = tail_f(@paths);
 	}
 	my $pid = fork // die "fork: $!\n";
 	if ($pid == 0) {
@@ -480,7 +492,9 @@ sub start_script {
 			die "FAIL: ",join(' ', $key, @argv), ": $!\n";
 		}
 	}
-	PublicInboxTestProcess->new($pid, $tail_pid);
+	my $td = PublicInboxTestProcess->new($pid);
+	$td->{-extra} = $tail;
+	$td;
 }
 
 # favor lei() or lei_ok() over $lei for new code
@@ -735,8 +749,8 @@ use strict;
 sub CLONE_SKIP { 1 }
 
 sub new {
-	my ($klass, $pid, $tail_pid) = @_;
-	bless { pid => $pid, tail_pid => $tail_pid, owner => $$ }, $klass;
+	my ($cls, $pid, $cb) = @_;
+	bless { pid => $pid, cb => $cb, owner => $$ }, $cls;
 }
 
 sub kill {
@@ -747,6 +761,7 @@ sub kill {
 sub join {
 	my ($self, $sig) = @_;
 	my $pid = delete $self->{pid} or return;
+	$self->{cb}->() if defined $self->{cb};
 	CORE::kill($sig, $pid) if defined $sig;
 	my $ret = waitpid($pid, 0) // die "waitpid($pid): $!";
 	$ret == $pid or die "waitpid($pid) != $ret";
@@ -755,10 +770,6 @@ sub join {
 sub DESTROY {
 	my ($self) = @_;
 	return if $self->{owner} != $$;
-	if (my $tail_pid = delete $self->{tail_pid}) {
-		PublicInbox::TestCommon::wait_for_tail($tail_pid, -1);
-		CORE::kill('TERM', $tail_pid);
-	}
 	$self->join('TERM');
 }
 
