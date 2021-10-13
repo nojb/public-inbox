@@ -643,7 +643,7 @@ sub run ($$$;$) {
 	# localize GCF2C for tests:
 	local $PublicInbox::GitAsyncCat::GCF2C;
 	local $PublicInbox::Git::async_warn = 1;
-	local $SIG{__WARN__} = \&PublicInbox::Eml::warn_ignore_cb;
+	local $SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
 
 	daemon_loop($refresh, $post_accept, $tlsd, $af_default);
 	PublicInbox::DS->Reset;
