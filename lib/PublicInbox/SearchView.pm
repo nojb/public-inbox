@@ -102,11 +102,8 @@ sub mset_summary {
 
 	foreach my $m ($mset->items) {
 		my $num = shift @nums;
-		my $smsg = delete($num2msg{$num}) or do {
-			eval {
-				$m = "$m $num expired\n";
-				$ctx->{env}->{'psgi.errors'}->print($m);
-			};
+		my $smsg = delete($num2msg{$num}) // do {
+			warn "$m $num expired\n";
 			next;
 		};
 		my $mid = $smsg->{mid};

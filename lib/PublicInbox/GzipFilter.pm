@@ -154,8 +154,7 @@ sub close {
 sub bail  {
 	my $self = shift;
 	if (my $env = $self->{env}) {
-		eval { $env->{'psgi.errors'}->print(@_, "\n") };
-		warn("E: error printing to psgi.errors: $@", @_) if $@;
+		warn @_, "\n";
 		my $http = $env->{'psgix.io'} or return; # client abort
 		eval { $http->close }; # should hit our close
 		warn "E: error in http->close: $@" if $@;

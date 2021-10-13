@@ -54,7 +54,7 @@ sub stream_blob_parse_hdr { # {parse_hdr} for Qspawn
 				'text/plain; charset=UTF-8', @cl ] ];
 		}
 		if ($r == 0) {
-			warn "premature EOF on $oid $$logref\n";
+			warn "premature EOF on $oid $$logref";
 			return html_page($ctx, 500, $logref);
 		}
 		@$ctx{qw(-res -logref)} = ($res, $logref);
@@ -111,7 +111,7 @@ sub solve_result {
 	my ($log, $hints, $fn) = delete @$ctx{qw(log hints fn)};
 
 	unless (seek($log, 0, 0)) {
-		$ctx->{env}->{'psgi.errors'}->print("seek(log): $!\n");
+		warn "seek(log): $!";
 		return html_page($ctx, 500, \'seek error');
 	}
 	$log = do { local $/; <$log> };
@@ -138,7 +138,7 @@ sub solve_result {
 	my $blob = $git->cat_file($oid);
 	if (!$blob) { # WTF?
 		my $e = "Failed to retrieve generated blob ($oid)";
-		$ctx->{env}->{'psgi.errors'}->print("$e ($git->{git_dir})\n");
+		warn "$e ($git->{git_dir})";
 		$log = "<pre><b>$e</b></pre>" . $log;
 		return html_page($ctx, 500, \$log);
 	}

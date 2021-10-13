@@ -73,7 +73,6 @@ sub do_solve_blob { # via wq_do
 		# -cur_di, -qsp, -msg => temporary fields for Qspawn callbacks
 		inboxes => [ $self->{lxs}->locals, @rmt ],
 	}, 'PublicInbox::SolverGit';
-	$lei->{env}->{'psgi.errors'} = $lei->{2}; # ugh...
 	local $PublicInbox::DS::in_loop = 0; # waitpid synchronously
 	$solver->solve($lei->{env}, $log, $self->{oid_b}, $hints);
 }

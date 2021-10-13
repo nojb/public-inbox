@@ -76,11 +76,6 @@ sub child_err ($) {
 	$msg;
 }
 
-sub log_err ($$) {
-	my ($env, $msg) = @_;
-	$env->{'psgi.errors'}->print($msg, "\n");
-}
-
 sub finalize ($$) {
 	my ($self, $err) = @_;
 
@@ -104,7 +99,7 @@ sub finalize ($$) {
 			$self->{err} = $err;
 		}
 		if ($env && $self->{cmd}) {
-			log_err($env, join(' ', @{$self->{cmd}}) . ": $err");
+			warn join(' ', @{$self->{cmd}}) . ": $err";
 		}
 	}
 	if ($qx_cb) {
@@ -188,7 +183,7 @@ sub psgi_qx {
 # PSGI servers.
 sub event_step {
 	my ($self, $err) = @_; # $err: $!
-	log_err($self->{psgi_env}, "psgi_{return,qx} $err") if defined($err);
+	warn "psgi_{return,qx} $err" if defined($err);
 	finish($self);
 	my ($fh, $qx_fh) = delete(@$self{qw(fh qx_fh)});
 	$fh->close if $fh; # async-only (psgi_return)
@@ -210,14 +205,14 @@ sub rd_hdr ($) {
 			$total_rd += $r;
 			eval { $ret = $ph_cb->($total_rd, $hdr_buf, $ph_arg) };
 			if ($@) {
-				log_err($self->{psgi_env}, "parse_hdr: $@");
+				warn "parse_hdr: $@";
 				$ret = [ 500, [], [ "Internal error\n" ] ];
 			}
 		} else {
 			# caller should notify us when it's ready:
 			return if $! == EAGAIN;
 			next if $! == EINTR; # immediate retry
-			log_err($self->{psgi_env}, "error reading header: $!");
+			warn "error reading header: $!";
 			$ret = [ 500, [], [ "Internal error\n" ] ];
 		}
 	} until (defined $ret);

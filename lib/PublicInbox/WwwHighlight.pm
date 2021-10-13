@@ -46,7 +46,7 @@ sub read_in_full ($) {
 		return \$buf if $r == 0;
 		$off += $r;
 	}
-	$env->{'psgi.errors'}->print("input read error: $!\n");
+	warn "input read error: $!";
 	undef;
 }
 

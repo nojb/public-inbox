@@ -303,7 +303,6 @@ sub ipc_atfork_child {
 	$self->{gits} = [ map {
 			PublicInbox::Git->new($lei->rel2abs($_))
 		} @{$self->{lei}->{opt}->{'git-dir'}} ];
-	$lei->{env}->{'psgi.errors'} = $lei->{2}; # ugh...
 	$lei->{env}->{TMPDIR} = $self->{rdtmp}->dirname;
 	if (my $nr = ($lei->{opt}->{drq} || $lei->{opt}->{'dequote-only'})) {
 		my $re = '\s*> ' x $nr;

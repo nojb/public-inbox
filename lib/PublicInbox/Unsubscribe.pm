@@ -81,10 +81,7 @@ sub _user_list_addr {
 	}
 	my $user = eval { $self->{cipher}->decrypt(decode_base64url($u)) };
 	if (!defined $user || index($user, '@') < 1) {
-		my $err = quotemeta($@);
-		my $errors = $env->{'psgi.errors'};
-		$errors->print("error decrypting: $u\n");
-		$errors->print("$_\n") for split("\n", $err);
+		warn "error decrypting: $u: ", ($@ ? quotemeta($@) : ());
 		$u = Plack::Util::encode_html($u);
 		return r($self, 400, 'Bad request', "Failed to decrypt: $u");
 	}

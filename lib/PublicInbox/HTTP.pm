@@ -171,7 +171,7 @@ sub app_dispatch {
 		}
 	};
 	if ($@) {
-		err($self, "response_write error: $@");
+		warn "response_write error: $@";
 		$self->close;
 	}
 }
@@ -285,14 +285,14 @@ sub getline_pull {
 			return; # likely
 		}
 	} elsif ($@) {
-		err($self, "response ->getline error: $@");
+		warn "response ->getline error: $@";
 		$self->close;
 	}
 	# avoid recursion
 	if (delete $self->{forward}) {
 		eval { $forward->close };
 		if ($@) {
-			err($self, "response ->close error: $@");
+			warn "response ->close error: $@";
 			$self->close; # idempotent
 		}
 	}
@@ -360,15 +360,11 @@ sub input_prepare {
 
 sub env_chunked { ($_[0]->{HTTP_TRANSFER_ENCODING} // '') =~ /\Achunked\z/i }
 
-sub err ($$) {
-	eval { $_[0]->{httpd}->{env}->{'psgi.errors'}->print($_[1]."\n") };
-}
-
 sub write_err {
 	my ($self, $len) = @_;
 	my $msg = $! || '(zero write)';
 	$msg .= " ($len bytes remaining)" if defined $len;
-	err($self, "error buffering to input: $msg");
+	warn "error buffering to input: $msg";
 	quit($self, 500);
 }
 
@@ -377,7 +373,7 @@ sub recv_err {
 	if ($! == EAGAIN) { # epoll/kevent watch already set by do_read
 		$self->{input_left} = $len;
 	} else {
-		err($self, "error reading input: $! ($len bytes remaining)");
+		warn "error reading input: $! ($len bytes remaining)";
 	}
 }
 
@@ -458,7 +454,7 @@ sub close {
 	my $self = $_[0];
 	if (my $forward = delete $self->{forward}) {
 		eval { $forward->close };
-		err($self, "forward ->close error: $@") if $@;
+		warn "forward ->close error: $@" if $@;
 	}
 	$self->SUPER::close; # PublicInbox::DS::close
 }

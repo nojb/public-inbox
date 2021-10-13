@@ -15,8 +15,7 @@ sub check_output {
 	my ($r, $bref, $ctx) = @_;
 	return html_oneshot($ctx, 500) if !defined($r);
 	if ($r == 0) {
-		my $err = eval { $ctx->{env}->{'psgi.errors'} } // \*STDERR;
-		$err->print("unexpected EOF from sqlite3\n");
+		warn 'unexpected EOF from sqlite3';
 		return html_oneshot($ctx, 501);
 	}
 	[200, [ qw(Content-Type application/gzip), 'Content-Disposition',

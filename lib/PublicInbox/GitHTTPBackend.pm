@@ -5,13 +5,14 @@
 # or smart HTTP.  This is our wrapper for git-http-backend(1)
 package PublicInbox::GitHTTPBackend;
 use strict;
-use warnings;
+use v5.10.1;
 use Fcntl qw(:seek);
 use IO::Handle; # ->flush
 use HTTP::Date qw(time2str);
 use PublicInbox::Qspawn;
 use PublicInbox::Tmpfile;
 use PublicInbox::WwwStatic qw(r @NO_CACHE);
+use Carp ();
 
 # 32 is same as the git-daemon connection limit
 my $default_limiter = PublicInbox::Qspawn::Limiter->new(32);
@@ -45,10 +46,7 @@ sub serve {
 	serve_dumb($env, $git, $path);
 }
 
-sub err ($@) {
-	my ($env, @msg) = @_;
-	$env->{'psgi.errors'}->print(@msg, "\n");
-}
+sub ucarp { Carp::carp(@_); undef }
 
 my $prev = 0;
 my $exp;
@@ -118,37 +116,18 @@ sub input_prepare {
 
 	my $input = $env->{'psgi.input'};
 	my $fd = eval { fileno($input) };
-	if (defined $fd && $fd >= 0) {
-		return { 0 => $fd };
-	}
+	return { 0 => $fd } if (defined $fd && $fd >= 0);
 	my $id = "git-http.input.$env->{REMOTE_ADDR}:$env->{REMOTE_PORT}";
-	my $in = tmpfile($id);
-	unless (defined $in) {
-		err($env, "could not open temporary file: $!");
-		return;
-	}
+	my $in = tmpfile($id) // return ucarp("tmpfile: $!");
 	my $buf;
 	while (1) {
-		my $r = $input->read($buf, 8192);
-		unless (defined $r) {
-			err($env, "error reading input: $!");
-			return;
-		}
+		my $r = $input->read($buf, 8192) // return ucarp("read $!");
 		last if $r == 0;
-		unless (print $in $buf) {
-			err($env, "error writing temporary file: $!");
-			return;
-		}
+		print $in $buf // return ucarp("print: $!");
 	}
 	# ensure it's visible to git-http-backend(1):
-	unless ($in->flush) {
-		err($env, "error writing temporary file: $!");
-		return;
-	}
-	unless (defined(sysseek($in, 0, SEEK_SET))) {
-		err($env, "error seeking temporary file: $!");
-		return;
-	}
+	$in->flush // return ucarp("flush: $!");
+	sysseek($in, 0, SEEK_SET) // return ucarp($env, "seek: $!");
 	{ 0 => $in };
 }
 

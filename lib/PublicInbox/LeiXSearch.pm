@@ -33,7 +33,7 @@ sub new {
 sub attach_external {
 	my ($self, $ibxish) = @_; # ibxish = ExtSearch or Inbox
 	my $desc = $ibxish->{inboxdir} // $ibxish->{topdir};
-	my $srch = $ibxish->search or
+	my $srch = $ibxish->search //
 		return warn("$desc not indexed for Xapian ($@ $!)\n");
 	my @shards = $srch->xdb_shards_flat or
 		return warn("$desc has no Xapian shards\n");
@@ -184,11 +184,10 @@ sub query_one_mset { # for --threads and l2m w/o sort
 	my $maxk = "external.$dir.maxuid";
 	my $stop_at = $lss ? $lss->{-cfg}->{$maxk} : undef;
 	if (defined $stop_at) {
-		die "$maxk=$stop_at has multiple values" if ref $stop_at;
-		my @e;
-		local $SIG{__WARN__} = sub { push @e, @_ };
-		$stop_at += 0;
-		return warn("$maxk=$stop_at: @e") if @e;
+		ref($stop_at) and
+			return warn("$maxk=$stop_at has multiple values\n");
+		($stop_at =~ /[^0-9]/) and
+			return warn("$maxk=$stop_at not numeric\n");
 	}
 	my $first_ids;
 	do {
@@ -392,12 +391,11 @@ sub query_remote_mboxrd {
 		}
 		$err = '';
 		if (-s $cerr) {
-			seek($cerr, 0, SEEK_SET) or
+			seek($cerr, 0, SEEK_SET) //
 					warn "seek($cmd stderr): $!";
 			$err = do { local $/; <$cerr> } //
 					warn "read($cmd stderr): $!";
-			truncate($cerr, 0) or
-					warn "truncate($cmd stderr): $!";
+			truncate($cerr, 0) // warn "truncate($cmd stderr): $!";
 		}
 		next if (($? >> 8) == 22 && $err =~ /\b404\b/);
 		$uri->query_form(q => $qstr);
@@ -423,9 +421,8 @@ sub query_done { # EOF callback for main daemon
 	if (my $lxs = delete $lei->{lxs}) {
 		$lxs->wq_wait_old(\&xsearch_done_wait, $lei);
 	}
-	if ($lei->{opt}->{'mail-sync'} && !$lei->{sto}) {
+	($lei->{opt}->{'mail-sync'} && !$lei->{sto}) and
 		warn "BUG: {sto} missing with --mail-sync";
-	}
 	$lei->sto_done_request if $lei->{sto};
 	my $wait = $lei->{v2w} ? $lei->{v2w}->wq_do('done') : undef;
 	$lei->{ovv}->ovv_end($lei);
