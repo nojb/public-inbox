@@ -21,7 +21,6 @@ if (require_git(2.19, 1)) {
 "git <2.19, cat-file lacks --unordered, locality suffers\n";
 }
 require_mods qw(Plack::Util);
-use_ok 'Plack::Util';
 my $ibx = PublicInbox::Inbox->new({ inboxdir => $inboxdir, name => 'name' });
 my $git = $ibx->git;
 my $fh = $blob ? undef : $git->popen(@cat);
