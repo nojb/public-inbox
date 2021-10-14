@@ -63,6 +63,7 @@ sub redispatch_all ($$) {
 	$op_c->{ops} = { '' => [ $lei->can('dclose'), $lei ] };
 	my @first_batch = splice(@$upq, 0, $j); # initial parallelism
 	$lei->{-upq} = $upq;
+	$lei->{daemon_pid} = $$;
 	$lei->event_step_init; # wait for client disconnects
 	for my $out (@first_batch) {
 		PublicInbox::DS::requeue(
@@ -158,18 +159,22 @@ sub event_step { # runs via PublicInbox::DS::requeue
 	$l->{opt} = { %{$l->{opt}} }; # deep copy
 	delete $l->{opt}->{all};
 	$l->qerr("# updating $self->{out}");
-	$l->{up_op_p} = $self->{op_p}; # ($l => $lei => script/lei)
+	my $o = " (output: $self->{out})"; # add to all warnings
 	my $cb = $SIG{__WARN__} // \&CORE::warn;
-	my $o = " (output: $self->{out})";
 	local $SIG{__WARN__} = sub {
 		my @m = @_;
 		push(@m, $o) if !@m || $m[-1] !~ s/\n\z/$o\n/;
 		$cb->(@m);
 	};
+	$l->{-up1} = $self;
 	eval { $l->dispatch('up', $self->{out}) };
 	$lei->child_error(0, $@) if $@ || $l->{failed}; # lei->fail()
+}
 
-	# onto the next:
+sub DESTROY {
+	my ($self) = @_;
+	my $lei = $self->{lei}; # the original, from lei_up
+	return if $lei->{daemon_pid} != $$;
 	my $out = shift(@{$lei->{-upq}}) or return;
 	PublicInbox::DS::requeue(nxt($lei, $out, $self->{op_p}));
 }
