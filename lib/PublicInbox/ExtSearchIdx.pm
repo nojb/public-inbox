@@ -18,6 +18,7 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::ExtSearch PublicInbox::Lock);
 use Carp qw(croak carp);
+use Scalar::Util qw(blessed);
 use Sys::Hostname qw(hostname);
 use POSIX qw(strftime);
 use File::Glob qw(bsd_glob GLOB_NOSORT);
@@ -142,6 +143,14 @@ sub _unref_doc ($$$$$;$) {
 	if (ref($docid)) {
 		$smsg = $docid;
 		$docid = $smsg->{num};
+	}
+	if (defined($oidbin) && defined($xnum) && blessed($ibx) && $ibx->over) {
+		my $smsg = $ibx->over->get_art($xnum);
+		if ($smsg && pack('H*', $smsg->{blob}) eq $oidbin) {
+			carp("BUG: (non-fatal) ".$ibx->eidx_key.
+				" #$xnum $smsg->{blob} still valid");
+			return;
+		}
 	}
 	my $s = 'DELETE FROM xref3 WHERE oidbin = ?';
 	$s .= ' AND ibx_id = ?' if defined($ibx);
