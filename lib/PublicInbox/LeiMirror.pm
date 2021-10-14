@@ -12,6 +12,7 @@ use IO::Compress::Gzip qw(gzip $GzipError);
 use PublicInbox::Spawn qw(popen_rd spawn run_die);
 use File::Temp ();
 use Fcntl qw(SEEK_SET O_CREAT O_EXCL O_WRONLY);
+use Carp qw(croak);
 
 sub _wq_done_wait { # dwaitpid callback (via wq_eof)
 	my ($arg, $pid) = @_;
@@ -89,24 +90,31 @@ sub clone_cmd {
 	@cmd;
 }
 
+sub ft_rename ($$$) {
+	my ($ft, $dst, $open_mode) = @_;
+	my $fn = $ft->filename;
+	my @st = stat($dst);
+	my $mode = @st ? ($st[2] & 07777) : ($open_mode & ~umask);
+	chmod($mode, $ft) or croak "E: chmod $fn: $!";
+	rename($fn, $dst) or croak "E: rename($fn => $ft): $!";
+	$ft->unlink_on_destroy(0);
+}
+
 sub _get_txt { # non-fatal
-	my ($self, $endpoint, $file) = @_;
+	my ($self, $endpoint, $file, $mode) = @_;
 	my $uri = URI->new($self->{src});
 	my $lei = $self->{lei};
 	my $path = $uri->path;
 	chop($path) eq '/' or die "BUG: $uri not canonicalized";
 	$uri->path("$path/$endpoint");
 	my $ft = File::Temp->new(TEMPLATE => "$file-XXXX", DIR => $self->{dst});
-	my $f = $ft->filename;
 	my $opt = { 0 => $lei->{0}, 1 => $lei->{1}, 2 => $lei->{2} };
 	my $cmd = $self->{curl}->for_uri($lei, $uri,
-					qw(--compressed -R -o), $f);
+					qw(--compressed -R -o), $ft->filename);
 	my $cerr = run_reap($lei, $cmd, $opt);
 	return "$uri missing" if ($cerr >> 8) == 22;
 	return "# @$cmd failed (non-fatal)" if $cerr;
-	my $ce = "$self->{dst}/$file";
-	rename($f, $ce) or return "rename($f, $ce): $! (non-fatal)";
-	$ft->unlink_on_destroy(0);
+	ft_rename($ft, "$self->{dst}/$file", $mode);
 	undef; # success
 }
 
@@ -119,10 +127,10 @@ sub _try_config {
 		File::Path::mkpath($dst);
 		-d $dst or die "mkpath($dst): $!\n";
 	}
-	my $err = _get_txt($self, qw(_/text/config/raw inbox.config.example));
+	my $err = _get_txt($self,
+			qw(_/text/config/raw inbox.config.example), 0444);
 	return warn($err, "\n") if $err;
 	my $f = "$self->{dst}/inbox.config.example";
-	chmod((stat($f))[2] & 0444, $f) or die "chmod(a-w, $f): $!";
 	my $cfg = PublicInbox::Config->git_config_dump($f, $self->{lei}->{2});
 	my $ibx = $self->{ibx} = {};
 	for my $sec (grep(/\Apublicinbox\./, @{$cfg->{-section_order}})) {
@@ -150,7 +158,7 @@ sub set_description ($) {
 sub index_cloned_inbox {
 	my ($self, $iv) = @_;
 	my $lei = $self->{lei};
-	my $err = _get_txt($self, qw(description description));
+	my $err = _get_txt($self, qw(description description), 0666);
 	warn($err, "\n") if $err; # non fatal
 	eval { set_description($self) };
 	warn $@ if $@;
@@ -404,9 +412,7 @@ EOM
 		my $json = PublicInbox::Config->json->encode($m);
 		gzip(\$json => $fn) or die "gzip: $GzipError";
 	}
-	my $fin = "$self->{dst}/manifest.js.gz";
-	rename($fn, $fin) or die "E: rename($fn, $fin): $!";
-	$ft->unlink_on_destroy(0);
+	ft_rename($ft, "$self->{dst}/manifest.js.gz", 0666);
 }
 
 sub start_clone_url {

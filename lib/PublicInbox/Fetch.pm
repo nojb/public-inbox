@@ -218,13 +218,12 @@ EOM
 	}
 	for my $i (@new_epoch) { $mg->epoch_cfg_set($i) }
 	if ($ft) {
-		my $fn = $ft->filename;
 		if ($mculled) {
 			my $json = PublicInbox::Config->json->encode($m1);
+			my $fn = $ft->filename;
 			gzip(\$json => $fn) or die "gzip: $GzipError";
 		}
-		rename($fn, $mf) or die "E: rename($fn, $mf): $!\n";
-		$ft->unlink_on_destroy(0);
+		PublicInbox::LeiMirror::ft_rename($ft, $mf, 0666);
 	}
 	$lei->child_error($xit << 8) if $fp2 && $xit;
 }
