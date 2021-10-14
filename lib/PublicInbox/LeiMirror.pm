@@ -9,7 +9,7 @@ use parent qw(PublicInbox::IPC);
 use PublicInbox::Config;
 use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
 use IO::Compress::Gzip qw(gzip $GzipError);
-use PublicInbox::Spawn qw(popen_rd spawn run_die);
+use PublicInbox::Spawn qw(popen_rd spawn);
 use File::Temp ();
 use Fcntl qw(SEEK_SET O_CREAT O_EXCL O_WRONLY);
 use Carp qw(croak);
@@ -192,7 +192,6 @@ sub index_cloned_inbox {
 sub run_reap {
 	my ($lei, $cmd, $opt) = @_;
 	$lei->qerr("# @$cmd");
-	$opt->{pgid} = 0 if $lei->{sock};
 	my $pid = spawn($cmd, undef, $opt);
 	my $reap = PublicInbox::OnDestroy->new($lei->can('sigint_reap'), $pid);
 	waitpid($pid, 0) == $pid or die "waitpid @$cmd: $!";

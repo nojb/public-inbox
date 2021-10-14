@@ -460,9 +460,9 @@ my @WQ_KEYS = qw(lxs l2m ikw pmd wq1 lne); # internal workers
 sub _drop_wq {
 	my ($self) = @_;
 	for my $wq (grep(defined, delete(@$self{@WQ_KEYS}))) {
-		if ($wq->wq_kill) {
+		if ($wq->wq_kill('-TERM')) {
 			$wq->wq_close(0, undef, $self);
-		} elsif ($wq->wq_kill_old) {
+		} elsif ($wq->wq_kill_old('-TERM')) {
 			$wq->wq_wait_old(undef, $self);
 		}
 		$wq->DESTROY;
@@ -576,6 +576,7 @@ sub _lei_atfork_child {
 	} else { # worker, Net::NNTP (Net::Cmd) uses STDERR directly
 		open STDERR, '+>&='.fileno($self->{2}) or warn "open $!";
 		STDERR->autoflush(1);
+		POSIX::setpgid(0, $$) // die "setpgid(0, $$): $!";
 	}
 	close($_) for (grep(defined, delete @$self{qw(3 old_1 au_done)}));
 	if (my $op_c = delete $self->{pkt_op_c}) {
@@ -1148,9 +1149,10 @@ sub event_step {
 		if ($buf eq '') {
 			_drop_wq($self); # EOF, client disconnected
 			dclose($self);
-		} elsif ($buf =~ /\A(STOP|CONT)\z/) {
+		} elsif ($buf =~ /\A(?:STOP|CONT)\z/) {
+			my $sig = "-$buf";
 			for my $wq (grep(defined, @$self{@WQ_KEYS})) {
-				$wq->wq_kill($buf) or $wq->wq_kill_old($buf);
+				$wq->wq_kill($sig) or $wq->wq_kill_old($sig);
 			}
 		} else {
 			die "unrecognized client signal: $buf";

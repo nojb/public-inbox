@@ -469,7 +469,7 @@ sub do_post_augment {
 	$err = $@;
 	if ($err) {
 		if (my $lxs = delete $lei->{lxs}) {
-			$lxs->wq_kill;
+			$lxs->wq_kill('-TERM');
 			$lxs->wq_close(0, undef, $lei);
 		}
 		$lei->fail("$err");
