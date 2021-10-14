@@ -15,6 +15,7 @@ use PublicInbox::Search qw(xap_terms);
 use PublicInbox::Spawn qw(popen_rd spawn which);
 use PublicInbox::MID qw(mids);
 use PublicInbox::Smsg;
+use PublicInbox::AutoReap;
 use PublicInbox::Eml;
 use PublicInbox::LEI;
 use Fcntl qw(SEEK_SET F_SETFL O_APPEND O_RDWR);
@@ -346,18 +347,17 @@ sub query_remote_mboxrd {
 	my @qform = (x => 'm');
 	push(@qform, t => 1) if $opt->{threads};
 	my $verbose = $opt->{verbose};
-	my ($reap_tail, $reap_curl);
+	my $reap_tail;
 	my $cerr = File::Temp->new(TEMPLATE => 'curl.err-XXXX', TMPDIR => 1);
 	fcntl($cerr, F_SETFL, O_APPEND|O_RDWR) or warn "set O_APPEND: $!";
-	my $rdr = { 2 => $cerr, pgid => 0 };
-	my $sigint_reap = $lei->can('sigint_reap');
+	my $rdr = { 2 => $cerr };
 	if ($verbose) {
 		# spawn a process to force line-buffering, otherwise curl
 		# will write 1 character at-a-time and parallel outputs
 		# mmmaaayyy llloookkk llliiikkkeee ttthhhiiisss
-		my $o = { 1 => $lei->{2}, 2 => $lei->{2}, pgid => 0 };
+		my $o = { 1 => $lei->{2}, 2 => $lei->{2} };
 		my $pid = spawn(['tail', '-f', $cerr->filename], undef, $o);
-		$reap_tail = PublicInbox::OnDestroy->new($sigint_reap, $pid);
+		$reap_tail = PublicInbox::AutoReap->new($pid);
 	}
 	my $curl = PublicInbox::LeiCurl->new($lei, $self->{curl}) or return;
 	push @$curl, '-s', '-d', '';
@@ -372,16 +372,13 @@ sub query_remote_mboxrd {
 		my $cmd = $curl->for_uri($lei, $uri);
 		$lei->qerr("# $cmd");
 		my ($fh, $pid) = popen_rd($cmd, undef, $rdr);
-		$reap_curl = PublicInbox::OnDestroy->new($sigint_reap, $pid);
+		my $reap_curl = PublicInbox::AutoReap->new($pid);
 		$fh = IO::Uncompress::Gunzip->new($fh, MultiStream => 1);
 		PublicInbox::MboxReader->mboxrd($fh, \&each_remote_eml, $self,
 						$lei, $each_smsg);
-		my $err = waitpid($pid, 0) == $pid ? undef
-						: "BUG: waitpid($cmd): $!";
-		@$reap_curl = (); # cancel OnDestroy
-		die $err if $err;
 		my $nr = $lei->{-nr_remote_eml};
 		my $wait = $lei->{sto}->wq_do('done') if $nr && $lei->{sto};
+		$reap_curl->join;
 		if ($? == 0) {
 			# don't update if no results, maybe MTA is down
 			$key && $nr and
@@ -389,7 +386,7 @@ sub query_remote_mboxrd {
 			mset_progress($lei, $lei->{-current_url}, $nr, $nr);
 			next;
 		}
-		$err = '';
+		my $err;
 		if (-s $cerr) {
 			seek($cerr, 0, SEEK_SET) //
 					warn "seek($cmd stderr): $!";
@@ -397,6 +394,7 @@ sub query_remote_mboxrd {
 					warn "read($cmd stderr): $!";
 			truncate($cerr, 0) // warn "truncate($cmd stderr): $!";
 		}
+		$err //= '';
 		next if (($? >> 8) == 22 && $err =~ /\b404\b/);
 		$uri->query_form(q => $qstr);
 		$lei->child_error($?, "E: <$uri> $err");

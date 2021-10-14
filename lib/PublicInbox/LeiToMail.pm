@@ -157,7 +157,7 @@ sub _post_augment_mbox { # open a compressor process from top-level process
 	my $zsfx = $self->{zsfx} or return;
 	my $cmd = PublicInbox::MboxReader::zsfx2cmd($zsfx, undef, $lei);
 	my ($r, $w) = @{delete $lei->{zpipe}};
-	my $rdr = { 0 => $r, 1 => $lei->{1}, 2 => $lei->{2} };
+	my $rdr = { 0 => $r, 1 => $lei->{1}, 2 => $lei->{2}, pgid => 0 };
 	my $pid = spawn($cmd, undef, $rdr);
 	my $pp = gensym;
 	my $dup = bless { "pid.$pid" => $cmd }, ref($lei);

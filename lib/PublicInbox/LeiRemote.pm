@@ -9,10 +9,10 @@ package PublicInbox::LeiRemote;
 use v5.10.1;
 use strict;
 use IO::Uncompress::Gunzip;
-use PublicInbox::OnDestroy;
 use PublicInbox::MboxReader;
 use PublicInbox::Spawn qw(popen_rd);
 use PublicInbox::LeiCurl;
+use PublicInbox::AutoReap;
 use PublicInbox::ContentHash qw(git_sha);
 
 sub new {
@@ -47,17 +47,14 @@ sub mset {
 	$uri->query_form(q => $qstr, x => 'm', r => 1); # r=1: relevance
 	my $cmd = $curl->for_uri($self->{lei}, $uri);
 	$self->{lei}->qerr("# $cmd");
-	my $rdr = { 2 => $lei->{2}, pgid => 0 };
-	my ($fh, $pid) = popen_rd($cmd, undef, $rdr);
-	my $reap = PublicInbox::OnDestroy->new($lei->can('sigint_reap'), $pid);
+	my ($fh, $pid) = popen_rd($cmd, undef, { 2 => $lei->{2} });
+	my $ar = PublicInbox::AutoReap->new($pid);
 	$self->{smsg} = [];
 	$fh = IO::Uncompress::Gunzip->new($fh, MultiStream => 1);
 	PublicInbox::MboxReader->mboxrd($fh, \&_each_mboxrd_eml, $self);
-	my $err = waitpid($pid, 0) == $pid ? undef
-					: "BUG: waitpid($cmd): $!";
-	@$reap = (); # cancel OnDestroy
 	my $wait = $self->{lei}->{sto}->wq_do('done');
-	die $err if $err;
+	$ar->join;
+	$lei->child_error($?) if $?;
 	$self; # we are the mset (and $ibx, and $self)
 }
 

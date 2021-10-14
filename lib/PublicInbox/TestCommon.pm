@@ -6,6 +6,7 @@ package PublicInbox::TestCommon;
 use strict;
 use parent qw(Exporter);
 use v5.10.1;
+use PublicInbox::AutoReap;
 use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD :seek);
 use POSIX qw(dup2);
 use IO::Socket::INET;
@@ -429,7 +430,7 @@ sub tail_f (@) {
 	require PublicInbox::Spawn;
 	my $pid = PublicInbox::Spawn::spawn($cmd, undef, { 1 => 2 });
 	wait_for_tail($pid, scalar @_);
-	PublicInboxTestProcess->new($pid, \&wait_for_tail);
+	PublicInbox::AutoReap->new($pid, \&wait_for_tail);
 }
 
 sub start_script {
@@ -492,7 +493,7 @@ sub start_script {
 			die "FAIL: ",join(' ', $key, @argv), ": $!\n";
 		}
 	}
-	my $td = PublicInboxTestProcess->new($pid);
+	my $td = PublicInbox::AutoReap->new($pid);
 	$td->{-extra} = $tail;
 	$td;
 }
@@ -741,37 +742,6 @@ sub test_httpd ($$;$) {
 	}
 };
 
-
-package PublicInboxTestProcess;
-use strict;
-
-# prevent new threads from inheriting these objects
-sub CLONE_SKIP { 1 }
-
-sub new {
-	my ($cls, $pid, $cb) = @_;
-	bless { pid => $pid, cb => $cb, owner => $$ }, $cls;
-}
-
-sub kill {
-	my ($self, $sig) = @_;
-	CORE::kill($sig // 'TERM', $self->{pid});
-}
-
-sub join {
-	my ($self, $sig) = @_;
-	my $pid = delete $self->{pid} or return;
-	$self->{cb}->() if defined $self->{cb};
-	CORE::kill($sig, $pid) if defined $sig;
-	my $ret = waitpid($pid, 0) // die "waitpid($pid): $!";
-	$ret == $pid or die "waitpid($pid) != $ret";
-}
-
-sub DESTROY {
-	my ($self) = @_;
-	return if $self->{owner} != $$;
-	$self->join('TERM');
-}
 
 package PublicInbox::TestCommon::InboxWakeup;
 use strict;

@@ -516,12 +516,6 @@ sub sigpipe_handler { # handles SIGPIPE from @WQ_KEYS workers
 	fail_handler($_[0], 13, delete $_[0]->{1});
 }
 
-# PublicInbox::OnDestroy callback for SIGINT to take out the entire pgid
-sub sigint_reap {
-	my ($pgid) = @_;
-	dwaitpid($pgid) if kill('-INT', $pgid);
-}
-
 sub fail ($$;$) {
 	my ($self, $buf, $exit_code) = @_;
 	local $current_lei = $self;
@@ -600,6 +594,7 @@ sub _lei_atfork_child {
 			$cb->(@_) unless PublicInbox::Eml::warn_ignore(@_)
 		};
 	}
+	$SIG{TERM} = sub { exit(128 + 15) };
 	$current_lei = $persist ? undef : $self; # for SIG{__WARN__}
 }
 

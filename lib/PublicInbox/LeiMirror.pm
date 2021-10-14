@@ -7,6 +7,7 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::IPC);
 use PublicInbox::Config;
+use PublicInbox::AutoReap;
 use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
 use IO::Compress::Gzip qw(gzip $GzipError);
 use PublicInbox::Spawn qw(popen_rd spawn);
@@ -192,10 +193,8 @@ sub index_cloned_inbox {
 sub run_reap {
 	my ($lei, $cmd, $opt) = @_;
 	$lei->qerr("# @$cmd");
-	my $pid = spawn($cmd, undef, $opt);
-	my $reap = PublicInbox::OnDestroy->new($lei->can('sigint_reap'), $pid);
-	waitpid($pid, 0) == $pid or die "waitpid @$cmd: $!";
-	@$reap = (); # cancel reap
+	my $ar = PublicInbox::AutoReap->new(spawn($cmd, undef, $opt));
+	$ar->join;
 	my $ret = $?;
 	$? = 0; # don't let it influence normal exit
 	$ret;
@@ -459,7 +458,6 @@ sub start {
 sub ipc_atfork_child {
 	my ($self) = @_;
 	$self->{lei}->_lei_atfork_child;
-	$SIG{TERM} = sub { exit(128 + 15) }; # trigger OnDestroy $reap
 	$self->SUPER::ipc_atfork_child;
 }
 
