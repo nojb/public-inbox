@@ -143,8 +143,10 @@ sub inspect_num ($$) {
 	my $ent = { num => $num };
 	if (defined(my $dir = $lei->{opt}->{dir})) {
 		$ibx = dir2ibx($lei, $dir) or return;
-		$ent->{xdb} = $ibx->xdb and # for inspect_docid
-			$docid = PublicInbox::LeiSearch::num2docid($ibx, $num);
+		if (my $srch = $ibx->search) {
+			$ent->{xdb} = $srch->xdb and
+				$docid = $srch->num2docid($num);
+		}
 	} elsif ($lei->{lse}) {
 		$ibx = $lei->{lse};
 		$lei->{lse}->xdb; # set {nshard} for num2docid

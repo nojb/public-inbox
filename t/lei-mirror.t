@@ -176,6 +176,12 @@ SKIP: {
 	$f = "$d/t2/msgmap.sqlite3";
 	$ca = PublicInbox::Msgmap->new_file($f)->created_at;
 	is($ca, $created{v2}, 'clone + index v1 synced ->created_at');
+	test_lei(sub {
+		lei_ok qw(inspect num:1 --dir), "$d/t1";
+		ok(ref(json_utf8->decode($lei_out)), 'inspect num: on v1');
+		lei_ok qw(inspect num:1 --dir), "$d/t2";
+		ok(ref(json_utf8->decode($lei_out)), 'inspect num: on v2');
+	});
 }
 
 ok($td->kill, 'killed -httpd');

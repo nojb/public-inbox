@@ -570,4 +570,12 @@ sub xap_terms ($$;@) {
 	wantarray ? sort(keys(%ret)) : \%ret;
 }
 
+# get combined docid from over.num:
+# (not generic Xapian, only works with our sharding scheme)
+sub num2docid ($$) {
+	my ($self, $num) = @_;
+	my $nshard = $self->{nshard};
+	($num - 1) * $nshard + $num % $nshard + 1;
+}
+
 1;

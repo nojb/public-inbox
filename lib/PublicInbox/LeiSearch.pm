@@ -11,18 +11,10 @@ use PublicInbox::ContentHash qw(content_digest content_hash);
 use PublicInbox::MID qw(mids mids_for_index);
 use Carp qw(croak);
 
-# get combined docid from over.num:
-# (not generic Xapian, only works with our sharding scheme)
-sub num2docid ($$) {
-	my ($self, $num) = @_;
-	my $nshard = $self->{nshard};
-	($num - 1) * $nshard + $num % $nshard + 1;
-}
-
 sub _msg_kw { # retry_reopen callback
 	my ($self, $num) = @_;
 	my $xdb = $self->xdb; # set {nshard} for num2docid;
-	xap_terms('K', $xdb, num2docid($self, $num));
+	xap_terms('K', $xdb, $self->num2docid($num));
 }
 
 sub msg_keywords { # array or hashref
@@ -35,7 +27,7 @@ sub _oid_kw { # retry_reopen callback
 	my $xdb = $self->xdb; # set {nshard};
 	my %kw;
 	for my $num (@$nums) { # there should only be one...
-		my $doc = $xdb->get_document(num2docid($self, $num));
+		my $doc = $xdb->get_document($self->num2docid($num));
 		my $x = xap_terms('K', $doc);
 		%kw = (%kw, %$x);
 	}
@@ -56,7 +48,7 @@ sub _xsmsg_vmd { # retry_reopen
 	$kw{flagged} = 1 if delete($smsg->{lei_q_tt_flagged});
 	my @num = $self->over->blob_exists($smsg->{blob});
 	for my $num (@num) { # there should only be one...
-		$doc = $xdb->get_document(num2docid($self, $num));
+		$doc = $xdb->get_document($self->num2docid($num));
 		$x = xap_terms('K', $doc);
 		%kw = (%kw, %$x);
 		if ($want_label) { # JSON/JMAP only
