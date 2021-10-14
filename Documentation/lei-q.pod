@@ -164,6 +164,8 @@ multiple times.
 
 =item --only=LOCATION
 
+=item -O LOCATION
+
 Use only the specified external for search.  This option may be given
 multiple times, in which case the search uses only the specified set.
 

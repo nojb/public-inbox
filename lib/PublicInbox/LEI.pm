@@ -148,7 +148,7 @@ sub index_opt {
 
 my @c_opt = qw(c=s@ C=s@ quiet|q);
 my @net_opt = (qw(no-torsocks torsocks=s), PublicInbox::LeiQuery::curl_opt());
-my @lxs_opt = qw(remote! local! external! include|I=s@ exclude=s@ only=s@
+my @lxs_opt = qw(remote! local! external! include|I=s@ exclude=s@ only|O=s@
 	import-remote!);
 
 # we don't support -C as an alias for --find-copies since it's already
@@ -284,7 +284,7 @@ our %CMD = ( # sorted in order of importance/use:
 	}, qw(config-file|system|global|file|f=s), # for conflict detection
 	 qw(edit|e c=s@ C=s@), pass_through('git config') ],
 'inspect' => [ 'ITEMS...|--stdin', 'inspect lei/store and/or local external',
-	qw(stdin| pretty ascii dir=s), @c_opt ],
+	qw(stdin| pretty ascii dir|d=s), @c_opt ],
 
 'init' => [ '[DIRNAME]', sub {
 	"initialize storage, default: ".store_path($_[0]);
@@ -337,7 +337,8 @@ my %OPTDESC = (
 'path-a|a=s' => 'pre-image pathname associated with OID',
 'path-b|b=s' => 'post-image pathname associated with OID',
 'git-dir=s@' => 'additional git repository to scan',
-'dir=s	inspect' => 'specify a inboxdir, extindex topdir or Xapian shard',
+'dir|d=s	inspect' =>
+	'specify a inboxdir, extindex topdir or Xapian shard',
 'proxy=s' => [ 'PROTO://HOST[:PORT]', # shared with curl(1)
 	"proxy for (e.g. `socks5h://0:9050')" ],
 'torsocks=s' => ['VAL|auto|no|yes',
@@ -395,7 +396,7 @@ my %OPTDESC = (
 		'exclude specified external(s) from search' ],
 'include|I=s@	q' => [ 'LOCATION',
 		'include specified external(s) in search' ],
-'only=s@	q' => [ 'LOCATION',
+'only|O=s@	q' => [ 'LOCATION',
 		'only use specified external(s) for search' ],
 'jobs=s	q' => [ '[SEARCH_JOBS][,WRITER_JOBS]',
 		'control number of search and writer jobs' ],
