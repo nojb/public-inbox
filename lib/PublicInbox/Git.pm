@@ -114,7 +114,7 @@ sub _bidi_pipe {
 		return;
 	}
 	pipe(my ($out_r, $out_w)) or $self->fail("pipe failed: $!");
-	my $rdr = { 0 => $out_r };
+	my $rdr = { 0 => $out_r, pgid => 0 };
 	my $gd = $self->{git_dir};
 	if ($gd =~ s!/([^/]+/[^/]+)\z!/!) {
 		$rdr->{-C} = $gd;
