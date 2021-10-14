@@ -19,7 +19,7 @@ use Time::HiRes qw(stat);
 use PublicInbox::Spawn qw(popen_rd spawn);
 use PublicInbox::Tmpfile;
 use IO::Poll qw(POLLIN);
-use Carp qw(croak);
+use Carp qw(croak carp);
 use Digest::SHA ();
 use PublicInbox::DS qw(dwaitpid);
 our @EXPORT_OK = qw(git_unquote git_quote);
@@ -228,7 +228,7 @@ sub cat_async_step ($$) {
 	}
 	$self->{rbuf} = $rbuf if $$rbuf ne '';
 	eval { $cb->($bref, $oid, $type, $size, $arg) };
-	async_err($self, "E: cat $req ($oid) $@") if $@;
+	async_err($self, $req, $oid, $@, 'cat') if $@;
 }
 
 sub cat_async_wait ($) {
@@ -274,7 +274,7 @@ sub check_async_step ($$) {
 	}
 	$self->{rbuf_c} = $rbuf if $$rbuf ne '';
 	eval { $cb->($hex, $type, $size, $arg, $self) };
-	async_err($self, "E: check $req ($hex) $@") if $@;
+	async_err($self, $req, $hex, $@, 'check') if $@;
 }
 
 sub check_async_wait ($) {
@@ -342,6 +342,7 @@ sub async_abort ($) {
 			my $q = $self->{"inflight$c"};
 			while (@$q) {
 				my ($req, $cb, $arg) = splice(@$q, 0, 3);
+				$req = $$req if ref($req);
 				$req =~ s/ .*//; # drop git_dir for Gcf2Client
 				eval { $cb->(undef, $req, undef, undef, $arg) };
 				warn "E: (in abort) $req: $@" if $@;
@@ -359,10 +360,11 @@ sub fail { # may be augmented in subclasses
 	croak(ref($self) . ' ' . ($self->{git_dir} // '') . ": $msg");
 }
 
-sub async_err ($$) {
-	my ($self, $msg) = @_;
-	return warn($msg) if $async_warn;
-	$self->fail($msg);
+sub async_err ($$$$$) {
+	my ($self, $req, $oid, $err, $action) = @_;
+	$req = $$req if ref($req); # retried
+	my $msg = "E: $action $req ($oid): $err";
+	$async_warn ? carp($msg) : $self->fail($msg);
 }
 
 # $git->popen(qw(show f00)); # or
