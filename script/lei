@@ -122,6 +122,8 @@ while (1) {
 		$exec_cmd->(\@fds, split(/\0/, $1));
 	} elsif ($buf eq '-WINCH') {
 		kill($buf, @parent); # for MUA
+	} elsif ($buf eq 'umask') {
+		send($sock, 'u'.pack('V', umask), MSG_EOR) or die "send: $!"
 	} elsif ($buf =~ /\Ax_it ([0-9]+)\z/) {
 		$x_it_code ||= $1 + 0;
 		last;

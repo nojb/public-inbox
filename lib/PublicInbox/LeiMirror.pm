@@ -424,6 +424,7 @@ sub start_clone_url {
 sub do_mirror { # via wq_io_do
 	my ($self) = @_;
 	my $lei = $self->{lei};
+	umask($lei->{client_umask}) if defined $lei->{client_umask};
 	eval {
 		my $iv = $lei->{opt}->{'inbox-version'};
 		if (defined $iv) {
@@ -448,6 +449,7 @@ sub start {
 	require PublicInbox::Inbox;
 	require PublicInbox::Admin;
 	require PublicInbox::InboxWritable;
+	$lei->request_umask;
 	my ($op_c, $ops) = $lei->workers_start($self, 1);
 	$lei->{wq1} = $self;
 	$self->wq_io_do('do_mirror', []);

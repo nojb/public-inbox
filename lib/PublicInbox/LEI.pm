@@ -1518,4 +1518,15 @@ sub cfg_dump ($$) {
 	undef;
 }
 
+sub request_umask {
+	my ($lei) = @_;
+	my $s = $lei->{sock} // return;
+	send($s, 'umask', MSG_EOR) // die "send: $!";
+	vec(my $rvec = '', fileno($s), 1) = 1;
+	select($rvec, undef, undef, 2) or die 'timeout waiting for umask';
+	recv($s, my $v, 5, 0) // die "recv: $!";
+	(my $u, $lei->{client_umask}) = unpack('AV', $v);
+	$u eq 'u' or warn "E: recv $v has no umask";
+}
+
 1;
