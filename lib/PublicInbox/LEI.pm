@@ -573,6 +573,7 @@ sub _lei_atfork_child {
 		POSIX::setpgid(0, $$) // die "setpgid(0, $$): $!";
 	}
 	close($_) for (grep(defined, delete @$self{qw(3 old_1 au_done)}));
+	delete $self->{-socks};
 	if (my $op_c = delete $self->{pkt_op_c}) {
 		close(delete $op_c->{sock});
 	}
@@ -1144,7 +1145,9 @@ sub event_step {
 		if ($buf eq '') {
 			_drop_wq($self); # EOF, client disconnected
 			dclose($self);
-		} elsif ($buf =~ /\A(?:STOP|CONT)\z/) {
+			$buf = 'TERM';
+		}
+		if ($buf =~ /\A(?:STOP|CONT|TERM)\z/) {
 			my $sig = "-$buf";
 			for my $wq (grep(defined, @$self{@WQ_KEYS})) {
 				$wq->wq_kill($sig) or $wq->wq_kill_old($sig);
@@ -1152,6 +1155,8 @@ sub event_step {
 		} else {
 			die "unrecognized client signal: $buf";
 		}
+		my $s = $self->{-socks} // []; # lei up --all
+		@$s = grep { send($_, $buf, MSG_EOR) } @$s;
 	};
 	if (my $err = $@) {
 		eval { $self->fail($err) };

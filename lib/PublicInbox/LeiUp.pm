@@ -166,7 +166,15 @@ sub event_step { # runs via PublicInbox::DS::requeue
 		push(@m, $o) if !@m || $m[-1] !~ s/\n\z/$o\n/;
 		$cb->(@m);
 	};
-	$l->{-up1} = $self;
+	$l->{-up1} = $self; # for LeiUp1->DESTROY
+	delete @$l{qw(-socks -event_init_done)};
+	my ($op_c, $op_p) = PublicInbox::PktOp->pair;
+	$self->{unref_on_destroy} = $op_c->{sock}; # to cleanup $lei->{-socks}
+	$lei->pkt_ops($op_c->{ops} //= {}); # errors from $l -> script/lei
+	push @{$lei->{-socks}}, $op_c->{sock}; # script/lei signals to $l
+	$l->{sock} = $op_p->{op_p}; # receive signals from op_c->{sock}
+	$op_c = $op_p = undef;
+
 	eval { $l->dispatch('up', $self->{out}) };
 	$lei->child_error(0, $@) if $@ || $l->{failed}; # lei->fail()
 }
@@ -175,6 +183,9 @@ sub DESTROY {
 	my ($self) = @_;
 	my $lei = $self->{lei}; # the original, from lei_up
 	return if $lei->{daemon_pid} != $$;
+	my $sock = delete $self->{unref_on_destroy};
+	my $s = $lei->{-socks} // [];
+	@$s = grep { $_ != $sock } @$s;
 	my $out = shift(@{$lei->{-upq}}) or return;
 	PublicInbox::DS::requeue(nxt($lei, $out, $self->{op_p}));
 }
