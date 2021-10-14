@@ -179,8 +179,8 @@ sub my_readline ($$) {
 	}
 }
 
-sub cat_async_retry ($$$$$) {
-	my ($self, $inflight, $req, $cb, $arg) = @_;
+sub cat_async_retry ($$) {
+	my ($self, $inflight) = @_;
 
 	# {inflight} may be non-existent, but if it isn't we delete it
 	# here to prevent cleanup() from waiting:
@@ -189,12 +189,13 @@ sub cat_async_retry ($$$$$) {
 
 	$self->{inflight} = $inflight;
 	batch_prepare($self);
-	my $buf = "$req\n";
+	my $buf = '';
 	for (my $i = 0; $i < @$inflight; $i += 3) {
 		$buf .= "$inflight->[$i]\n";
 	}
 	print { $self->{out} } $buf or $self->fail("write error: $!");
-	unshift(@$inflight, \$req, $cb, $arg); # \$ref to indicate retried
+	my $req = shift @$inflight;
+	unshift(@$inflight, \$req); # \$ref to indicate retried
 
 	cat_async_step($self, $inflight); # take one step
 }
@@ -202,7 +203,7 @@ sub cat_async_retry ($$$$$) {
 sub cat_async_step ($$) {
 	my ($self, $inflight) = @_;
 	die 'BUG: inflight empty or odd' if scalar(@$inflight) < 3;
-	my ($req, $cb, $arg) = splice(@$inflight, 0, 3);
+	my ($req, $cb, $arg) = @$inflight[0, 1, 2];
 	my $rbuf = delete($self->{rbuf}) // \(my $new = '');
 	my ($bref, $oid, $type, $size);
 	my $head = my_readline($self->{in}, $rbuf);
@@ -217,8 +218,7 @@ sub cat_async_step ($$) {
 		# ref($req) indicates it's already been retried
 		# -gcf2 retries internally, so it never hits this path:
 		if (!ref($req) && !$in_cleanup && $self->alternates_changed) {
-			return cat_async_retry($self, $inflight,
-						$req, $cb, $arg);
+			return cat_async_retry($self, $inflight);
 		}
 		$type = 'missing';
 		$oid = ref($req) ? $$req : $req if $oid eq '';
@@ -227,6 +227,7 @@ sub cat_async_step ($$) {
 		$self->fail("bad result from async cat-file: $head$err");
 	}
 	$self->{rbuf} = $rbuf if $$rbuf ne '';
+	splice(@$inflight, 0, 3); # don't retry $cb on ->fail
 	eval { $cb->($bref, $oid, $type, $size, $arg) };
 	async_err($self, $req, $oid, $@, 'cat') if $@;
 }
@@ -259,7 +260,7 @@ sub cat_file {
 sub check_async_step ($$) {
 	my ($self, $inflight_c) = @_;
 	die 'BUG: inflight empty or odd' if scalar(@$inflight_c) < 3;
-	my ($req, $cb, $arg) = splice(@$inflight_c, 0, 3);
+	my ($req, $cb, $arg) = @$inflight_c[0, 1, 2];
 	my $rbuf = delete($self->{rbuf_c}) // \(my $new = '');
 	chomp(my $line = my_readline($self->{in_c}, $rbuf));
 	my ($hex, $type, $size) = split(/ /, $line);
@@ -273,6 +274,7 @@ sub check_async_step ($$) {
 		$self->fail(defined($ret) ? 'read EOF' : "read: $!") if !$ret;
 	}
 	$self->{rbuf_c} = $rbuf if $$rbuf ne '';
+	splice(@$inflight_c, 0, 3); # don't retry $cb on ->fail
 	eval { $cb->($hex, $type, $size, $arg, $self) };
 	async_err($self, $req, $hex, $@, 'check') if $@;
 }
