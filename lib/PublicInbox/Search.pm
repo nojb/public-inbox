@@ -15,7 +15,7 @@ use Carp ();
 # compatibility with old indices (so don't change them it)
 use constant {
 	TS => 0, # Received: in Unix time (IMAP INTERNALDATE, JMAP receivedAt)
-	YYYYMMDD => 1, # Date: header for searching in the WWW UI
+	YYYYMMDD => 1, # redundant with DT below
 	DT => 2, # Date: YYYYMMDDHHMMSS (IMAP SENT*, JMAP sentAt)
 
 	# added for public-inbox 1.6.0+
@@ -154,12 +154,9 @@ my %prob_prefix = (
 our @HELP = (
 	's:' => 'match within Subject  e.g. s:"a quick brown fox"',
 	'd:' => <<EOF,
-date range as YYYYMMDD  e.g. d:19931002..20101002
-Open-ended ranges such as d:19931002.. and d:..20101002
-are also supported
-EOF
-	'dt:' => <<EOF,
-date-time range as YYYYMMDDhhmmss (e.g. dt:19931002011000..19931002011200)
+match date range, git "approxidate" formats supported
+Open-ended ranges such as `d:last.week..' and `d:..2.days.ago'
+are supported
 EOF
 	'b:' => 'match within message body, including text attachments',
 	'nq:' => 'match non-quoted text within message body',
@@ -180,6 +177,9 @@ EOF
 	'dfpre:' => 'match pre-image git blob ID',
 	'dfpost:' => 'match post-image git blob ID',
 	'dfblob:' => 'match either pre or post-image git blob ID',
+	'rt:' => <<EOF,
+match received time, like `d:' unless sender's clock was broken
+EOF
 );
 chomp @HELP;
 

@@ -75,10 +75,10 @@ sub get_text {
 }
 
 sub _srch_prefix ($$) {
-	my ($srch, $txt) = @_;
+	my ($ibx, $txt) = @_;
 	my $pad = 0;
 	my $htxt = '';
-	my $help = $srch->help;
+	my $help = $ibx->isrch->help;
 	my $i;
 	for ($i = 0; $i < @$help; $i += 2) {
 		my $pfx = $help->[$i];
@@ -89,10 +89,9 @@ sub _srch_prefix ($$) {
 		$htxt .= "\f\n";
 	}
 	$pad += 2;
-	my $padding = ' ' x ($pad + 8);
+	my $padding = ' ' x ($pad + 4);
 	$htxt =~ s/^/$padding/gms;
-	$htxt =~ s/^$padding(\S+)\0/"        $1".
-				(' ' x ($pad - length($1)))/egms;
+	$htxt =~ s/^$padding(\S+)\0/"    $1".(' ' x ($pad - length($1)))/egms;
 	$htxt =~ s/\f\n/\n/gs;
 	$$txt .= $htxt;
 	1;
@@ -113,7 +112,7 @@ Users of browsers such as dillo, Firefox, or some browser
 extensions may start by downloading the following sample CSS file
 to control the colors they see:
 
-	${base_url}userContent.css
+  ${base_url}userContent.css
 
 CSS sample
 ----------
@@ -213,8 +212,8 @@ EOF
 		defined(my $v = $ibx->{$k}) or next;
 		$$txt .= "\t$k = $v\n";
 	}
-	$$txt .= "\tnntpmirror = $_\n" for (@{$ibx->nntp_url($ctx)});
 	$$txt .= "\timapmirror = $_\n" for (@{$ibx->imap_url($ctx)});
+	$$txt .= "\tnntpmirror = $_\n" for (@{$ibx->nntp_url($ctx)});
 	_coderepo_config($ctx, $txt);
 	1;
 }
@@ -273,6 +272,36 @@ EOF
 	@ret; # may be empty, this sub is called as an arg for join()
 }
 
+sub _add_imap_nntp_urls ($$) {
+	my ($ctx, $txt) = @_;
+	$ctx->{ibx}->can('nntp_url') or return; # TODO extindex can have IMAP
+	my $urls = $ctx->{ibx}->imap_url($ctx);
+	if (@$urls) {
+		$$txt .= "\nIMAP subfolder(s) are available under:";
+		$$txt .= "\n  " . join("\n  ", @$urls);
+		$$txt .= <<EOM
+
+  # each subfolder (starting with `0') holds 50K messages at most
+EOM
+	}
+	$urls = $ctx->{ibx}->imap_url($ctx);
+	if (@$urls) {
+		$$txt .= "\n";
+		$$txt .= @$urls == 1 ? 'Newsgroup' : 'Newsgroups are';
+		$$txt .= ' available over NNTP:';
+		$$txt .= "\n  " . join("\n  ", @$urls) . "\n";
+	}
+}
+
+sub _add_onion_note ($) {
+	my ($txt) = @_;
+	$$txt =~ m!\b[^:]+://\w+\.onion/!i and $$txt .= <<EOM
+
+note: .onion URLs require Tor: https://www.torproject.org/
+
+EOM
+}
+
 sub _mirror_help ($$) {
 	my ($ctx, $txt) = @_;
 	my $ibx = $ctx->{ibx};
@@ -301,8 +330,10 @@ sub _mirror_help ($$) {
 			}
 			my $nr = scalar(@urls);
 			if ($nr > 1) {
-				$$txt .= "\n\t";
-				$$txt .= "# this inbox consists of $nr epochs:";
+				chomp($$txt .= <<EOM);
+
+  # this inbox consists of $nr epochs: (no need to clone all of them)
+EOM
 				$urls[0] .= " # oldest";
 				$urls[-1] .= " # newest";
 			}
@@ -316,19 +347,21 @@ sub _mirror_help ($$) {
 			push @urls, $u;
 		}
 		$$txt .= "\n";
-		$$txt .= join('', map { "\tgit clone --mirror $_\n" } @urls);
-		if (my $addrs = $ibx->{address}) {
-			$addrs = join(' ', @$addrs) if ref($addrs) eq 'ARRAY';
-			my $v = defined $max ? '-V2' : '-V1';
-			$$txt .= <<EOF;
+		$$txt .= join('', map { "  git clone --mirror $_\n" } @urls);
+		my $addrs = $ibx->{address} // 'inbox@example.com';
+		my $ng = $ibx->{newsgroup} // '';
+		substr($ng, 0, 0, ' --ng ') if $ng;
+		$addrs = join(' ', @$addrs) if ref($addrs) eq 'ARRAY';
+		my $v = defined $max ? '-V2' : '-V1';
+		$$txt .= <<EOF;
 
-	# If you have public-inbox 1.1+ installed, you may
-	# initialize and index your mirror using the following commands:
-	public-inbox-init $v $ibx->{name} $dir/ $base_url \\
-		$addrs
-	public-inbox-index $dir
+  # If you have public-inbox 1.1+ installed, you may
+  # initialize and index your mirror using the following commands:
+  public-inbox-init $v$ng \\
+    $ibx->{name} ./$dir $base_url \\
+    $addrs
+  public-inbox-index ./$dir
 EOF
-		}
 	} else { # PublicInbox::ExtSearch
 		$$txt .= <<EOM;
 This is an external index which is an amalgamation of several public inboxes.
@@ -346,37 +379,13 @@ EOM
 
 Example config snippet for mirrors: $cfg_link
 EOF
-	if ($ibx->can('imap_url')) {
-		my $imap = $ibx->imap_url($ctx);
-		if (@$imap) {
-			$$txt .= "\n";
-			$$txt .= 'IMAP subfolder(s) available under:';
-			$$txt .= "\n\t" . join("\n\t", @$imap) . "\n";
-			$$txt .= <<EOM
-	# each subfolder (starting with `0') holds 50K messages at most
-EOM
-		}
-	}
-	if ($ibx->can('nntp_url')) {
-		my $nntp = $ibx->nntp_url($ctx);
-		if (scalar @$nntp) {
-			$$txt .= "\n";
-			$$txt .= @$nntp == 1 ? 'Newsgroup' : 'Newsgroups are';
-			$$txt .= ' available over NNTP:';
-			$$txt .= "\n\t" . join("\n\t", @$nntp) . "\n";
-		}
-	}
-	if ($$txt =~ m!\b[^:]+://\w+\.onion/!) {
-		$$txt .= <<EOM
+	_add_imap_nntp_urls($ctx, $txt);
+	_add_onion_note($txt);
 
-note: .onion URLs require Tor: https://www.torproject.org/
-
-EOM
-	}
 	my $code_url = prurl($ctx->{env}, $PublicInbox::WwwStream::CODE_URL);
 	$$txt .= join("\n\n",
 		coderepos_raw($ctx, $top_url), # may be empty
-		"AGPL code for this site:\n\tgit clone $code_url");
+		"AGPL code for this site:\n  git clone $code_url");
 	1;
 }
 
@@ -391,128 +400,127 @@ sub _default_text ($$$$) {
 			inbox_config($ctx, $hdr, $txt) :
 			extindex_config($ctx, $hdr, $txt);
 	}
-
 	return if $key ne 'help'; # TODO more keys?
 
 	my $ibx = $ctx->{ibx};
 	my $base_url = $ibx->base_url($ctx->{env});
-	$$txt .= "public-inbox help for $base_url\n";
 	$$txt .= <<EOF;
+public-inbox help for $base_url
 
 overview
 --------
 
-    public-inbox uses Message-ID identifiers in URLs.
-    One may look up messages by substituting Message-IDs
-    (without the leading '<' or trailing '>') into the URL.
-    Forward slash ('/') characters in the Message-IDs
-    need to be escaped as "%2F" (without quotes).
+  public-inbox uses Message-ID identifiers in URLs.
+  One may look up messages by substituting Message-IDs
+  (without the leading '<' or trailing '>') into the URL.
+  Forward slash ('/') characters in the Message-IDs
+  need to be escaped as "%2F" (without quotes).
 
-    Thus, it is possible to retrieve any message by its
-    Message-ID by going to:
+  Thus, it is possible to retrieve any message by its
+  Message-ID by going to:
 
-	$base_url<Message-ID>/
+    $base_url<Message-ID>/
+    (without the '<' or '>')
 
-	(without the '<' or '>')
+  Message-IDs are described at:
 
-    Message-IDs are described at:
-
-	$WIKI_URL/Message-ID
+    $WIKI_URL/Message-ID
 
 EOF
 
 	# n.b. we use the Xapian DB for any regeneratable,
 	# order-of-arrival-independent data.
-	my $srch = $ibx->isrch;
-	if ($srch) {
+	if ($ibx->isrch) {
 		$$txt .= <<EOF;
 search
 ------
 
-    This public-inbox has search functionality provided by Xapian.
+  This public-inbox has search functionality provided by Xapian.
 
-    It supports typical AND, OR, NOT, '+', '-' queries present
-    in other search engines.
+  It supports typical AND, OR, NOT, '+', '-' queries present
+  in other search engines.
 
-    We also support search prefixes to limit the scope of the
-    search to certain fields.
+  We also support search prefixes to limit the scope of the
+  search to certain fields.
 
-    Prefixes supported in this installation include:
+  Prefixes supported in this installation include:
 
 EOF
-		_srch_prefix($srch, $txt);
-
+		_srch_prefix($ibx, $txt);
 		$$txt .= <<EOF;
 
-    Most prefixes are probabilistic, meaning they support stemming
-    and wildcards ('*').  Ranges (such as 'd:') and boolean prefixes
-    do not support stemming or wildcards.
-    The upstream Xapian query parser documentation fully explains
-    the query syntax:
+  Most prefixes are probabilistic, meaning they support stemming
+  and wildcards ('*').  Ranges (such as 'd:') and boolean prefixes
+  do not support stemming or wildcards.
+  The upstream Xapian query parser documentation fully explains
+  the query syntax:
 
-	$QP_URL
+    $QP_URL
 
 EOF
 	} # $srch
-	my $over = $ibx->over;
-	if ($over) {
+	if ($ibx->over) {
 		$$txt .= <<EOF;
 message threading
 -----------------
 
-    Message threading is enabled for this public-inbox,
-    additional endpoints for message threads are available:
+  Message threading is enabled for this public-inbox,
+  additional endpoints for message threads are available:
 
-    * $base_url<Message-ID>/T/#u
+  * $base_url<Message-ID>/T/#u
 
-      Loads the thread belonging to the given <Message-ID>
-      in flat chronological order.  The "#u" anchor
-      focuses the browser on the given <Message-ID>.
+    Loads the thread belonging to the given <Message-ID>
+    in flat chronological order.  The "#u" anchor
+    focuses the browser on the given <Message-ID>.
 
-    * $base_url<Message-ID>/t/#u
+  * $base_url<Message-ID>/t/#u
 
-      Loads the thread belonging to the given <Message-ID>
-      in threaded order with nesting.  For deep threads,
-      this requires a wide display or horizontal scrolling.
+    Loads the thread belonging to the given <Message-ID>
+    in threaded order with nesting.  For deep threads,
+    this requires a wide display or horizontal scrolling.
 
-    Both of these HTML endpoints are suitable for offline reading
-    using the thread overview at the bottom of each page.
+  Both of these HTML endpoints are suitable for offline reading
+  using the thread overview at the bottom of each page.
 
-    Users of feed readers may follow a particular thread using:
+  The gzipped mbox for a thread is available for downloading and
+  importing into your favorite mail client:
 
-    * $base_url<Message-ID>/t.atom
+  * $base_url<Message-ID>/t.mbox.gz
 
-      Which loads the thread in Atom Syndication Standard
-      described at Wikipedia and RFC4287:
+    We use the mboxrd variant of the mbox format described at:
 
-	$WIKI_URL/Atom_(standard)
-	https://tools.ietf.org/html/rfc4287
+    $WIKI_URL/Mbox
 
-      Atom Threading Extensions (RFC4685) is supported:
+  Users of feed readers may follow a particular thread using:
 
-	https://tools.ietf.org/html/rfc4685
+  * $base_url<Message-ID>/t.atom
 
-    Finally, the gzipped mbox for a thread is available for
-    downloading and importing into your favorite mail client:
+    Which loads the thread in Atom Syndication Standard
+    described at Wikipedia and RFC4287:
 
-    * $base_url<Message-ID>/t.mbox.gz
+    $WIKI_URL/Atom_(standard)
+    https://tools.ietf.org/html/rfc4287
 
-    We use the mboxrd variant of the mbox format described
-    at:
+    Atom Threading Extensions (RFC4685) are supported:
 
-	$WIKI_URL/Mbox
+    https://tools.ietf.org/html/rfc4685
 
 EOF
 	} # $over
 
+	_add_imap_nntp_urls($ctx, \(my $note = ''));
+	$note and $note =~ s/^/  /gms and $$txt .= <<EOF;
+additional protocols
+--------------------
+$note
+EOF
 	$$txt .= <<EOF;
 contact
 -------
 
-    This help text is maintained by public-inbox developers
-    reachable via plain-text email at: meta\@public-inbox.org
-    Their inbox is archived at: https://public-inbox.org/meta/
-
+  This help text is maintained by public-inbox developers
+  reachable via plain-text email at: meta\@public-inbox.org
+  Their inbox is archived at: https://public-inbox.org/meta/
 EOF
 	# TODO: support admin contact info in ~/.public-inbox/config
 	1;
