@@ -11,20 +11,26 @@ use File::Path ();
 use SelectSaver;
 
 sub lei_forget_search {
-	my ($lei, $out) = @_;
-	my $d = PublicInbox::LeiSavedSearch::lss_dir_for($lei, \$out, 1);
-	if (-e $d) {
-		my $save;
-		my $opt = { safe => 1 };
-		if ($lei->{opt}->{verbose}) {
-			$opt->{verbose} = 1;
-			$save = SelectSaver->new($lei->{2});
+	my ($lei, @outs) = @_;
+	my @dirs; # paths in ~/.local/share/lei/saved-search/
+	my $cwd;
+	for my $o (@outs) {
+		my $d = PublicInbox::LeiSavedSearch::lss_dir_for($lei, \$o, 1);
+		if (-e $d) {
+			push @dirs, $d
+		} else { # keep going, like rm(1):
+			$cwd //= $lei->rel2abs('.');
+			warn "--save was not used with $o cwd=$cwd\n";
 		}
-		File::Path::remove_tree($d, $opt);
-	} else {
-		$lei->fail("--save was not used with $out cwd=".
-					$lei->rel2abs('.'));
 	}
+	my $save;
+	my $opt = { safe => 1 };
+	if ($lei->{opt}->{verbose}) {
+		$opt->{verbose} = 1;
+		$save = SelectSaver->new($lei->{2});
+	}
+	File::Path::remove_tree(@dirs, $opt);
+	$lei->fail if defined $cwd;
 }
 
 *_complete_forget_search = \&PublicInbox::LeiUp::_complete_up;
