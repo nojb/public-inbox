@@ -242,7 +242,7 @@ sub inspect_start ($$) {
 	$lei->{wq1} = $self;
 	$lei->wait_wq_events($op_c, $ops);
 	$self->wq_do('inspect_argv');
-	$self->wq_close(1);
+	$self->wq_close;
 }
 
 sub ins_add { # InputPipe->consume callback

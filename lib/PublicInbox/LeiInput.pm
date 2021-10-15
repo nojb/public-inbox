@@ -402,7 +402,7 @@ sub input_only_atfork_child {
 sub input_only_net_merge_all_done {
 	my ($self) = @_;
 	$self->wq_io_do('process_inputs');
-	$self->wq_close(1);
+	$self->wq_close;
 }
 
 # like Getopt::Long, but for +kw:FOO and -kw:FOO to prepare

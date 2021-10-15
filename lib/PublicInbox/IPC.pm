@@ -134,16 +134,22 @@ sub ipc_worker_spawn {
 
 sub ipc_worker_reap { # dwaitpid callback
 	my ($args, $pid) = @_;
+	my ($self, @uargs) = @$args;
+	delete $self->{-wq_workers}->{$pid};
+	return $self->{-reap_do}->($args, $pid) if $self->{-reap_do};
 	return if !$?;
-	# TERM(15) is our default exit signal, PIPE(13) is likely w/ pager
 	my $s = $? & 127;
-	warn "PID:$pid died with \$?=$?\n" if $s != 15 && $s != 13;
+	# TERM(15) is our default exit signal, PIPE(13) is likely w/ pager
+	warn "$self->{-wq_ident} PID:$pid died \$?=$?\n" if $s != 15 && $s != 13
 }
 
-sub wq_wait_old {
-	my ($self, $cb, @args) = @_;
-	my $pids = delete $self->{"-wq_old_pids.$$"} or return;
-	dwaitpid($_, $cb // \&ipc_worker_reap, [$self, @args]) for @$pids;
+sub wq_wait_async {
+	my ($self, $cb, @uargs) = @_;
+	local $PublicInbox::DS::in_loop = 1;
+	$self->{-reap_async} = 1;
+	$self->{-reap_do} = $cb;
+	my @pids = keys %{$self->{-wq_workers}};
+	dwaitpid($_, \&ipc_worker_reap, [ $self, @uargs ]) for @pids;
 }
 
 # for base class, override in sub classes
@@ -394,42 +400,24 @@ sub wq_workers_start {
 }
 
 sub wq_close {
-	my ($self, $nohang, $cb, @args) = @_;
+	my ($self) = @_;
 	delete @$self{qw(-wq_s1 -wq_s2)} or return;
-	my $ppid = delete $self->{-wq_ppid} or return;
-	my $workers = delete $self->{-wq_workers} // die 'BUG: no wq_workers';
-	return if $ppid != $$; # can't reap siblings or parents
-	my @pids = map { $_ + 0 } keys %$workers;
-	if ($nohang) {
-		push @{$self->{"-wq_old_pids.$$"}}, @pids;
-	} else {
-		$cb //= \&ipc_worker_reap;
-		unshift @args, $self;
-		dwaitpid($_, $cb, \@args) for @pids;
-	}
-}
-
-sub wq_kill_old {
-	my ($self, $sig) = @_;
-	my $pids = $self->{"-wq_old_pids.$$"} or return;
-	kill($sig // 'TERM', @$pids);
+	return if $self->{-reap_async};
+	my @pids = keys %{$self->{-wq_workers}};
+	dwaitpid($_, \&ipc_worker_reap, [ $self ]) for @pids;
 }
 
 sub wq_kill {
 	my ($self, $sig) = @_;
-	my $workers = $self->{-wq_workers} or return;
-	kill($sig // 'TERM', keys %$workers);
+	kill($sig // 'TERM', keys %{$self->{-wq_workers}});
 }
 
 sub DESTROY {
 	my ($self) = @_;
 	my $ppid = $self->{-wq_ppid};
 	wq_kill($self) if $ppid && $ppid == $$;
-	my $err = $?;
 	wq_close($self);
-	wq_wait_old($self);
 	ipc_worker_stop($self);
-	$? = $err if $err;
 }
 
 sub detect_nproc () {

@@ -51,7 +51,6 @@ sub _lei_wq_eof { # EOF callback for main lei daemon
 	my ($lei) = @_;
 	my $pmd = delete $lei->{pmd} or return $lei->fail;
 	$lei->sto_done_request($pmd->{lei_sock});
-	$pmd->wq_wait_old($lei->can('wq_done_wait'), $lei);
 }
 
 1;

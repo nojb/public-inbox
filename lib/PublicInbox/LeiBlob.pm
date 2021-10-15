@@ -166,7 +166,7 @@ sub lei_blob {
 	my ($op_c, $ops) = $lei->workers_start($self, 1);
 	$lei->{wq1} = $self;
 	$self->wq_io_do('do_solve_blob', []);
-	$self->wq_close(1);
+	$self->wq_close;
 	$lei->wait_wq_events($op_c, $ops);
 }
 

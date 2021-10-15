@@ -14,7 +14,7 @@ our $to_flush; # { cfgpath => $lei }
 sub flush_lei ($) {
 	my ($lei) = @_;
 	my $lne = delete $lei->{cfg}->{-lei_note_event};
-	$lne->wq_close(1, undef, $lei) if $lne; # runs _lei_wq_eof;
+	$lne->wq_close if $lne; # runs _lei_wq_eof;
 }
 
 # we batch up writes and flush every 5s (matching Linux default
@@ -111,9 +111,8 @@ sub ipc_atfork_child {
 
 sub _lei_wq_eof { # EOF callback for main lei daemon
 	my ($lei) = @_;
-	my $lne = delete $lei->{lne} or return $lei->fail;
+	delete $lei->{lne} or return $lei->fail;
 	$lei->sto_done_request;
-	$lne->wq_wait_old($lei->can('wq_done_wait'), $lei);
 }
 
 1;

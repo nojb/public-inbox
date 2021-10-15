@@ -122,7 +122,7 @@ EOM
 sub net_merge_all_done {
 	my ($self, $lei) = @_;
 	$lei->{net} = delete($self->{-net_new}) if $self->{-net_new};
-	$self->wq_close(1);
+	$self->wq_close;
 	eval { redispatch_all($self, $lei) };
 	warn "E: $@" if $@;
 }

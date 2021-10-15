@@ -587,6 +587,7 @@ sub write_prepare {
 					-err_wr => $w,
 					to_close => [ $r ],
 				});
+		$self->wq_wait_async; # outlives $lei
 		require PublicInbox::LeiStoreErr;
 		PublicInbox::LeiStoreErr->new($r, $lei);
 	}
