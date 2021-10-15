@@ -412,47 +412,48 @@ sub xsearch_done_wait { # dwaitpid callback
 sub query_done { # EOF callback for main daemon
 	my ($lei) = @_;
 	local $PublicInbox::LEI::current_lei = $lei;
-	my $l2m = delete $lei->{l2m};
-	delete $lei->{lxs};
-	($lei->{opt}->{'mail-sync'} && !$lei->{sto}) and
-		warn "BUG: {sto} missing with --mail-sync";
-	$lei->sto_done_request if $lei->{sto};
-	if (my $v2w = delete $lei->{v2w}) {
-		$v2w->wq_do('done');
-		$v2w->wq_close;
-	}
-	$lei->{ovv}->ovv_end($lei);
-	my $start_mua;
-	if ($l2m) { # close() calls LeiToMail reap_compress
-		if (my $out = delete $lei->{old_1}) {
-			if (my $mbout = $lei->{1}) {
-				close($mbout) or return $lei->fail(<<"");
-Error closing $lei->{ovv}->{dst}: $!
+	eval {
+		my $l2m = delete $lei->{l2m};
+		delete $lei->{lxs};
+		($lei->{opt}->{'mail-sync'} && !$lei->{sto}) and
+			warn "BUG: {sto} missing with --mail-sync";
+		$lei->sto_done_request if $lei->{sto};
+		if (my $v2w = delete $lei->{v2w}) {
+			my $wait = $v2w->wq_do('done'); # may die
+			$v2w->wq_close;
+		}
+		$lei->{ovv}->ovv_end($lei);
+		if ($l2m) { # close() calls LeiToMail reap_compress
+			if (my $out = delete $lei->{old_1}) {
+				if (my $mbout = $lei->{1}) {
+					close($mbout) or die <<"";
+Error closing $lei->{ovv}->{dst}: \$!=$! \$?=$?
 
+				}
+				$lei->{1} = $out;
 			}
-			$lei->{1} = $out;
+			if ($l2m->lock_free) {
+				$l2m->poke_dst;
+				$lei->poke_mua;
+			} else { # mbox users
+				delete $l2m->{mbl}; # drop dotlock
+			}
 		}
-		if ($l2m->lock_free) {
-			$l2m->poke_dst;
-			$lei->poke_mua;
-		} else { # mbox users
-			delete $l2m->{mbl}; # drop dotlock
-			$start_mua = 1;
+		if ($lei->{-progress}) {
+			my $tot = $lei->{-mset_total} // 0;
+			my $nr = $lei->{-nr_write} // 0;
+			if ($l2m) {
+				my $m = "# $nr written to " .
+					"$lei->{ovv}->{dst} ($tot matches)";
+				$nr ? $lei->qfin($m) : $lei->qerr($m);
+			} else {
+				$lei->qerr("# $tot matches");
+			}
 		}
-	}
-	if ($lei->{-progress}) {
-		my $tot = $lei->{-mset_total} // 0;
-		my $nr = $lei->{-nr_write} // 0;
-		if ($l2m) {
-			my $m = "# $nr written to " .
-				"$lei->{ovv}->{dst} ($tot matches)";
-			$nr ? $lei->qfin($m) : $lei->qerr($m);
-		} else {
-			$lei->qerr("# $tot matches");
-		}
-	}
-	$lei->start_mua if $start_mua;
-	$lei->dclose;
+		$lei->start_mua if $l2m && !$l2m->lock_free;
+		$lei->dclose;
+	};
+	$lei->fail($@) if $@;
 }
 
 sub do_post_augment {
