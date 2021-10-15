@@ -11,10 +11,11 @@ use PublicInbox::DS;
 
 our $to_flush; # { cfgpath => $lei }
 
-sub flush_lei ($) {
-	my ($lei) = @_;
-	my $lne = delete $lei->{cfg}->{-lei_note_event};
-	$lne->wq_close if $lne; # runs _lei_wq_eof;
+sub flush_lei ($;$) {
+	my ($lei, $manual) = @_;
+	my $lne = delete $lei->{cfg}->{-lei_note_event} // return;
+	$lne->{lei_sock} = $lei->{sock} if $manual;
+	$lne->wq_close; # runs _lei_wq_eof;
 }
 
 # we batch up writes and flush every 5s (matching Linux default
@@ -67,7 +68,7 @@ sub lei_note_event {
 	die "BUG: unexpected: @rest" if @rest;
 	my $cfg = $lei->_lei_cfg or return; # gone (race)
 	my $sto = $lei->_lei_store or return; # gone
-	return flush_lei($lei) if $folder eq 'done'; # special case
+	return flush_lei($lei, 1) if $folder eq 'done'; # special case
 	my $lms = $lei->lms or return;
 	$lms->lms_write_prepare if $new_cur eq ''; # for ->clear_src below
 	$lei->{opt}->{quiet} = 1;
@@ -111,8 +112,8 @@ sub ipc_atfork_child {
 
 sub _lei_wq_eof { # EOF callback for main lei daemon
 	my ($lei) = @_;
-	delete $lei->{lne} or return $lei->fail;
-	$lei->sto_done_request;
+	my $lne = delete $lei->{lne} or return $lei->fail;
+	$lei->sto_done_request($lne->{lei_sock});
 }
 
 1;
