@@ -328,6 +328,20 @@ sub _add_vmd ($$$$) {
 	sto_export_kw($self, $docid, $vmd);
 }
 
+sub _docids_and_maybe_kw ($$) {
+	my ($self, $docids) = @_;
+	return $docids unless wantarray;
+	my $kw = {};
+	for my $num (@$docids) { # likely only 1, unless ContentHash changes
+		# can't use ->search->msg_keywords on uncommitted docs
+		my $idx = $self->{priv_eidx}->idx_shard($num);
+		my $tmp = eval { $idx->ipc_do('get_terms', 'K', $num) };
+		if ($@) { warn "#$num get_terms: $@" }
+		else { @$kw{keys %$tmp} = values(%$tmp) };
+	}
+	($docids, [ sort keys %$kw ]);
+}
+
 sub add_eml {
 	my ($self, $eml, $vmd, $xoids) = @_;
 	my $im = $self->{-fake_im} // $self->importer; # may create new epoch
@@ -339,7 +353,11 @@ sub add_eml {
 	if ($vmd && $vmd->{sync_info}) {
 		set_sync_info($self, $smsg->{blob}, @{$vmd->{sync_info}});
 	}
-	$im_mark or return; # duplicate blob returns undef
+	unless ($im_mark) { # duplicate blob returns undef
+		return unless wantarray;
+		my @docids = $oidx->blob_exists($smsg->{blob});
+		return _docids_and_maybe_kw $self, \@docids;
+	}
 
 	local $self->{current_info} = $smsg->{blob};
 	my $vivify_xvmd = delete($smsg->{-vivify_xvmd}) // []; # exact matches
@@ -373,7 +391,7 @@ sub add_eml {
 			}
 			_add_vmd($self, $idx, $docid, $vmd) if $vmd;
 		}
-		$vivify_xvmd;
+		_docids_and_maybe_kw $self, $vivify_xvmd;
 	} elsif (my @docids = _docids_for($self, $eml)) {
 		# fuzzy match from within lei/store
 		for my $docid (@docids) {
@@ -383,8 +401,8 @@ sub add_eml {
 			$idx->ipc_do('add_eidx_info', $docid, '.', $eml);
 			_add_vmd($self, $idx, $docid, $vmd) if $vmd;
 		}
-		\@docids;
-	} else { # totally new message
+		_docids_and_maybe_kw $self, \@docids;
+	} else { # totally new message, no keywords
 		delete $smsg->{-oidx}; # for IPC-friendliness
 		$smsg->{num} = $oidx->adj_counter('eidx_docid', '+');
 		$oidx->add_overview($eml, $smsg);
@@ -392,7 +410,7 @@ sub add_eml {
 		my $idx = $eidx->idx_shard($smsg->{num});
 		$idx->index_eml($eml, $smsg);
 		_add_vmd($self, $idx, $smsg->{num}, $vmd) if $vmd;
-		$smsg;
+		wantarray ? ($smsg, []) : $smsg;
 	}
 }
 

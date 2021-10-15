@@ -138,7 +138,8 @@ Subject: timezone-dependent test
 WHAT IS TIME ANYMORE?
 EOM
 
-	ok($sto->add_eml($eml), 'recently received message');
+	my $smsg = $sto->add_eml($eml);
+	ok($smsg && $smsg->{blob}, 'recently received message');
 	$sto->done;
 	local $ENV{TZ} = 'GMT+5';
 	my $lse = $sto->search;

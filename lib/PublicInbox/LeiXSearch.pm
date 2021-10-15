@@ -282,11 +282,9 @@ sub each_remote_eml { # callback for MboxReader->mboxrd
 	my $xoids = $lei->{ale}->xoids_for($eml, 1);
 	my $smsg = bless {}, 'PublicInbox::Smsg';
 	if ($self->{import_sto} && !$xoids) {
-		my $res = $self->{import_sto}->wq_do('add_eml', $eml);
-		if (ref($res) eq ref($smsg)) { # totally new message
-			$smsg = $res;
-			$smsg->{kw} = []; # short-circuit xsmsg_vmd
-		}
+		my ($res, $kw) = $self->{import_sto}->wq_do('add_eml', $eml);
+		$smsg = $res if ref($res) eq ref($smsg); # totally new message
+		$smsg->{kw} = $kw; # short-circuit xsmsg_vmd
 	}
 	$smsg->{blob} //= $xoids ? (keys(%$xoids))[0]
 				: $lei->git_oid($eml)->hexdigest;

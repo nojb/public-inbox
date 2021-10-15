@@ -517,6 +517,12 @@ sub add_eidx_info {
 	$self->{xdb}->replace_document($docid, $doc);
 }
 
+sub get_terms {
+	my ($self, $pfx, $docid) = @_;
+	begin_txn_lazy($self);
+	xap_terms($pfx, $self->{xdb}, $docid);
+}
+
 sub remove_eidx_info {
 	my ($self, $docid, $eidx_key, $eml) = @_;
 	begin_txn_lazy($self);
