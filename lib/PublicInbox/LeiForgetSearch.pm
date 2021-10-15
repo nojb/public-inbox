@@ -12,7 +12,7 @@ use SelectSaver;
 
 sub lei_forget_search {
 	my ($lei, $out) = @_;
-	my $d = PublicInbox::LeiSavedSearch::lss_dir_for($lei, \$out);
+	my $d = PublicInbox::LeiSavedSearch::lss_dir_for($lei, \$out, 1);
 	if (-e $d) {
 		my $save;
 		my $opt = { safe => 1 };

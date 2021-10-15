@@ -173,6 +173,7 @@ test_lei(sub {
 		symlink($o, "$home/ln -s") or
 			skip "symlinks not supported in $home?: $!", 1;
 		lei_ok('up', "$home/ln -s");
+		lei_ok('forget-search', "$home/ln -s");
 	};
 
 	my $v2 = "$home/v2"; # v2: as an output destination
