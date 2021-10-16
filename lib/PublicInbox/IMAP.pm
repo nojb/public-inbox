@@ -393,8 +393,7 @@ sub inbox_lookup ($$;$) {
 				die "BUG: unexpected dummy mailbox: $mailbox\n";
 		$uid_base = $1 * UID_SLICE;
 
-		# ->num_highwater caches for writers, so use ->meta_accessor
-		$uidmax = $ibx->mm->meta_accessor('num_highwater') // 0;
+		$uidmax = $ibx->mm->num_highwater // 0;
 		if ($examine) {
 			$self->{uid_base} = $uid_base;
 			$self->{ibx} = $ibx;

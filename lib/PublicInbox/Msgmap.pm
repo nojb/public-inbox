@@ -100,13 +100,12 @@ sub created_at {
 
 sub num_highwater {
 	my ($self, $num) = @_;
-	my $high = $self->{num_highwater} ||=
-	    $self->meta_accessor('num_highwater');
+	my $high = $self->meta_accessor('num_highwater');
 	if (defined($num) && (!defined($high) || ($num > $high))) {
-		$self->{num_highwater} = $num;
+		$high = $num;
 		$self->meta_accessor('num_highwater', $num);
 	}
-	$self->{num_highwater};
+	$high
 }
 
 sub mid_insert {
