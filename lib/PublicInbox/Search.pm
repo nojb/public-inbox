@@ -5,6 +5,7 @@
 # Read-only search interface for use by the web and NNTP interfaces
 package PublicInbox::Search;
 use strict;
+use v5.10.1;
 use parent qw(Exporter);
 our @EXPORT_OK = qw(retry_reopen int_val get_pct xap_terms);
 use List::Util qw(max);
@@ -398,12 +399,10 @@ sub retry_reopen {
 	my ($self, $cb, @arg) = @_;
 	for my $i (1..10) {
 		if (wantarray) {
-			my @ret;
-			eval { @ret = $cb->($self, @arg) };
+			my @ret = eval { $cb->($self, @arg) };
 			return @ret unless $@;
 		} else {
-			my $ret;
-			eval { $ret = $cb->($self, @arg) };
+			my $ret = eval { $cb->($self, @arg) };
 			return $ret unless $@;
 		}
 		# Exception: The revision being read has been discarded -

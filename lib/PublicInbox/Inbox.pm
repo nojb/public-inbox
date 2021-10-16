@@ -4,6 +4,7 @@
 # Represents a public-inbox (which may have multiple mailing addresses)
 package PublicInbox::Inbox;
 use strict;
+use v5.10.1;
 use PublicInbox::Git;
 use PublicInbox::MID qw(mid2path);
 use PublicInbox::Eml;
@@ -293,17 +294,15 @@ sub msg_by_smsg ($$) {
 
 	# ghosts may have undef smsg (from SearchThread.node) or
 	# no {blob} field
-	return unless defined $smsg;
-	defined(my $blob = $smsg->{blob}) or return;
-
-	$self->git->cat_file($blob);
+	$smsg // return;
+	$self->git->cat_file($smsg->{blob} // return);
 }
 
 sub smsg_eml {
 	my ($self, $smsg) = @_;
 	my $bref = msg_by_smsg($self, $smsg) or return;
 	my $eml = PublicInbox::Eml->new($bref);
-	$smsg->populate($eml) unless exists($smsg->{num}); # v1 w/o SQLite
+	$smsg->{num} // $smsg->populate($eml);
 	$eml;
 }
 
@@ -313,7 +312,7 @@ sub smsg_by_mid ($$) {
 	my $smsg;
 	if (my $mm = $self->mm) {
 		# favor the Message-ID we used for the NNTP article number:
-		defined(my $num = $mm->num_for($mid)) or return;
+		my $num = $mm->num_for($mid) // return;
 		$smsg = $over->get_art($num);
 	} else {
 		my ($id, $prev);
