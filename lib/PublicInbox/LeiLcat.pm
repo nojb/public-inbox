@@ -124,18 +124,15 @@ could not extract Message-ID from $x
 
 sub _stdin { # PublicInbox::InputPipe::consume callback for --stdin
 	my ($lei) = @_; # $_[1] = $rbuf
-	if (defined($_[1])) {
-		$_[1] eq '' and return eval {
-			$lei->fchdir or return;
-			my @argv = split(/\s+/, $lei->{mset_opt}->{qstr});
-			$lei->{mset_opt}->{qstr} = extract_all($lei, @argv)
-				or return;
-			$lei->_start_query;
-		};
-		$lei->{mset_opt}->{qstr} .= $_[1];
-	} else {
-		$lei->fail("error reading stdin: $!");
-	}
+	$_[1] // return $lei->fail("error reading stdin: $!");
+	return $lei->{mset_opt}->{qstr} .= $_[1] if $_[1] ne '';
+	eval {
+		$lei->fchdir;
+		my @argv = split(/\s+/, $lei->{mset_opt}->{qstr});
+		$lei->{mset_opt}->{qstr} = extract_all($lei, @argv) or return;
+		$lei->_start_query;
+	};
+	$lei->fail($@) if $@;
 }
 
 sub lei_lcat {

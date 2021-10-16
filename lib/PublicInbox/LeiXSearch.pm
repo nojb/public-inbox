@@ -460,10 +460,11 @@ sub do_post_augment {
 	my ($lei) = @_;
 	local $PublicInbox::LEI::current_lei = $lei;
 	my $l2m = $lei->{l2m} or return; # client disconnected
-	$lei->fchdir or return;
-	my $err;
-	eval { $l2m->post_augment($lei) };
-	$err = $@;
+	eval {
+		$lei->fchdir;
+		$l2m->post_augment($lei);
+	};
+	my $err = $@;
 	if ($err) {
 		if (my $lxs = delete $lei->{lxs}) {
 			$lxs->wq_kill('-TERM');

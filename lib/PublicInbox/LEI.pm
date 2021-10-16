@@ -556,7 +556,7 @@ sub _lei_atfork_child {
 	# we need to explicitly close things which are on stack
 	if ($persist) {
 		open $self->{3}, '<', '/' or die "open(/) $!";
-		fchdir($self) or die;
+		fchdir($self);
 		close($_) for (grep(defined, delete @$self{qw(0 1 2 sock)}));
 		if (my $cfg = $self->{cfg}) {
 			delete @$cfg{qw(-lei_store -watches -lei_note_event)};
@@ -779,7 +779,7 @@ sub lazy_cb ($$$) {
 
 sub dispatch {
 	my ($self, $cmd, @argv) = @_;
-	fchdir($self) or return;
+	fchdir($self);
 	local %ENV = %{$self->{env}};
 	local $current_lei = $self; # for __WARN__
 	$self->{2}->autoflush(1); # keep stdout buffered until x_it|DESTROY
@@ -1381,7 +1381,7 @@ sub wq_done_wait { # dwaitpid callback
 sub fchdir {
 	my ($lei) = @_;
 	my $dh = $lei->{3} // die 'BUG: lei->{3} (CWD) gone';
-	chdir($dh) || $lei->fail("fchdir: $!");
+	chdir($dh) || die "fchdir: $!";
 }
 
 sub wq_eof { # EOF callback for main daemon

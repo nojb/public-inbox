@@ -55,19 +55,17 @@ sub _start_query { # used by "lei q" and "lei up"
 }
 
 sub qstr_add { # PublicInbox::InputPipe::consume callback for --stdin
-	my ($self) = @_; # $_[1] = $rbuf
-	if (defined($_[1])) {
-		$_[1] eq '' and return eval {
-			$self->fchdir or return;
-			$self->{mset_opt}->{q_raw} = $self->{mset_opt}->{qstr};
-			$self->{lse}->query_approxidate($self->{lse}->git,
-						$self->{mset_opt}->{qstr});
-			_start_query($self);
-		};
-		$self->{mset_opt}->{qstr} .= $_[1];
-	} else {
-		$self->fail("error reading stdin: $!");
-	}
+	my ($lei) = @_; # $_[1] = $rbuf
+	$_[1] // $lei->fail("error reading stdin: $!");
+	return $lei->{mset_opt}->{qstr} .= $_[1] if $_[1] ne '';
+	eval {
+		$lei->fchdir;
+		$lei->{mset_opt}->{q_raw} = $lei->{mset_opt}->{qstr};
+		$lei->{lse}->query_approxidate($lei->{lse}->git,
+						$lei->{mset_opt}->{qstr});
+		_start_query($lei);
+	};
+	$lei->fail($@) if $@;
 }
 
 sub lxs_prepare {
