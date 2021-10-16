@@ -52,8 +52,8 @@ Documentation/lei-p2q.pod
 Documentation/lei-q.pod
 Documentation/lei-rediff.pod
 Documentation/lei-refresh-mail-sync.pod
-Documentation/lei-rm.pod
 Documentation/lei-rm-watch.pod
+Documentation/lei-rm.pod
 Documentation/lei-security.pod
 Documentation/lei-store-format.pod
 Documentation/lei-tag.pod
