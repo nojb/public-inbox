@@ -1192,7 +1192,7 @@ sub idx_init { # similar to V2Writable
 	$self->git->cleanup;
 	my $mode = 0644;
 	my $ALL = $self->git->{git_dir}; # topdir/ALL.git
-	my ($has_new, $alt, $seen);
+	my ($has_new, $alt, $seen, $prune, $prune_nr);
 	if ($opt->{-private}) { # LeiStore
 		my $local = "$self->{topdir}/local"; # lei/store
 		$self->{mg} //= PublicInbox::MultiGit->new($self->{topdir},
@@ -1208,8 +1208,8 @@ sub idx_init { # similar to V2Writable
 	} else { # extindex has no epochs
 		$self->{mg} //= PublicInbox::MultiGit->new($self->{topdir},
 							'ALL.git');
-		($alt, $seen) = $self->{mg}->read_alternates(\$mode,
-							$opt->{-idx_gc});
+		$prune = $opt->{-idx_gc} ? \$prune_nr : undef;
+		($alt, $seen) = $self->{mg}->read_alternates(\$mode, $prune);
 		PublicInbox::Import::init_bare($ALL);
 	}
 
@@ -1243,7 +1243,7 @@ sub idx_init { # similar to V2Writable
 		}
 		$new .= "$d\n";
 	}
-	($has_new || $new ne '') and
+	($has_new || $prune_nr || $new ne '') and
 		$self->{mg}->write_alternates($mode, $alt, $new);
 	$git_midx and $self->with_umask(sub {
 		my @cmd = ('multi-pack-index');

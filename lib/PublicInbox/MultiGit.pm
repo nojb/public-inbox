@@ -45,7 +45,11 @@ sub read_alternates {
 				$alt{$rel} = $score;
 			} else {
 				warn "W: stat($dir) failed: $! ($f)";
-				$alt{$rel} = $score unless $prune;
+				if ($prune) {
+					++$$prune;
+				} else {
+					$alt{$rel} = $score;
+				}
 			}
 		}
 	} elsif (!$!{ENOENT}) {
