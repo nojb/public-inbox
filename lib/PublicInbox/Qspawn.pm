@@ -192,7 +192,6 @@ sub event_step {
 sub rd_hdr ($) {
 	my ($self) = @_;
 	# typically used for reading CGI headers
-	# we must loop until EAGAIN for EPOLLET in HTTPD/Async.pm
 	# We also need to check EINTR for generic PSGI servers.
 	my $ret;
 	my $total_rd = 0;

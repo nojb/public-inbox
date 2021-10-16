@@ -77,8 +77,7 @@ New features
   which (if any) events it's interested in for the next loop iteration.
 
 * Edge-triggering available via EPOLLET or EV_CLEAR.  These reduce wakeups
-  for unidirectional classes (e.g. PublicInbox::Listener sockets,
-  and pipes via PublicInbox::HTTPD::Async).
+  for unidirectional classes when throughput is more important than fairness.
 
 * IO::Socket::SSL support (for NNTPS, STARTTLS+NNTP, HTTPS)
 

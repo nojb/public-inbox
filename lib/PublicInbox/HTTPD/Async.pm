@@ -17,7 +17,7 @@ package PublicInbox::HTTPD::Async;
 use strict;
 use parent qw(PublicInbox::DS);
 use Errno qw(EAGAIN);
-use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
+use PublicInbox::Syscall qw(EPOLLIN);
 
 # This is called via: $env->{'pi-httpd.async'}->()
 # $io is a read-only pipe ($rpipe) for now, but may be a
@@ -39,7 +39,7 @@ sub new {
 	}, $class;
 	my $pp = tied *$io;
 	$pp->{fh}->blocking(0) // die "$io->blocking(0): $!";
-	$self->SUPER::new($io, EPOLLIN | EPOLLET);
+	$self->SUPER::new($io, EPOLLIN);
 }
 
 sub event_step {
@@ -54,15 +54,12 @@ sub event_step {
 		my $r = sysread($sock, my $buf, 65536);
 		if ($r) {
 			$self->{fh}->write($buf); # may call $http->close
-			if ($http->{sock}) { # !closed
-				$self->requeue;
-				# let other clients get some work done, too
-				return;
-			}
+			# let other clients get some work done, too
+			return if $http->{sock}; # !closed
 
 			# else: fall through to close below...
 		} elsif (!defined $r && $! == EAGAIN) {
-			return; # EPOLLET means we'll be notified
+			return; # EPOLLIN means we'll be notified
 		}
 
 		# Done! Error handling will happen in $self->{fh}->close
@@ -89,9 +86,6 @@ sub async_pass {
 
 	$self->{http} = $http;
 	$self->{fh} = $fh;
-
-	# either hit EAGAIN or ->requeue to keep EPOLLET happy
-	event_step($self);
 }
 
 # may be called as $forward->close in PublicInbox::HTTP or EOF (event_step)
