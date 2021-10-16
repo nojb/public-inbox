@@ -1305,10 +1305,11 @@ sub lazy_start {
 		USR2 => \&noop,
 	};
 	require PublicInbox::DirIdle;
-	local $dir_idle = PublicInbox::DirIdle->new([$sock_dir], sub {
+	local $dir_idle = PublicInbox::DirIdle->new(sub {
 		# just rely on wakeup to hit PostLoopCallback set below
 		dir_idle_handler($_[0]) if $_[0]->fullname ne $path;
-	}, 1);
+	});
+	$dir_idle->add_watches([$sock_dir]);
 	PublicInbox::DS->SetPostLoopCallback(sub {
 		my ($dmap, undef) = @_;
 		if (@st = defined($path) ? stat($path) : ()) {

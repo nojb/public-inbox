@@ -32,7 +32,7 @@ if ($^O eq 'linux' && eval { require Linux::Inotify2; 1 }) {
 }
 
 sub new {
-	my ($class, $dirs, $cb, $gone) = @_;
+	my ($class, $cb) = @_;
 	my $self = bless { cb => $cb }, $class;
 	my $inot;
 	if ($ino_cls) {
@@ -43,13 +43,7 @@ sub new {
 		require PublicInbox::FakeInotify;
 		$inot = PublicInbox::FakeInotify->new; # starts timer
 	}
-
-	# Linux::Inotify2->watch or similar
-	my $fl = $MAIL_IN;
-	$fl |= $MAIL_GONE if $gone;
-	$inot->watch($_, $fl) for @$dirs;
 	$self->{inot} = $inot;
-	PublicInbox::FakeInotify::poll_once($self) if !$ino_cls;
 	$self;
 }
 

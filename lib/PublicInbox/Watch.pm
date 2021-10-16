@@ -282,7 +282,8 @@ sub watch_fs_init ($) {
 	};
 	require PublicInbox::DirIdle;
 	# inotify_create + EPOLL_CTL_ADD
-	PublicInbox::DirIdle->new([keys %{$self->{mdmap}}], $cb);
+	my $dir_idle = PublicInbox::DirIdle->new($cb);
+	$dir_idle->add_watches([keys %{$self->{mdmap}}]);
 }
 
 sub net_cb { # NetReader::(nntp|imap)_each callback
