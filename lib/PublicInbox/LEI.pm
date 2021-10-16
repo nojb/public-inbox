@@ -77,19 +77,16 @@ sub rel2abs {
 		return $p;
 	}
 	my $pwd = $self->{env}->{PWD};
-	my $cwd;
 	if (defined $pwd) {
-		my $xcwd = $self->{3} //
-			($cwd = getcwd() // die "getcwd(PWD=$pwd): $!");
 		if (my @st_pwd = stat($pwd)) {
-			my @st_cwd = stat($xcwd) or die "stat($xcwd): $!";
+			my @st_cwd = stat($self->{3}) or die "stat({3}): $!";
 			"@st_pwd[1,0]" eq "@st_cwd[1,0]" or
 				$self->{env}->{PWD} = $pwd = undef;
 		} else { # PWD was invalid
 			$self->{env}->{PWD} = $pwd = undef;
 		}
 	}
-	$pwd //= $self->{env}->{PWD} = $cwd // getcwd() // die "getcwd: $!";
+	$pwd //= $self->{env}->{PWD} = getcwd() // die "getcwd: $!";
 	File::Spec->rel2abs($p, $pwd);
 }
 
@@ -558,7 +555,8 @@ sub _lei_atfork_child {
 	my ($self, $persist) = @_;
 	# we need to explicitly close things which are on stack
 	if ($persist) {
-		chdir '/' or die "chdir(/): $!";
+		open $self->{3}, '<', '/' or die "open(/) $!";
+		fchdir($self) or die;
 		close($_) for (grep(defined, delete @$self{qw(0 1 2 sock)}));
 		if (my $cfg = $self->{cfg}) {
 			delete @$cfg{qw(-lei_store -watches -lei_note_event)};
@@ -568,7 +566,7 @@ sub _lei_atfork_child {
 		STDERR->autoflush(1);
 		POSIX::setpgid(0, $$) // die "setpgid(0, $$): $!";
 	}
-	close($_) for (grep(defined, delete @$self{qw(3 old_1 au_done)}));
+	close($_) for (grep(defined, delete @$self{qw(old_1 au_done)}));
 	delete $self->{-socks};
 	if (my $op_c = delete $self->{pkt_op_c}) {
 		close(delete $op_c->{sock});
@@ -1190,7 +1188,7 @@ sub cfg2lei ($) {
 	open($lei->{0}, '<&', \*STDIN) or die "dup 0: $!";
 	open($lei->{1}, '>>&', \*STDOUT) or die "dup 1: $!";
 	open($lei->{2}, '>>&', \*STDERR) or die "dup 2: $!";
-	open($lei->{3}, '/') or die "open /: $!";
+	open($lei->{3}, '<', '/') or die "open /: $!";
 	my ($x, $y);
 	socketpair($x, $y, AF_UNIX, SOCK_SEQPACKET, 0) or die "socketpair: $!";
 	$lei->{sock} = $x;
