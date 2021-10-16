@@ -333,15 +333,18 @@ sub body_set {
 }
 
 sub body_str_set {
-	my ($self, $body_str) = @_;
+	my ($self, $str) = @_;
 	my $cs = ct($self)->{attributes}->{charset} //
 		croak('body_str was given, but no charset is defined');
 	my $enc = find_encoding($cs) // croak "unknown encoding `$cs'";
-	$body_str = do {
-		local $SIG{__WARN__} = \&croak;
-		$enc->encode($body_str, Encode::FB_WARN);
+	my $tmp;
+	{
+		my @w;
+		local $SIG{__WARN__} = sub { push @w, @_ };
+		$tmp = $enc->encode($str, Encode::FB_WARN);
+		croak(@w) if @w;
 	};
-	body_set($self, \$body_str);
+	body_set($self, \$tmp);
 }
 
 sub content_type { scalar header($_[0], 'Content-Type') }
@@ -466,8 +469,11 @@ sub body_str {
 	my $enc = find_encoding($cs) or croak "unknown encoding `$cs'";
 	my $tmp = body($self);
 	# workaround https://rt.cpan.org/Public/Bug/Display.html?id=139622
-	local $SIG{__WARN__} = \&croak;
-	$enc->decode($tmp, Encode::FB_WARN);
+	my @w;
+	local $SIG{__WARN__} = sub { push @w, @_ };
+	my $ret = $enc->decode($tmp, Encode::FB_WARN);
+	croak(@w) if @w;
+	$ret;
 }
 
 sub as_string {
