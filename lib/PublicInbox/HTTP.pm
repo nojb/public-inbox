@@ -37,16 +37,6 @@ use constant {
 };
 use Errno qw(EAGAIN);
 
-my $pipelineq = [];
-sub process_pipelineq () {
-	my $q = $pipelineq;
-	$pipelineq = [];
-	foreach (@$q) {
-		next unless $_->{sock};
-		rbuf_process($_);
-	}
-}
-
 # Use the same configuration parameter as git since this is primarily
 # a slow-client sponge for git-http-backend
 # TODO: support per-respository http.maxRequestBuffer somehow...
@@ -86,32 +76,24 @@ sub event_step { # called by PublicInbox::DS
 	# otherwise we can be buffering infinitely w/o backpressure
 
 	return read_input($self) if ref($self->{env});
+
 	my $rbuf = $self->{rbuf} // (\(my $x = ''));
-	$self->do_read($rbuf, 8192, length($$rbuf)) or return;
-	rbuf_process($self, $rbuf);
-}
-
-sub rbuf_process {
-	my ($self, $rbuf) = @_;
-	$rbuf //= $self->{rbuf} // (\(my $x = ''));
-
 	my %env = %{$self->{httpd}->{env}}; # full hash copy
-	my $r = parse_http_request($$rbuf, \%env);
-
-	# We do not support Trailers in chunked requests, for now
-	# (they are rarely-used and git (as of 2.7.2) does not use them)
-	if ($r == -1 || $env{HTTP_TRAILER} ||
-			# this length-check is necessary for PURE_PERL=1:
-			($r == -2 && length($$rbuf) > 0x4000)) {
-		return quit($self, 400);
-	}
-	if ($r < 0) { # incomplete
-		$self->rbuf_idle($rbuf);
-		return $self->requeue;
+	my $r;
+	while (($r = parse_http_request($$rbuf, \%env)) < 0) {
+		# We do not support Trailers in chunked requests, for
+		# now (they are rarely-used and git (as of 2.7.2) does
+		# not use them).
+		# this length-check is necessary for PURE_PERL=1:
+		if ($r == -1 || $env{HTTP_TRAILER} ||
+				($r == -2 && length($$rbuf) > 0x4000)) {
+			return quit($self, 400);
+		}
+		$self->do_read($rbuf, 8192, length($$rbuf)) or return;
 	}
 	$$rbuf = substr($$rbuf, $r);
-	my $len = input_prepare($self, \%env);
-	defined $len or return write_err($self, undef); # EMFILE/ENFILE
+	my $len = input_prepare($self, \%env) //
+		return write_err($self, undef); # EMFILE/ENFILE
 
 	$len ? read_input($self, $rbuf) : app_dispatch($self, undef, $rbuf);
 }
@@ -238,22 +220,11 @@ sub identity_write ($$) {
 	$self->write(\($_[1])) if $_[1] ne '';
 }
 
-sub next_request ($) {
-	my ($self) = @_;
-	if ($self->{rbuf}) {
-		# avoid recursion for pipelined requests
-		PublicInbox::DS::requeue(\&process_pipelineq) if !@$pipelineq;
-		push @$pipelineq, $self;
-	} else { # wait for next request
-		$self->requeue;
-	}
-}
-
 sub response_done {
 	my ($self, $alive) = @_;
 	delete $self->{env}; # we're no longer busy
 	$self->write(\"0\r\n\r\n") if $alive == 2;
-	$self->write($alive ? \&next_request : \&close);
+	$self->write($alive ? $self->can('requeue') : \&close);
 }
 
 sub getline_pull {
