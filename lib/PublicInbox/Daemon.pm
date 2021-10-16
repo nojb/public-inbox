@@ -271,13 +271,11 @@ sub worker_quit { # $_[0] = signal name or number (unused)
 		my ($dmap, undef) = @_;
 		my $n = 0;
 		my $now = now();
-
-		foreach my $s (values %$dmap) {
+		for my $s (values %$dmap) {
 			$s->can('busy') or next;
-			if ($s->busy($now)) {
+			if ($s->busy) {
 				++$n;
-			} else {
-				# close as much as possible, early as possible
+			} else { # close as much as possible, early as possible
 				$s->close;
 			}
 		}

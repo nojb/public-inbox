@@ -37,9 +37,7 @@ our @EXPORT_OK = qw(now msg_more dwaitpid add_timer add_uniq_timer);
 my %Stack;
 my $nextq; # queue for next_tick
 my $wait_pids; # list of [ pid, callback, callback_arg ]
-my $EXPMAP; # fd -> idle_time
-our $EXPTIME = 180; # 3 minutes
-my ($reap_armed);
+my $reap_armed;
 my $ToClose; # sockets to close when event loop is done
 our (
      %DescriptorMap,             # fd (num) -> PublicInbox::DS object
@@ -76,7 +74,6 @@ sub Reset {
 		# we may be iterating inside one of these on our stack
 		my @q = delete @Stack{keys %Stack};
 		for my $q (@q) { @$q = () }
-		$EXPMAP = undef;
 		$wait_pids = $nextq = $ToClose = undef;
 		$ep_io = undef; # closes real $Epoll FD
 		$Epoll = undef; # may call DSKQXS::DESTROY
@@ -250,9 +247,6 @@ sub PostEventLoop () {
 	if (my $close_now = $ToClose) {
 		$ToClose = undef; # will be autovivified on push
 		@$close_now = map { fileno($_) } @$close_now;
-
-		# order matters, destroy expiry times, first:
-		delete @$EXPMAP{@$close_now};
 
 		# ->DESTROY methods may populate ToClose
 		delete @DescriptorMap{@$close_now};
@@ -653,35 +647,6 @@ sub dwaitpid ($;$$) {
 			carp "waitpid($pid, 0) = $ret, \$!=$!, \$?=$?";
 		}
 	}
-}
-
-sub expire_old () {
-	my $cur = $EXPMAP or return;
-	$EXPMAP = undef;
-	my $old = now() - $EXPTIME;
-	while (my ($fd, $idle_at) = each %$cur) {
-		if ($idle_at < $old) {
-			my $ds_obj = $DescriptorMap{$fd};
-			$EXPMAP->{$fd} = $idle_at if !$ds_obj->shutdn;
-		} else {
-			$EXPMAP->{$fd} = $idle_at;
-		}
-	}
-	add_uniq_timer('expire', 60, \&expire_old) if $EXPMAP;
-}
-
-sub update_idle_time {
-	my ($self) = @_;
-	my $sock = $self->{sock} or return;
-	$EXPMAP->{fileno($sock)} = now();
-	add_uniq_timer('expire', 60, \&expire_old);
-}
-
-sub not_idle_long {
-	my ($self, $now) = @_;
-	my $sock = $self->{sock} or return;
-	my $idle_at = $EXPMAP->{fileno($sock)} or return;
-	($idle_at + $EXPTIME) > $now;
 }
 
 1;

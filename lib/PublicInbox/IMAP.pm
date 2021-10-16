@@ -99,9 +99,6 @@ undef %FETCH_NEED;
 my $valid_range = '[0-9]+|[0-9]+:[0-9]+|[0-9]+:\*';
 $valid_range = qr/\A(?:$valid_range)(?:,(?:$valid_range))*\z/;
 
-# RFC 3501 5.4. Autologout Timer needs to be >= 30min
-$PublicInbox::DS::EXPTIME = 60 * 30;
-
 sub greet ($) {
 	my ($self) = @_;
 	my $capa = capa($self);
@@ -124,7 +121,6 @@ sub new ($$$) {
 	} else {
 		greet($self);
 	}
-	$self->update_idle_time;
 	$self;
 }
 
@@ -323,7 +319,6 @@ sub idle_tick_all {
 	$IDLERS = undef;
 	for my $i (values %$old) {
 		next if ($i->{wbuf} || !exists($i->{-idle_tag}));
-		$i->update_idle_time or next;
 		$IDLERS->{fileno($i->{sock})} = $i;
 		$i->write(\"* OK Still here\r\n");
 	}
@@ -1226,8 +1221,6 @@ sub long_step {
 		out($self, " deferred[$fd] aborted - %0.6f", $elapsed);
 		$self->close;
 	} elsif ($more) { # $self->{wbuf}:
-		$self->update_idle_time;
-
 		# control passed to ibx_async_cat if $more == \undef
 		requeue_once($self) if !ref($more);
 	} else { # all done!
@@ -1269,7 +1262,6 @@ sub event_step {
 
 	return unless $self->flush_write && $self->{sock} && !$self->{long_cb};
 
-	$self->update_idle_time;
 	# only read more requests if we've drained the write buffer,
 	# otherwise we can be buffering infinitely w/o backpressure
 
@@ -1295,7 +1287,6 @@ sub event_step {
 
 	return $self->close if $r < 0;
 	$self->rbuf_idle($rbuf);
-	$self->update_idle_time;
 
 	# maybe there's more pipelined data, or we'll have
 	# to register it for socket-readiness notifications
@@ -1334,14 +1325,14 @@ sub cmd_starttls ($$) {
 	undef;
 }
 
-# for graceful shutdown in PublicInbox::Daemon:
-sub busy {
-	my ($self, $now) = @_;
+sub busy { # for graceful shutdown in PublicInbox::Daemon:
+	my ($self) = @_;
 	if (defined($self->{-idle_tag})) {
 		$self->write(\"* BYE server shutting down\r\n");
 		return; # not busy anymore
 	}
-	($self->{rbuf} || $self->{wbuf} || $self->not_idle_long($now));
+	defined($self->{rbuf}) || defined($self->{wbuf}) ||
+		!$self->write(\"* BYE server shutting down\r\n");
 }
 
 sub close {

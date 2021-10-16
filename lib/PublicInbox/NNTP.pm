@@ -65,7 +65,6 @@ sub new ($$$) {
 	} else {
 		greet($self);
 	}
-	$self->update_idle_time;
 	$self;
 }
 
@@ -651,8 +650,6 @@ sub long_step {
 		out($self, " deferred[$fd] aborted - %0.6f", $elapsed);
 		$self->close;
 	} elsif ($more) { # $self->{wbuf}:
-		$self->update_idle_time;
-
 		# COMPRESS users all share the same DEFLATE context.
 		# Flush it here to ensure clients don't see
 		# each other's data
@@ -1050,7 +1047,6 @@ sub event_step {
 
 	return unless $self->flush_write && $self->{sock} && !$self->{long_cb};
 
-	$self->update_idle_time;
 	# only read more requests if we've drained the write buffer,
 	# otherwise we can be buffering infinitely w/o backpressure
 
@@ -1072,17 +1068,15 @@ sub event_step {
 	out($self, "[$fd] %s - %0.6f$pending", $line, now() - $t0);
 	return $self->close if $r < 0;
 	$self->rbuf_idle($rbuf);
-	$self->update_idle_time;
 
 	# maybe there's more pipelined data, or we'll have
 	# to register it for socket-readiness notifications
 	$self->requeue unless $pending;
 }
 
-# for graceful shutdown in PublicInbox::Daemon:
-sub busy {
-	my ($self, $now) = @_;
-	($self->{rbuf} || $self->{wbuf} || $self->not_idle_long($now));
+sub busy { # for graceful shutdown in PublicInbox::Daemon:
+	my ($self) = @_;
+	defined($self->{rbuf}) || defined($self->{wbuf})
 }
 
 1;

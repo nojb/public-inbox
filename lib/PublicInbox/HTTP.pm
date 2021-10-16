@@ -459,10 +459,9 @@ sub close {
 	$self->SUPER::close; # PublicInbox::DS::close
 }
 
-# for graceful shutdown in PublicInbox::Daemon:
-sub busy () {
+sub busy { # for graceful shutdown in PublicInbox::Daemon:
 	my ($self) = @_;
-	($self->{rbuf} || exists($self->{env}) || $self->{wbuf});
+	defined($self->{rbuf}) || exists($self->{env}) || defined($self->{wbuf})
 }
 
 # runs $cb on the next iteration of the event loop at earliest
