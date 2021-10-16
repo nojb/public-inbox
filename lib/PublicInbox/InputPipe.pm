@@ -10,25 +10,24 @@ use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
 
 sub consume {
 	my ($in, $cb, @args) = @_;
-	my $self = bless { cb => $cb, sock => $in, args => \@args },__PACKAGE__;
-	if ($PublicInbox::DS::in_loop) {
-		eval { $self->SUPER::new($in, EPOLLIN|EPOLLET) };
-		return $in->blocking(0) unless $@; # regular file sets $@
-	}
-	event_step($self) while $self->{sock};
+	my $self = bless { cb => $cb, args => \@args }, __PACKAGE__;
+	eval { $self->SUPER::new($in, EPOLLIN|EPOLLET) };
+	return $self->requeue if $@; # regular file
+	$in->blocking(0); # pipe or socket
 }
 
 sub event_step {
 	my ($self) = @_;
-	my ($r, $rbuf);
-	while (($r = sysread($self->{sock}, $rbuf, 65536))) {
+	my $r = sysread($self->{sock}, my $rbuf, 65536);
+	if ($r) {
 		$self->{cb}->(@{$self->{args} // []}, $rbuf);
+		return $self->requeue; # may be regular file or pipe
 	}
 	if (defined($r)) { # EOF
 		$self->{cb}->(@{$self->{args} // []}, '');
 	} elsif ($!{EAGAIN}) {
 		return;
-	} else {
+	} else { # another error
 		$self->{cb}->(@{$self->{args} // []}, undef)
 	}
 	$self->{sock}->blocking ? delete($self->{sock}) : $self->close
