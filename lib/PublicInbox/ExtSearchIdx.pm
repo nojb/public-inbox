@@ -839,7 +839,7 @@ sub _unref_stale_range ($$$) {
 		$r = $sync->{self}->{oidx}->dbh->selectall_arrayref(
 			<<EOS, undef, $ibx->{-ibx_id});
 SELECT docid,xnum,oidbin FROM xref3
-WHERE ibx_id = ? AND xnum $lt_or_gt LIMIT $lim
+WHERE ibx_id = ? AND $lt_or_gt LIMIT $lim
 EOS
 		return if $sync->{quit};
 		for (@$r) { # hopefully rare, not worth optimizing:
@@ -859,7 +859,7 @@ sub _reindex_check_ibx ($$$) {
 	my $opt = { limit => $slice };
 	my ($beg, $end) = (1, $slice);
 	my $err = sync_inbox($self, $sync, $ibx) and return;
-	my $max = $ibx->over->max;
+	my $max = $ibx->mm->num_highwater;
 	$end = $max if $end > $max;
 
 	# first, check if we missed any messages in target $ibx
@@ -869,7 +869,7 @@ sub _reindex_check_ibx ($$$) {
 	local $sync->{-regen_fmt} = "$ekey checking %u/$max\n";
 	${$sync->{nr}} = 0;
 	my $fast = $sync->{-opt}->{fast};
-	my $dsu; # _unref_stale_range (< $lo) called
+	my $usr; # _unref_stale_range (< $lo) called
 	my ($lo, $hi);
 	while (scalar(@{$msgs = $ibx->over->query_xover($beg, $end, $opt)})) {
 		${$sync->{nr}} = $beg;
@@ -880,7 +880,7 @@ sub _reindex_check_ibx ($$$) {
 			reindex_checkpoint($self, $sync); # release lock
 		}
 		($lo, $hi) = ($msgs->[0]->{num}, $msgs->[-1]->{num});
-		$dsu //= _unref_stale_range($sync, $ibx, "< $lo");
+		$usr //= _unref_stale_range($sync, $ibx, "xnum < $lo");
 		my $x3a = $self->{oidx}->dbh->selectall_arrayref(
 			<<"", undef, $ibx_id, $lo, $hi);
 SELECT xnum,oidbin,docid FROM xref3 WHERE
@@ -921,7 +921,8 @@ ibx_id = ? AND xnum >= ? AND xnum <= ?
 			}
 		}
 	}
-	_unref_stale_range($sync, $ibx, "> $hi") if defined($hi);
+	defined($hi) and ($hi < $max) and
+		_unref_stale_range($sync, $ibx, "xnum > $hi AND xnum <= $max");
 }
 
 sub _reindex_inbox ($$$) {
