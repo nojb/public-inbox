@@ -99,7 +99,7 @@ EOF
 	lei_ok('up', "$ENV{HOME}/md");
 	is_deeply(\@f, [ glob("$ENV{HOME}/md/*/*") ],
 		'lei up remote dedupe works on maildir');
-	my $edit_env = { VISUAL => 'cat' };
+	my $edit_env = { VISUAL => 'cat', EDITOR => 'cat' };
 	lei_ok([qw(edit-search), "$ENV{HOME}/md"], $edit_env);
 	like($lei_out, qr/^\Q[external "$url"]\E\n\s*lastresult = \d+/sm,
 		'lastresult set');

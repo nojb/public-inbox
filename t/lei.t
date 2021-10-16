@@ -101,7 +101,7 @@ my $test_config = sub {
 	lei_ok(qw(-c imap.debug=a -c imap.debug=b config --get-all imap.debug));
 	is($lei_out, "a\nb\n", '-c and --get-all work together');
 
-	lei_ok([qw(config -e)], { VISUAL => 'cat' });
+	lei_ok([qw(config -e)], { VISUAL => 'cat', EDITOR => 'cat' });
 	is($lei_out, "[a]\n\tb = c\n", '--edit works');
 };
 
