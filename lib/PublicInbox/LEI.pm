@@ -12,13 +12,13 @@ use parent qw(PublicInbox::DS PublicInbox::LeiExternal
 	PublicInbox::LeiQuery);
 use Getopt::Long ();
 use Socket qw(AF_UNIX SOCK_SEQPACKET MSG_EOR pack_sockaddr_un);
-use Errno qw(EPIPE EAGAIN EINTR ECONNREFUSED ENOENT ECONNRESET);
+use Errno qw(EPIPE EAGAIN ECONNREFUSED ENOENT ECONNRESET);
 use Cwd qw(getcwd);
 use POSIX qw(strftime);
 use IO::Handle ();
 use Fcntl qw(SEEK_SET);
 use PublicInbox::Config;
-use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
+use PublicInbox::Syscall qw(EPOLLIN);
 use PublicInbox::DS qw(now dwaitpid);
 use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::Lock;
@@ -1125,16 +1125,12 @@ sub event_step {
 	local %ENV = %{$self->{env}};
 	local $current_lei = $self;
 	eval {
-		my $buf;
-		while (my @fds = $recv_cmd->($self->{sock}, $buf, 4096)) {
-			if (scalar(@fds) == 1 && !defined($fds[0])) {
-				return if $! == EAGAIN;
-				next if $! == EINTR;
-				last if $! == ECONNRESET;
-				die "recvmsg: $!";
-			}
-			for (@fds) { open my $rfh, '+<&=', $_ }
+		my @fds = $recv_cmd->($self->{sock}, my $buf, 4096);
+		if (scalar(@fds) == 1 && !defined($fds[0])) {
+			return if $! == EAGAIN;
+			die "recvmsg: $!" if $! != ECONNRESET;
 		}
+		for (@fds) { open my $rfh, '+<&=', $_ }
 		if ($buf eq '') {
 			_drop_wq($self); # EOF, client disconnected
 			dclose($self);
@@ -1162,7 +1158,7 @@ sub event_step_init {
 	my $sock = $self->{sock} or return;
 	$self->{-event_init_done} //= do { # persist til $ops done
 		$sock->blocking(0);
-		$self->SUPER::new($sock, EPOLLIN|EPOLLET);
+		$self->SUPER::new($sock, EPOLLIN);
 		$sock;
 	};
 }

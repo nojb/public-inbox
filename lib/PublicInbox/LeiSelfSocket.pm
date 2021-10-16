@@ -10,7 +10,7 @@ use v5.10.1;
 use parent qw(PublicInbox::DS);
 use Data::Dumper;
 $Data::Dumper::Useqq = 1; # should've been the Perl default :P
-use PublicInbox::Syscall qw(EPOLLIN EPOLLET);
+use PublicInbox::Syscall qw(EPOLLIN);
 use PublicInbox::Spawn;
 my $recv_cmd;
 
@@ -20,26 +20,21 @@ sub new {
 	$r->blocking(0);
 	no warnings 'once';
 	$recv_cmd = $PublicInbox::LEI::recv_cmd;
-	$self->SUPER::new($r, EPOLLIN|EPOLLET);
+	$self->SUPER::new($r, EPOLLIN);
 }
 
 sub event_step {
 	my ($self) = @_;
-	while (1) {
-		my (@fds) = $recv_cmd->($self->{sock}, my $buf, 4096 * 33);
-		if (scalar(@fds) == 1 && !defined($fds[0])) {
-			return if $!{EAGAIN};
-			next if $!{EINTR};
-			die "recvmsg: $!";
-		}
-		# open so perl can auto-close them:
-		for my $fd (@fds) {
-			open(my $newfh, '+<&=', $fd) or die "open +<&=$fd: $!";
-		}
-		return $self->close if $buf eq '';
-		warn Dumper({ 'unexpected self msg' => $buf, fds => \@fds });
-		# TODO: figure out what to do with these messages...
+	my (@fds) = $recv_cmd->($self->{sock}, my $buf, 4096 * 33);
+	if (scalar(@fds) == 1 && !defined($fds[0])) {
+		return if $!{EAGAIN};
+		die "recvmsg: $!" unless $!{ECONNRESET};
+	} else { # just in case open so perl can auto-close them:
+		for (@fds) { open my $fh, '+<&=', $_ };
 	}
+	return $self->close if $buf eq '';
+	warn Dumper({ 'unexpected self msg' => $buf, fds => \@fds });
+	# TODO: figure out what to do with these messages...
 }
 
 1;
