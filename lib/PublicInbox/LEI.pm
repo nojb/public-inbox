@@ -850,9 +850,7 @@ sub _lei_cfg ($;$) {
 	}
 	if (scalar(keys %PATH2CFG) > 5) {
 		# FIXME: use inotify/EVFILT_VNODE to detect unlinked configs
-		for my $k (keys %PATH2CFG) {
-			delete($PATH2CFG{$k}) unless -f $k
-		}
+		delete(@PATH2CFG{grep(!-f, keys %PATH2CFG)});
 	}
 	$self->{cfg} = $PATH2CFG{$f} = $cfg;
 	refresh_watches($self);
