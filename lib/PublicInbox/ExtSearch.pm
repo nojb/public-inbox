@@ -64,7 +64,7 @@ SELECT ibx_id FROM inboxes WHERE eidx_key = ? LIMIT 1
 	$sth = $dbh->prepare_cached(<<'', undef, 1);
 SELECT docid FROM xref3 WHERE oidbin = ? AND xnum = ? AND ibx_id = ? LIMIT 1
 
-	$sth->bind_param(1, pack('H*', $xsmsg->{blob}), SQL_BLOB);
+	$sth->bind_param(1, $xsmsg->oidbin, SQL_BLOB);
 
 	# NNTP::cmd_over can set {num} to zero according to RFC 3977 8.3.2
 	$sth->bind_param(2, $xsmsg->{num} || $xsmsg->{-orig_num});

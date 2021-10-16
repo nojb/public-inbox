@@ -620,8 +620,7 @@ UPDATE over SET ddd = ? WHERE num = ?
 }
 
 sub merge_xref3 { # used for "-extindex --dedupe"
-	my ($self, $keep_docid, $drop_docid, $oidhex) = @_;
-	my $oidbin = pack('H*', $oidhex);
+	my ($self, $keep_docid, $drop_docid, $oidbin) = @_;
 	my $sth = $self->{dbh}->prepare_cached(<<'');
 UPDATE OR IGNORE xref3 SET docid = ? WHERE docid = ? AND oidbin = ?
 

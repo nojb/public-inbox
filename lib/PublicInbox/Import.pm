@@ -423,7 +423,7 @@ sub add {
 				$x->dbh;
 				$x;
 			};
-			return if !$u->set_maybe(pack('H*', $smsg->{blob}), 1);
+			return if !$u->set_maybe($smsg->oidbin, 1);
 			return if (!$oidx->vivify_xvmd($smsg) &&
 					$eidx_git->check($smsg->{blob}));
 		}

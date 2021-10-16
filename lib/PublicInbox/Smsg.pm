@@ -9,12 +9,14 @@
 # large threads in our WWW UI and the NNTP range responses.
 package PublicInbox::Smsg;
 use strict;
-use warnings;
-use base qw(Exporter);
+use v5.10.1;
+use parent qw(Exporter);
 our @EXPORT_OK = qw(subject_normalized);
 use PublicInbox::MID qw(mids references);
 use PublicInbox::Address;
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
+
+sub oidbin { pack('H*', $_[0]->{blob}) }
 
 sub to_doc_data {
 	my ($self) = @_;

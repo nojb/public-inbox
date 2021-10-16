@@ -122,7 +122,7 @@ sub apply_boost ($$) {
 		$a->[1] <=> $b->[1] # break ties with {xnum}
 	} @$xr3;
 	my $new_smsg = $req->{new_smsg};
-	return if $xr3->[0]->[2] ne pack('H*', $new_smsg->{blob}); # loser
+	return if $xr3->[0]->[2] ne $new_smsg->oidbin; # loser
 
 	# replace the old smsg with the more boosted one
 	$new_smsg->{num} = $smsg->{num};
@@ -146,7 +146,7 @@ sub _unref_doc ($$$$$;$) {
 	}
 	if (defined($oidbin) && defined($xnum) && blessed($ibx) && $ibx->over) {
 		my $smsg = $ibx->over->get_art($xnum);
-		if ($smsg && pack('H*', $smsg->{blob}) eq $oidbin) {
+		if ($smsg && $smsg->oidbin eq $oidbin) {
 			carp("BUG: (non-fatal) ".$ibx->eidx_key.
 				" #$xnum $smsg->{blob} still valid");
 			return;
@@ -270,9 +270,8 @@ sub _blob_missing ($$) { # called when a known $smsg->{blob} is gone
 	my ($req, $smsg) = @_;
 	# xnum and ibx are unknown, we only call this when an entry from
 	# /ei*/over.sqlite3 is bad, not on entries from xap*/over.sqlite3
-	my $oidbin = pack('H*', $smsg->{blob});
 	$req->{self}->git->async_wait_all;
-	_unref_doc($req, $smsg, undef, undef, $oidbin);
+	_unref_doc($req, $smsg, undef, undef, $smsg->oidbin);
 }
 
 sub ck_existing { # git->cat_async callback
@@ -569,7 +568,7 @@ sub _reindex_finalize ($$$) {
 	for my $ary (values %$by_chash) {
 		for my $x (reverse @$ary) {
 			warn "removing #$docid xref3 $x->{blob}\n";
-			my $bin = pack('H*', $x->{blob});
+			my $bin = $x->oidbin;
 			my $n = _unref_doc($sync, $docid, undef, undef, $bin);
 			die "BUG: $x->{blob} invalidated #$docid" if $n == 0;
 		}
@@ -987,7 +986,7 @@ sub dd_smsg { # git->cat_async callback
 		my $oidx = $self->{oidx};
 		for my $smsg (@$ary) {
 			my $gone = $smsg->{num};
-			$oidx->merge_xref3($keep->{num}, $gone, $smsg->{blob});
+			$oidx->merge_xref3($keep->{num}, $gone, $smsg->oidbin);
 			remove_doc($self, $gone);
 		}
 	}
