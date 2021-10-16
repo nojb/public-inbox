@@ -1108,7 +1108,7 @@ sub accept_dispatch { # Listener {post_accept} callback
 	my %env = map { split(/=/, $_, 2) } splice(@argv, $argc);
 	$self->{env} = \%env;
 	eval { dispatch($self, @argv) };
-	send($sock, $@, MSG_EOR) if $@;
+	$self->fail($@) if $@;
 }
 
 sub dclose {

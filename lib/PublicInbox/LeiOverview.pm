@@ -37,16 +37,16 @@ sub ovv_out_lk_cancel ($) {
 	unlink($lock_path);
 }
 
-sub detect_fmt ($$) {
-	my ($lei, $dst) = @_;
+sub detect_fmt ($) {
+	my ($dst) = @_;
 	if ($dst =~ m!\A([:/]+://)!) {
-		$lei->fail("$1 support not implemented, yet\n");
+		die "$1 support not implemented, yet\n";
 	} elsif (!-e $dst || -d _) {
 		'maildir'; # the default TODO: MH?
 	} elsif (-f _ || -p _) {
-		$lei->fail("unable to determine mbox family of $dst\n");
+		die "unable to determine mbox family of $dst\n";
 	} else {
-		$lei->fail("unable to determine format of $dst\n");
+		die "unable to determine format of $dst\n";
 	}
 }
 
@@ -60,20 +60,19 @@ sub new {
 	my $fmt = $opt->{$ofmt_key};
 	$fmt = lc($fmt) if defined $fmt;
 	if ($dst =~ m!\A([a-z0-9\+]+)://!is) {
-		defined($fmt) and return $lei->fail(<<"");
+		defined($fmt) and die <<"";
 --$ofmt_key=$fmt invalid with URL $dst
 
 		$fmt = lc $1;
 	} elsif ($dst =~ s/\A([a-z0-9]+)://is) { # e.g. Maildir:/home/user/Mail/
 		my $ofmt = lc $1;
 		$fmt //= $ofmt;
-		return $lei->fail(<<"") if $fmt ne $ofmt;
+		die <<"" if $fmt ne $ofmt;
 --$ofmt_key=$fmt and --output=$ofmt conflict
 
 	}
-
 	my $devfd = $lei->path_to_fd($dst) // return;
-	$fmt //= $devfd >= 0 ? 'json' : (detect_fmt($lei, $dst) or return);
+	$fmt //= $devfd >= 0 ? 'json' : detect_fmt($dst);
 
 	if (index($dst, '://') < 0) { # not a URL, so assume path
 		 $dst = $lei->canonpath_harder($dst);
@@ -90,7 +89,7 @@ sub new {
 		$opt->{pretty} //= $isatty;
 		if (!$isatty && -f _) {
 			my $fl = fcntl($lei->{$devfd}, F_GETFL, 0) //
-				return $lei->fail("fcntl(stdout): $!");
+					die("fcntl(/dev/fd/$devfd): $!\n");
 			ovv_out_lk_init($self) unless ($fl & O_APPEND);
 		} else {
 			ovv_out_lk_init($self);
@@ -101,14 +100,13 @@ sub new {
 	if ($json) {
 		$lei->{dedupe} //= PublicInbox::LeiDedupe->new($lei);
 	} else {
-		$lei->{l2m} = eval { PublicInbox::LeiToMail->new($lei) };
-		return $lei->fail($@) if $@;
+		$lei->{l2m} = PublicInbox::LeiToMail->new($lei);
 		if ($opt->{mua} && $lei->{l2m}->lock_free) {
 			$lei->{early_mua} = 1;
 			$opt->{alert} //= [ ':WINCH,:bell' ] if -t $lei->{1};
 		}
 	}
-	return $lei->fail('--shared is only for v2 inbox output') if
+	die("--shared is only for v2 inbox output\n") if
 		$self->{fmt} ne 'v2' && $lei->{opt}->{shared};
 	$self;
 }
