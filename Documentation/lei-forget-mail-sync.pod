@@ -1,0 +1,31 @@
+=head1 NAME
+
+lei-forget-mail-sync - forget sync information for a mail folder
+
+=head1 SYNOPSIS
+
+lei forget-mail-sync [OPTIONS] LOCATION [LOCATION...]
+
+=head1 DESCRIPTION
+
+Forget synchronization information for C<LOCATION>, an IMAP or Maildir
+folder.  Note that this won't delete any messages stored in Git,
+leaving C<lei-index(1)> users with dangling references.
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/> and
+L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+
+=head1 SEE ALSO
+
+L<lei-ls-mail-sync(1)>, L<lei-index(1)>

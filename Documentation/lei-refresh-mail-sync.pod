@@ -54,4 +54,4 @@ License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
 
 =head1 SEE ALSO
 
-L<lei-index(1)>, L<lei-export-kw(1)>
+L<lei-index(1)>, L<lei-export-kw(1)>, L<lei-ls-mail-sync(1)>

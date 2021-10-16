@@ -96,6 +96,8 @@ Other subcommands include
 
 =over
 
+=item * L<lei-add-watch(1)>
+
 =item * L<lei-config(1)>
 
 =item * L<lei-convert(1)>
@@ -104,9 +106,21 @@ Other subcommands include
 
 =item * L<lei-daemon-pid(1)>
 
+=item * lei-forget-mail-sync(1)
+
+=item * L<lei-mail-diff(1)>
+
+=item * L<lei-inspect(1)>
+
 =item * L<lei-ls-label(1)>
 
+=item * L<lei-ls-mail-source(1)>
+
 =item * L<lei-ls-mail-sync(1)>
+
+=item * L<lei-ls-watch(1)>
+
+=item * L<lei-rm-watch(1)>
 
 =back
 

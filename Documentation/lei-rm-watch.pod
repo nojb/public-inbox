@@ -1,0 +1,30 @@
+=head1 NAME
+
+lei-rm-watch - stop watching locations
+
+=head1 SYNOPSIS
+
+lei rm-watch [OPTIONS] LOCATION [LOCATION...]
+
+=head1 DESCRIPTION
+
+Tell lei to stop watching C<LOCATION> for new messages and flag
+changes.  Currently only Maildir locations are supported.
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/> and
+L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+
+=head1 SEE ALSO
+
+L<lei-add-watch(1)>, L<lei-ls-watch(1)>

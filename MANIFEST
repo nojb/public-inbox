@@ -22,6 +22,7 @@ Documentation/flow.txt
 Documentation/hosted.txt
 Documentation/include.mk
 Documentation/lei-add-external.pod
+Documentation/lei-add-watch.pod
 Documentation/lei-blob.pod
 Documentation/lei-config.pod
 Documentation/lei-convert.pod
@@ -31,15 +32,20 @@ Documentation/lei-daemon.pod
 Documentation/lei-edit-search.pod
 Documentation/lei-export-kw.pod
 Documentation/lei-forget-external.pod
+Documentation/lei-forget-mail-sync.pod
 Documentation/lei-forget-search.pod
 Documentation/lei-import.pod
 Documentation/lei-index.pod
 Documentation/lei-init.pod
+Documentation/lei-inspect.pod
 Documentation/lei-lcat.pod
 Documentation/lei-ls-external.pod
 Documentation/lei-ls-label.pod
+Documentation/lei-ls-mail-source.pod
 Documentation/lei-ls-mail-sync.pod
 Documentation/lei-ls-search.pod
+Documentation/lei-ls-watch.pod
+Documentation/lei-mail-diff.pod
 Documentation/lei-mail-formats.pod
 Documentation/lei-overview.pod
 Documentation/lei-p2q.pod
@@ -47,6 +53,7 @@ Documentation/lei-q.pod
 Documentation/lei-rediff.pod
 Documentation/lei-refresh-mail-sync.pod
 Documentation/lei-rm.pod
+Documentation/lei-rm-watch.pod
 Documentation/lei-security.pod
 Documentation/lei-store-format.pod
 Documentation/lei-tag.pod
