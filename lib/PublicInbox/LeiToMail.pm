@@ -132,6 +132,7 @@ sub eml2mboxcl2 {
 
 sub git_to_mail { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $arg) = @_;
+	$type // return; # called by git->async_abort
 	my ($write_cb, $smsg) = @$arg;
 	if ($type eq 'missing' && $smsg->{-lms_ro}) {
 		if ($bref = $smsg->{-lms_ro}->local_blob($oid, 1)) {
