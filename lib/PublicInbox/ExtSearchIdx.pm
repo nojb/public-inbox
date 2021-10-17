@@ -859,14 +859,20 @@ sub _reindex_check_ibx ($$$) {
 	my $slice = 10000;
 	my $opt = { limit => $slice };
 	my ($beg, $end) = (1, $slice);
-	my $err = sync_inbox($self, $sync, $ibx) and return;
-	my $max = $ibx->mm->num_highwater;
+	my $ekey = $ibx->eidx_key;
+	my ($max, $max0);
+	do {
+		$max0 = $ibx->mm->num_highwater;
+		sync_inbox($self, $sync, $ibx) and return; # warned
+		$max = $ibx->mm->num_highwater;
+		return if $sync->{quit};
+	} while ($max > $max0 &&
+		warn("# $ekey moved $max0..$max, resyncing..\n"));
 	$end = $max if $end > $max;
 
 	# first, check if we missed any messages in target $ibx
 	my $msgs;
 	my $pr = $sync->{-opt}->{-progress};
-	my $ekey = $ibx->eidx_key;
 	local $sync->{-regen_fmt} = "$ekey checking %u/$max\n";
 	${$sync->{nr}} = 0;
 	my $fast = $sync->{-opt}->{fast};
