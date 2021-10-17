@@ -908,10 +908,9 @@ ibx_id = ? AND xnum >= ? AND xnum <= ?
 				for my $num (@$docids) {
 					$self->{oidx}->eidxq_add($num);
 				}
-				return if $sync->{quit};
 			}
+			return if $sync->{quit};
 		}
-		return if $sync->{quit};
 		next unless scalar keys %x3m;
 		$self->git->async_wait_all; # wait for reindex_unseen
 
@@ -936,6 +935,7 @@ BUG: (non-fatal) $ekey #$xnum $smsg->{blob} still matches (old exp: $exp)
 			for my $i (@$docids) {
 				_unref_doc($sync, $i, $ibx, $xnum, $bin);
 			}
+			return if $sync->{quit};
 		}
 	}
 	defined($hi) and ($hi < $max) and
