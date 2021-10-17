@@ -921,6 +921,16 @@ ibx_id = ? AND xnum >= ? AND xnum <= ?
 			my ($xnum, $hex) = unpack('JH*', $k);
 			my $bin = pack('H*', $hex);
 			my $exp = $mismatch{$xnum};
+			if (defined $exp) {
+				my $smsg = $ibx->over->get_art($xnum) // next;
+				# $xnum may be expired by another process
+				if ($smsg->{blob} eq $hex) {
+					warn <<"";
+BUG: (non-fatal) $ekey #$xnum $smsg->{blob} still matches (old exp: $exp)
+
+					next;
+				} # else: continue to unref
+			}
 			my $m = defined($exp) ? "mismatch (!= $exp)" : 'stale';
 			warn("# $xnum:$hex (#@$docids): $m\n");
 			for my $i (@$docids) {
