@@ -719,11 +719,12 @@ sub eidxq_lock_acquire ($) {
 		return $locked if $locked eq $cur;
 	}
 	my ($pid, $time, $euid, $ident) = split(/-/, $cur, 4);
-	my $t = strftime('%Y-%m-%d %k:%M:%S', gmtime($time));
+	my $t = strftime('%Y-%m-%d %k:%M %z', localtime($time));
+	local $self->{current_info} = 'eidxq';
 	if ($euid == $> && $ident eq host_ident) {
 		if (kill(0, $pid)) {
 			warn <<EOM; return;
-I: PID:$pid (re)indexing Xapian since $t, it will continue our work
+I: PID:$pid (re)indexing since $t, it will continue our work
 EOM
 		}
 		if ($!{ESRCH}) {
