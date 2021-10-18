@@ -813,8 +813,8 @@ sub index_oid { # cat_async callback
 			}
 		}
 	}
+	my $oidx = $self->{oidx};
 	if (!defined($num)) { # reuse if reindexing (or duplicates)
-		my $oidx = $self->{oidx};
 		for my $mid (@$mids) {
 			($num, $mid0) = $oidx->num_mid0_for_oid($oid, $mid);
 			last if defined $num;
@@ -822,6 +822,11 @@ sub index_oid { # cat_async callback
 	}
 	$mid0 //= do { # is this a number we got before?
 		$num = $arg->{mm_tmp}->num_for($mids->[0]);
+
+		# don't clobber existing if Message-ID is reused:
+		if (my $x = defined($num) ? $oidx->get_art($num) : undef) {
+			undef($num) if $x->{blob} ne $oid;
+		}
 		defined($num) ? $mids->[0] : undef;
 	};
 	if (!defined($num)) {
