@@ -292,8 +292,8 @@ sub ck_existing { # git->cat_async callback
 
 # is the messages visible in the inbox currently being indexed?
 # return the number if so
-sub cur_ibx_xnum ($$) {
-	my ($req, $bref) = @_;
+sub cur_ibx_xnum ($$;$) {
+	my ($req, $bref, $mismatch) = @_;
 	my $ibx = $req->{ibx} or die 'BUG: current {ibx} missing';
 
 	$req->{eml} = PublicInbox::Eml->new($bref);
@@ -303,6 +303,7 @@ sub cur_ibx_xnum ($$) {
 		my ($id, $prev);
 		while (my $x = $ibx->over->next_by_mid($mid, \$id, \$prev)) {
 			return $x->{num} if $x->{blob} eq $req->{oid};
+			push @$mismatch, $x if $mismatch;
 		}
 	}
 	undef;
@@ -317,8 +318,15 @@ sub index_oid { # git->cat_async callback for 'm'
 		blob => $oid,
 	}, 'PublicInbox::Smsg';
 	$new_smsg->set_bytes($$bref, $size);
-	defined($req->{xnum} = cur_ibx_xnum($req, $bref)) or return;
 	++${$req->{nr}};
+	my $mismatch = [];
+	$req->{xnum} = cur_ibx_xnum($req, $bref, $mismatch) // do {
+		warn "# deleted\n";
+		warn "# mismatch $_->{blob}\n" for @$mismatch;
+		${$req->{latest_cmt}} = $req->{cur_cmt} //
+			die "BUG: {cur_cmt} unset ($oid)\n";
+		return;
+	};
 	do_step($req);
 }
 
