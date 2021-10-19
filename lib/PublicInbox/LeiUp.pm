@@ -46,7 +46,7 @@ sub up1 ($$) {
 
 sub redispatch_all ($$) {
 	my ($self, $lei) = @_;
-	my $upq = [ (@{$self->{local} // []}, @{$self->{remote} // []}) ];
+	my $upq = [ (@{$self->{o_local} // []}, @{$self->{o_remote} // []}) ];
 	return up1($lei, $upq->[0]) if @$upq == 1; # just one, may start MUA
 
 	# FIXME: this is also used per-query, see lei->_start_query
@@ -81,12 +81,12 @@ sub lei_up {
 			$lei->fail('--all and --mua= are incompatible');
 		@outs = PublicInbox::LeiSavedSearch::list($lei);
 		if ($all eq 'local') {
-			$self->{local} = [ grep(!/$REMOTE_RE/, @outs) ];
+			$self->{o_local} = [ grep(!/$REMOTE_RE/, @outs) ];
 		} elsif ($all eq 'remote') {
-			$self->{remote} = [ grep(/$REMOTE_RE/, @outs) ];
+			$self->{o_remote} = [ grep(/$REMOTE_RE/, @outs) ];
 		} elsif ($all eq '') {
-			$self->{remote} = [ grep(/$REMOTE_RE/, @outs) ];
-			$self->{local} = [ grep(!/$REMOTE_RE/, @outs) ];
+			$self->{o_remote} = [ grep(/$REMOTE_RE/, @outs) ];
+			$self->{o_local} = [ grep(!/$REMOTE_RE/, @outs) ];
 		} else {
 			$lei->fail("only --all=$all not understood");
 		}
@@ -94,16 +94,16 @@ sub lei_up {
 		scalar(@outs) == 1 or die "BUG: lse set w/ >1 out[@outs]";
 		return up1($lei, $outs[0]);
 	} else {
-		$self->{remote} = [ grep(/$REMOTE_RE/, @outs) ];
-		$self->{local} = [ grep(!/$REMOTE_RE/, @outs) ];
+		$self->{o_remote} = [ grep(/$REMOTE_RE/, @outs) ];
+		$self->{o_local} = [ grep(!/$REMOTE_RE/, @outs) ];
 	}
 	$lei->{lse} = $lei->_lei_store(1)->write_prepare($lei)->search;
-	((@{$self->{local} // []} + @{$self->{remote} // []}) > 1 &&
+	((@{$self->{o_local} // []} + @{$self->{o_remote} // []}) > 1 &&
 		defined($opt->{mua})) and return $lei->fail(<<EOM);
 multiple outputs and --mua= are incompatible
 EOM
-	if ($self->{remote}) { # setup lei->{auth}
-		$self->prepare_inputs($lei, $self->{remote}) or return;
+	if ($self->{o_remote}) { # setup lei->{auth}
+		$self->prepare_inputs($lei, $self->{o_remote}) or return;
 	}
 	if ($lei->{auth}) { # start auth worker
 		require PublicInbox::NetWriter;
