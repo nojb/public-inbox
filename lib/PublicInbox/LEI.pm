@@ -19,7 +19,7 @@ use IO::Handle ();
 use Fcntl qw(SEEK_SET);
 use PublicInbox::Config;
 use PublicInbox::Syscall qw(EPOLLIN);
-use PublicInbox::DS qw(now dwaitpid);
+use PublicInbox::DS qw(dwaitpid);
 use PublicInbox::Spawn qw(spawn popen_rd);
 use PublicInbox::Lock;
 use PublicInbox::Eml;
@@ -1315,11 +1315,10 @@ sub lazy_start {
 			$quit->();
 		}
 		return 1 if defined($path);
-		my $now = now();
 		my $n = 0;
 		for my $s (values %$dmap) {
 			$s->can('busy') or next;
-			if ($s->busy($now)) {
+			if ($s->busy) {
 				++$n;
 			} else {
 				$s->close;
