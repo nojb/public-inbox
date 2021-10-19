@@ -190,6 +190,16 @@ WriteMakefile(
 		FILES => 't/home*/setup* t/home*/t* t/home*/.public-inbox '.
 			't/data-gen/*'
 	},
+	PM => {
+		map {
+			s[^lib/][]s;
+			+('lib/' . $_ => '$(INST_LIB)/' . $_);
+		} grep {
+			# Will include *.pod and an *.h file, but so
+			# would ExtUtils::MakeMaker.
+			m[^lib/];
+		} @manifest
+	},
 );
 
 sub MY::postamble {
