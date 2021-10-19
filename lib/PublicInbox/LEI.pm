@@ -510,10 +510,10 @@ sub sigpipe_handler { # handles SIGPIPE from @WQ_KEYS workers
 }
 
 sub fail ($$;$) {
-	my ($self, $buf, $exit_code) = @_;
+	my ($self, $msg, $exit_code) = @_;
 	local $current_lei = $self;
 	$self->{failed}++;
-	warn($buf, "\n") if defined $buf;
+	warn(substr($msg, -1, 1) eq "\n" ? $msg : "$msg\n") if defined $msg;
 	$self->{pkt_op_p}->pkt_do('fail_handler') if $self->{pkt_op_p};
 	x_it($self, ($exit_code // 1) << 8);
 	undef;
@@ -534,7 +534,7 @@ sub child_error { # passes non-fatal curl exit codes to user
 	my ($self, $child_error, $msg) = @_; # child_error is $?
 	local $current_lei = $self;
 	$child_error ||= 1 << 8;
-	warn($msg, "\n") if defined $msg;
+	warn(substr($msg, -1, 1) eq "\n" ? $msg : "$msg\n") if defined $msg;
 	if ($self->{pkt_op_p}) { # to top lei-daemon
 		$self->{pkt_op_p}->pkt_do('child_error', $child_error);
 	} elsif ($self->{sock}) { # to lei(1) client
