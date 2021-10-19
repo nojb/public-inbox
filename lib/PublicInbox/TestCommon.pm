@@ -6,7 +6,6 @@ package PublicInbox::TestCommon;
 use strict;
 use parent qw(Exporter);
 use v5.10.1;
-use PublicInbox::AutoReap;
 use Fcntl qw(FD_CLOEXEC F_SETFD F_GETFD :seek);
 use POSIX qw(dup2);
 use IO::Socket::INET;
@@ -430,6 +429,7 @@ sub tail_f (@) {
 	require PublicInbox::Spawn;
 	my $pid = PublicInbox::Spawn::spawn($cmd, undef, { 1 => 2 });
 	wait_for_tail($pid, scalar @_);
+	require PublicInbox::AutoReap;
 	PublicInbox::AutoReap->new($pid, \&wait_for_tail);
 }
 
@@ -493,6 +493,7 @@ sub start_script {
 			die "FAIL: ",join(' ', $key, @argv), ": $!\n";
 		}
 	}
+	require PublicInbox::AutoReap;
 	my $td = PublicInbox::AutoReap->new($pid);
 	$td->{-extra} = $tail;
 	$td;
