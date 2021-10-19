@@ -82,7 +82,12 @@ if ('test worker death') {
 	like($body, qr/\A[0-9]+\z/, '/pid response');
 	isnt($body, $pid, 'respawned worker');
 }
-
+{
+	my $conn = conn_for($sock, 'Header spaces bogus');
+	$conn->write("GET /empty HTTP/1.1\r\nSpaced-Out : 3\r\n\r\n");
+	$conn->read(my $buf, 4096);
+	like($buf, qr!\AHTTP/1\.[0-9] 400 !, 'got 400 response on bad request');
+}
 {
 	my $conn = conn_for($sock, 'streaming callback');
 	$conn->write("GET /callback HTTP/1.0\r\n\r\n");

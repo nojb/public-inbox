@@ -91,6 +91,7 @@ sub event_step { # called by PublicInbox::DS
 		}
 		$self->do_read($rbuf, 8192, length($$rbuf)) or return;
 	}
+	return quit($self, 400) if grep(/\s/, keys %env); # stop smugglers
 	$$rbuf = substr($$rbuf, $r);
 	my $len = input_prepare($self, \%env) //
 		return write_err($self, undef); # EMFILE/ENFILE
