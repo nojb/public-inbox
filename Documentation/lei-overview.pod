@@ -131,6 +131,12 @@ C<contrib/completion/>.  Contributions adding support for other
 shells, as well as improvements to the existing Bash completion, are
 welcome.
 
+=head1 UPGRADING
+
+Since lei runs as a daemon, L<lei-daemon-kill(1)> is required to kill
+the daemon so it can load new code.  It will be restarted with the
+next invocation of any lei command.
+
 =head1 CONTACT
 
 Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
@@ -140,6 +146,6 @@ L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/>
 
 =head1 COPYRIGHT
 
-Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+Copyright all contributors L<mailto:meta@public-inbox.org>
 
 License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
