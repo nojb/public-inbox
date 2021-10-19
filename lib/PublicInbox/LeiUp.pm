@@ -124,7 +124,7 @@ sub net_merge_all_done {
 	$lei->{net} = delete($self->{-net_new}) if $self->{-net_new};
 	$self->wq_close;
 	eval { redispatch_all($self, $lei) };
-	warn "E: $@" if $@;
+	$lei->child_error(0, "E: $@") if $@;
 }
 
 sub _complete_up { # lei__complete hook
