@@ -339,9 +339,12 @@ WHERE b.oidbin = ?
 			next unless -s $fh;
 			local $/;
 			my $raw = <$fh>;
-			if ($vrfy && git_sha(1, \$raw)->hexdigest ne $oidhex) {
-				warn "$f changed $oidhex\n";
-				next;
+			if ($vrfy) {
+				my $got = git_sha(1, \$raw)->hexdigest;
+				if ($got ne $oidhex) {
+					warn "$f changed $oidhex => $got\n";
+					next;
+				}
 			}
 			return \$raw;
 		}
