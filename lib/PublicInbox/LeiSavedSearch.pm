@@ -96,7 +96,7 @@ sub translate_dedupe ($$) {
 	my $dd = $lei->{opt}->{dedupe} // 'content';
 	return 1 if $dd eq 'content'; # the default
 	return $self->{"-dedupe_$dd"} = 1 if ($dd eq 'oid' || $dd eq 'mid');
-	$lei->fail("--dedupe=$dd requires --no-save");
+	die("--dedupe=$dd requires --no-save\n");
 }
 
 sub up { # updating existing saved search via "lei up"
@@ -105,9 +105,9 @@ sub up { # updating existing saved search via "lei up"
 	my $self = bless { ale => $lei->ale }, $cls;
 	my $dir = $dst;
 	output2lssdir($self, $lei, \$dir, \$f) or
-		return $lei->fail("--no-save was used with $dst cwd=".
-					$lei->rel2abs('.'));
-	$self->{-cfg} = $lei->cfg_dump($f) // return $lei->fail;
+		return die("--no-save was used with $dst cwd=".
+					$lei->rel2abs('.')."\n");
+	$self->{-cfg} = $lei->cfg_dump($f) // return $lei->child_error;
 	$self->{-ovf} = "$dir/over.sqlite3";
 	$self->{'-f'} = $f;
 	$self->{lock_path} = "$self->{-f}.flock";

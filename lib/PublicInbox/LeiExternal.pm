@@ -101,9 +101,9 @@ sub get_externals {
 		return (ext_canonicalize($loc));
 	}
 	if (scalar(@m) == 0) {
-		$self->fail("`$loc' is unknown");
+		die "`$loc' is unknown\n";
 	} else {
-		$self->fail("`$loc' is ambiguous:\n", map { "\t$_\n" } @m);
+		die("`$loc' is ambiguous:\n", map { "\t$_\n" } @m, "\n");
 	}
 	();
 }

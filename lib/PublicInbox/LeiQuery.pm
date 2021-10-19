@@ -18,17 +18,15 @@ sub _start_query { # used by "lei q" and "lei up"
 	PublicInbox::LeiOverview->new($self) or return;
 	my $opt = $self->{opt};
 	my ($xj, $mj) = split(/,/, $opt->{jobs} // '');
-	if (defined($xj) && $xj ne '' && $xj !~ /\A[1-9][0-9]*\z/) {
-		return $self->fail("`$xj' search jobs must be >= 1");
-	}
+	(defined($xj) && $xj ne '' && $xj !~ /\A[1-9][0-9]*\z/) and
+		die "`$xj' search jobs must be >= 1\n";
 	my $lxs = $self->{lxs};
 	$xj ||= $lxs->concurrency($opt); # allow: "--jobs ,$WRITER_ONLY"
 	my $nproc = $lxs->detect_nproc || 1; # don't memoize, schedtool(1) exists
 	$xj = $nproc if $xj > $nproc;
 	$lxs->{-wq_nr_workers} = $xj;
-	if (defined($mj) && $mj !~ /\A[1-9][0-9]*\z/) {
-		return $self->fail("`$mj' writer jobs must be >= 1");
-	}
+	(defined($mj) && $mj !~ /\A[1-9][0-9]*\z/) and
+		die "`$mj' writer jobs must be >= 1\n";
 	my $l2m = $self->{l2m};
 	# we use \1 (a ref) to distinguish between default vs. user-supplied
 	if ($l2m && grep { $opt->{$_} //= \1 } (qw(mail-sync import-remote
@@ -112,7 +110,7 @@ sub lxs_prepare {
 		}
 	}
 	($lxs->locals || $lxs->remotes) ? ($self->{lxs} = $lxs) :
-		$self->fail('no local or remote inboxes to search');
+		die("no local or remote inboxes to search\n");
 }
 
 # the main "lei q SEARCH_TERMS" method

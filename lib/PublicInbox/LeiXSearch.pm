@@ -142,11 +142,11 @@ sub wait_startq ($) {
 				delete $lei->{opt}->{verbose};
 				delete $lei->{-progress};
 			} else {
-				$lei->fail("$$ WTF `$do_augment_done'");
+				die "BUG: do_augment_done=`$do_augment_done'";
 			}
 			return;
 		}
-		return $lei->fail("$$ wait_startq: $!") unless $!{EINTR};
+		die "wait_startq: $!" unless $!{EINTR};
 	}
 }
 
@@ -473,7 +473,8 @@ sub do_post_augment {
 		$lei->fail("$err");
 	}
 	if (!$err && delete $lei->{early_mua}) { # non-augment case
-		$lei->start_mua;
+		eval { $lei->start_mua };
+		$lei->fail($@) if $@;
 	}
 	close(delete $lei->{au_done}); # triggers wait_startq in lei_xsearch
 }

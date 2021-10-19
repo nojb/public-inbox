@@ -19,7 +19,7 @@ sub up1 ($$) {
 	my $f = $lss->{'-f'};
 	my $mset_opt = $lei->{mset_opt} = { relevance => -2 };
 	my $q = $mset_opt->{q_raw} = $lss->{-cfg}->{'lei.q'} //
-				return $lei->fail("lei.q unset in $f");
+				die("lei.q unset in $f (out=$out)\n");
 	my $lse = $lei->{lse} // die 'BUG: {lse} missing';
 	if (ref($q)) {
 		$mset_opt->{qstr} = $lse->query_argv_to_string($lse->git, $q);
@@ -36,7 +36,7 @@ sub up1 ($$) {
 		$lei->{opt}->{$k} //= $v;
 	}
 	my $o = $lei->{opt}->{output} // '';
-	return $lei->fail("lei.q.output unset in $f (out=$out)") if $o eq '';
+	return die("lei.q.output unset in $f (out=$out)\n") if $o eq '';
 	$lss->translate_dedupe($lei) or return;
 	$lei->{lss} = $lss; # for LeiOverview->new and query_remote_mboxrd
 	my $lxs = $lei->lxs_prepare or return;
