@@ -15,6 +15,14 @@ my $REMOTE_RE = qr!\A(?:imap|http)s?://!i; # http(s) will be for JMAP
 
 sub up1 ($$) {
 	my ($lei, $out) = @_;
+	# precedence note for CLI switches between lei q and up:
+	# `lei q --only' > `lei q --no-(remote|local|external)'
+	# `lei up --no-(remote|local|external)' > `lei.q.only' in saved search
+	my %no = map {
+		my $v = $lei->{opt}->{$_}; # set by CLI
+		(defined($v) && !$v) ? ($_ => 1) : ();
+	} qw(remote local external);
+	my $cli_exclude = delete $lei->{opt}->{exclude};
 	my $lss = PublicInbox::LeiSavedSearch->up($lei, $out) or return;
 	my $f = $lss->{'-f'};
 	my $mset_opt = $lei->{mset_opt} = { relevance => -2 };
@@ -31,6 +39,20 @@ sub up1 ($$) {
 		my $v = $lss->{-cfg}->get_all("lei.q.$k") // next;
 		$lei->{opt}->{$k} //= $v;
 	}
+
+	# --no-(local|remote) CLI flags overrided saved `lei.q.only'
+	my $only = $lei->{opt}->{only};
+	@$only = map { $lei->get_externals($_) } @$only if $only;
+	if (scalar keys %no && $only) {
+		@$only = grep(!m!\Ahttps?://!i, @$only) if $no{remote};
+		@$only = grep(m!\Ahttps?://!i, @$only) if $no{'local'};
+	}
+	if ($cli_exclude) {
+		my $ex = $lei->canonicalize_excludes($cli_exclude);
+		@$only = grep { !$ex->{$_} } @$only if $only;
+		push @{$lei->{opt}->{exclude}}, @$cli_exclude;
+	}
+	delete $lei->{opt}->{only} if $no{external} || ($only && !@$only);
 	for my $k ($lss->BOOL_FIELDS, $lss->SINGLE_FIELDS) {
 		my $v = $lss->{-cfg}->get_1("lei.q.$k") // next;
 		$lei->{opt}->{$k} //= $v;

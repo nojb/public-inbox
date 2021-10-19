@@ -178,8 +178,8 @@ our %CMD = ( # sorted in order of importance/use:
 	shared color! mail-sync!), @c_opt, opt_dash('limit|n=i', '[0-9]+') ],
 
 'up' => [ 'OUTPUT...|--all', 'update saved search',
-	qw(jobs|j=s lock=s@ alert=s@ mua=s verbose|v+
-	remote-fudge-time=s all:s), @c_opt ],
+	qw(jobs|j=s lock=s@ alert=s@ mua=s verbose|v+ exclude=s@
+	remote-fudge-time=s all:s remote! local! external!), @c_opt ],
 
 'lcat' => [ '--stdin|MSGID_OR_URL...', 'display local copy of message(s)',
 	'stdin|', # /|\z/ must be first for lone dash

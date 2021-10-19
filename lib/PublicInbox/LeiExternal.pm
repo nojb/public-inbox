@@ -105,7 +105,16 @@ sub get_externals {
 	} else {
 		die("`$loc' is ambiguous:\n", map { "\t$_\n" } @m, "\n");
 	}
-	();
+}
+
+sub canonicalize_excludes {
+	my ($lei, $excludes) = @_;
+	my %x;
+	for my $loc (@$excludes) {
+		my @l = get_externals($lei, $loc, 1);
+		$x{$_} = 1 for @l;
+	}
+	\%x;
 }
 
 # returns an anonymous sub which returns an array of potential results

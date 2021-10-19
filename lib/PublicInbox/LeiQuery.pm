@@ -95,18 +95,11 @@ sub lxs_prepare {
 		}
 		# --external is enabled by default, but allow --no-external
 		if ($opt->{external} //= 1) {
-			my %x;
-			for my $loc (@{$opt->{exclude} // []}) {
-				my @l = $self->get_externals($loc, 1) or return;
-				$x{$_} = 1 for @l;
-			}
-			my $ne = $self->externals_each(\&prep_ext, $lxs, \%x);
+			my $ex = $self->canonicalize_excludes($opt->{exclude});
+			$self->externals_each(\&prep_ext, $lxs, $ex);
 			$opt->{remote} //= !($lxs->locals - $opt->{'local'});
-			if ($opt->{'local'}) {
-				$lxs->{remotes} = \@iremotes if !$opt->{remote};
-			} else {
-				$lxs->{locals} = \@ilocals;
-			}
+			$lxs->{locals} = \@ilocals if !$opt->{'local'};
+			$lxs->{remotes} = \@iremotes if !$opt->{remote};
 		}
 	}
 	($lxs->locals || $lxs->remotes) ? ($self->{lxs} = $lxs) :

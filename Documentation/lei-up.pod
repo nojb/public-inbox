@@ -37,11 +37,26 @@ e.g C<1.hour> or C<3.days>
 
 Default: 2.days
 
-=back
+=item --no-external
 
-The following options, described in L<lei-q(1)>, are supported.
+=item --no-local
 
-=over
+=item --no-remote
+
+These disable the use of all externals, local externals, or
+remote externals respectively.  They are useful during
+temporary network or mount-point outages.
+
+Unlike C<lei q>, these switches override the original C<lei q --only>
+options saved as C<lei.q.only>.
+
+The combination C<--all=remote --no-remote> is supported for
+offline use in case a user is updating an IMAP folder on localhost.
+
+=item --exclude=LOCATION
+
+As with L<lei-q(1)>, but may also exclude externals originally
+specified via C<lei q --only>.
 
 =item --lock=METHOD
 
@@ -49,7 +64,10 @@ The following options, described in L<lei-q(1)>, are supported.
 
 =item --mua=CMD
 
-This option is incompatible with C<--all>.
+C<--lock>, C<--alert>, and C<--mua> are all supported and
+documented in L<lei-q(1)>.
+
+C<--mua> is incompatible with C<--all>.
 
 =back
 
@@ -62,7 +80,7 @@ and L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta
 
 =head1 COPYRIGHT
 
-Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+Copyright all contributors L<mailto:meta@public-inbox.org>
 
 License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
 
