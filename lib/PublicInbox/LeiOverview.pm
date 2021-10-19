@@ -21,7 +21,7 @@ use PublicInbox::LeiToMail;
 # cf. https://en.wikipedia.org/wiki/JSON_streaming
 my $JSONL = 'ldjson|ndjson|jsonl'; # 3 names for the same thing
 
-sub _iso8601 ($) { strftime('%Y-%m-%dT%H:%M:%SZ', gmtime($_[0])) }
+sub iso8601 ($) { strftime('%Y-%m-%dT%H:%M:%SZ', gmtime($_[0])) }
 
 # we open this in the parent process before ->wq_io_do handoff
 sub ovv_out_lk_init ($) {
@@ -139,8 +139,8 @@ sub _unbless_smsg {
 	# num/tid are nonsensical with multi-inbox search,
 	# lines/bytes are not generally useful
 	delete @$smsg{qw(num tid lines bytes)};
-	$smsg->{rt} = _iso8601(delete $smsg->{ts}); # JMAP receivedAt
-	$smsg->{dt} = _iso8601(delete $smsg->{ds}); # JMAP UTCDate
+	$smsg->{rt} = iso8601(delete $smsg->{ts}); # JMAP receivedAt
+	$smsg->{dt} = iso8601(delete $smsg->{ds}); # JMAP UTCDate
 	$smsg->{pct} = get_pct($mitem) if $mitem;
 	if (my $r = delete $smsg->{references}) {
 		$smsg->{refs} = [ map { $_ } ($r =~ m/$MID_EXTRACT/go) ];

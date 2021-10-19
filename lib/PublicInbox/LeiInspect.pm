@@ -12,10 +12,15 @@ use parent qw(PublicInbox::IPC);
 use PublicInbox::Config;
 use PublicInbox::MID qw(mids);
 use PublicInbox::NetReader qw(imap_uri nntp_uri);
+use POSIX qw(strftime);
+use PublicInbox::LeiOverview;
+*iso8601 = \&PublicInbox::LeiOverview::iso8601;
 
 sub _json_prep ($) {
 	my ($smsg) = @_;
 	$smsg->{$_} += 0 for qw(bytes lines); # integerize
+	$smsg->{dt} = iso8601($smsg->{ds}) if defined($smsg->{ds});
+	$smsg->{rt} = iso8601($smsg->{ts}) if defined($smsg->{ts});
 	+{ %$smsg } # unbless and scalarize
 }
 
