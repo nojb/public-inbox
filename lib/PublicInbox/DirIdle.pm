@@ -14,7 +14,8 @@ if ($^O eq 'linux' && eval { require Linux::Inotify2; 1 }) {
 		Linux::Inotify2::IN_CREATE();
 	$MAIL_GONE = Linux::Inotify2::IN_DELETE() |
 			Linux::Inotify2::IN_DELETE_SELF() |
-			Linux::Inotify2::IN_MOVE_SELF();
+			Linux::Inotify2::IN_MOVE_SELF() |
+			Linux::Inotify2::IN_MOVED_FROM();
 	$ino_cls = 'Linux::Inotify2';
 # Perl 5.22+ is needed for fileno(DIRHANDLE) support:
 } elsif ($^V ge v5.22 && eval { require PublicInbox::KQNotify }) {

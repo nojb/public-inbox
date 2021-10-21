@@ -10,6 +10,7 @@ use parent qw(Exporter);
 use Time::HiRes qw(stat);
 use PublicInbox::DS qw(add_timer);
 sub IN_MODIFY () { 0x02 } # match Linux inotify
+# my $IN_MOVED_FROM	 0x00000040	/* File was moved from X.  */
 # my $IN_MOVED_TO = 0x80;
 # my $IN_CREATE = 0x100;
 sub MOVED_TO_OR_CREATE () { 0x80 | 0x100 }
@@ -136,6 +137,7 @@ use strict;
 sub fullname { ${$_[0]} }
 
 sub IN_DELETE { 0 }
+sub IN_MOVED_FROM { 0 }
 sub IN_DELETE_SELF { 0 }
 
 package PublicInbox::FakeInotify::GoneEvent;
@@ -143,6 +145,7 @@ use strict;
 our @ISA = qw(PublicInbox::FakeInotify::Event);
 
 sub IN_DELETE { 1 }
+sub IN_MOVED_FROM { 0 }
 
 package PublicInbox::FakeInotify::SelfGoneEvent;
 use strict;

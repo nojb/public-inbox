@@ -1198,7 +1198,7 @@ sub dir_idle_handler ($) { # PublicInbox::DirIdle callback
 	my $fn = $ev->fullname;
 	if ($fn =~ m!\A(.+)/(new|cur)/([^/]+)\z!) { # Maildir file
 		my ($mdir, $nc, $bn) = ($1, $2, $3);
-		$nc = '' if $ev->IN_DELETE;
+		$nc = '' if $ev->IN_DELETE || $ev->IN_MOVED_FROM;
 		for my $f (keys %{$MDIR2CFGPATH->{$mdir} // {}}) {
 			my $cfg = $PATH2CFG{$f} // next;
 			eval {
