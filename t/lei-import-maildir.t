@@ -52,7 +52,7 @@ test_lei(sub {
 	my $r2 = json_utf8->decode($lei_out);
 	is_deeply($r2, $res, 'idempotent import')
 			or diag explain($imp_err, $res);
-	rename("$md/cur/x:2,S", "$md/cur/x:2,SR") or BAIL_OUT "rename: $!";
+	rename("$md/cur/x:2,S", "$md/cur/x:2,RS") or BAIL_OUT "rename: $!";
 	lei_ok('import', "maildir:$md", \'import Maildir after +answered');
 	lei_ok(qw(q -d none s:boolean), \'lei q after +answered');
 	$res = json_utf8->decode($lei_out);
