@@ -571,6 +571,12 @@ sub recv_and_run {
 	$self->SUPER::recv_and_run(@args);
 }
 
+sub _sto_atexit { # dwaitpid callback
+	my ($args, $pid) = @_;
+	my $self = $args->[0];
+	warn "lei/store PID:$pid died \$?=$?\n" if $?;
+}
+
 sub write_prepare {
 	my ($self, $lei) = @_;
 	$lei // die 'BUG: $lei not passed';
@@ -587,7 +593,7 @@ sub write_prepare {
 					-err_wr => $w,
 					to_close => [ $r ],
 				});
-		$self->wq_wait_async; # outlives $lei
+		$self->wq_wait_async(\&_sto_atexit); # outlives $lei
 		require PublicInbox::LeiStoreErr;
 		PublicInbox::LeiStoreErr->new($r, $lei);
 	}
