@@ -330,6 +330,7 @@ sub imap_idle_once ($$$$) {
 	my $end = now() + $intvl;
 	warn "I: $uri idling for ${intvl}s\n";
 	local $0 = "IDLE $0";
+	return if $self->{quit};
 	unless ($mic->idle) {
 		return if $self->{quit};
 		return "E: IDLE failed on $uri: $!";
