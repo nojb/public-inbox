@@ -7,28 +7,45 @@ use File::Path qw(make_path);
 require_mods(qw(lei -imapd Mail::IMAPClient));
 my ($tmpdir, $for_destroy) = tmpdir;
 my $expect = eml_load('t/data/0001.patch');
+my $do_export_kw = 1;
+my $wait_for = sub {
+	my ($f) = @_;
+	lei_ok qw(export-kw --all=local) if $do_export_kw;
+	my $x = $f;
+	$x =~ s!\Q$tmpdir\E/!\$TMPDIR/!;
+	for (0..10) {
+		last if -f $f;
+		diag "tick #$_ $x";
+		tick(0.1);
+	}
+	ok(-f $f, "$x exists") or xbail;
+};
+
 test_lei({ tmpdir => $tmpdir }, sub {
 	my $home = $ENV{HOME};
 	my $md = "$home/md";
+	my $f;
 	make_path("$md/new", "$md/cur", "$md/tmp");
 	cp('t/data/0001.patch', "$md/new/y") or xbail "cp $md $!";
 	cp('t/data/message_embed.eml', "$md/cur/x:2,S") or xbail "cp $md $!";
-	lei_ok qw(index -q), $md;
+	lei_ok qw(index), $md;
 	lei_ok qw(tag t/data/0001.patch +kw:seen);
-	lei_ok qw(export-kw --all=local);
-	ok(!-e "$md/new/y", 'original gone');
-	is_deeply(eml_load("$md/cur/y:2,S"), $expect,
-		"`seen' kw exported");
+	$wait_for->($f = "$md/cur/y:2,S");
+	ok(!-e "$md/new/y", 'original gone') or
+		diag explain([glob("$md/*/*")]);
+	is_deeply(eml_load($f), $expect, "`seen' kw exported");
 
 	lei_ok qw(tag t/data/0001.patch +kw:answered);
-	lei_ok qw(export-kw --all=local);
-	ok(!-e "$md/cur/y:2,S", 'seen-only file gone');
-	is_deeply(eml_load("$md/cur/y:2,RS"), $expect, "`R' added");
+	$wait_for->($f = "$md/cur/y:2,RS");
+	ok(!-e "$md/cur/y:2,S", 'seen-only file gone') or
+		diag explain([glob("$md/*/*")]);
+	is_deeply(eml_load($f), $expect, "`R' added");
 
 	lei_ok qw(tag t/data/0001.patch -kw:answered -kw:seen);
-	lei_ok qw(export-kw --mode=set --all=local);
-	ok(!-e "$md/cur/y:2,RS", 'seen+answered file gone');
-	is_deeply(eml_load("$md/cur/y:2,"), $expect, 'no keywords left');
+	$wait_for->($f = "$md/cur/y:2,");
+	ok(!-e "$md/cur/y:2,RS", 'seen+answered file gone') or
+		diag explain([glob("$md/*/*")]);
+	is_deeply(eml_load($f), $expect, 'no keywords left');
 });
 
 done_testing;

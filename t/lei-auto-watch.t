@@ -41,7 +41,8 @@ test_lei(sub {
 	$ins = json_utf8->decode($lei_out);
 	$exp = { "maildir:$x" => [ map { basename($_) } glob("$x/*/*") ],
 		"maildir:$y" => [ map { basename($_) } glob("$y/*/*") ] };
-	is_deeply($ins->{'mail-sync'}, $exp, 'mail_sync matches FS');
+	is_deeply($ins->{'mail-sync'}, $exp, 'mail_sync matches FS') or
+		diag explain($ins);
 });
 
 done_testing;
