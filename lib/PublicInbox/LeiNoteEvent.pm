@@ -8,6 +8,7 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::IPC);
 use PublicInbox::DS;
+use Errno qw(ENOENT);
 
 our $to_flush; # { cfgpath => $lei }
 
@@ -59,8 +60,11 @@ sub eml_event ($$$$) {
 
 sub maildir_event { # via wq_io_do
 	my ($self, $fn, $vmd, $state) = @_;
-	my $eml = PublicInbox::InboxWritable::eml_from_path($fn) // return;
-	eml_event($self, $eml, $vmd, $state);
+	if (my $eml = PublicInbox::InboxWritable::eml_from_path($fn)) {
+		eml_event($self, $eml, $vmd, $state);
+	} elsif ($! == ENOENT) {
+		$self->{lms}->clear_src(@{$vmd->{sync_info}});
+	} # else: eml_from_path already warns
 }
 
 sub lei_note_event {
