@@ -97,7 +97,7 @@ sub lei_note_event {
 		return if index($fl, 'T') >= 0;
 		my $kw = PublicInbox::MdirReader::flags2kw($fl);
 		my $vmd = { kw => $kw, sync_info => [ $folder, \$bn ] };
-		$self->wq_io_do('maildir_event', [], $fn, $vmd, $state);
+		$self->wq_do('maildir_event', $fn, $vmd, $state);
 	} # else: TODO: imap
 }
 
