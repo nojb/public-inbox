@@ -32,6 +32,7 @@ use POSIX ();
 use IO::Handle (); # ->autoflush
 use Sys::Syslog qw(syslog openlog);
 use Errno qw(EEXIST ENOENT);
+use PublicInbox::Syscall qw(rename_noreplace);
 
 sub new {
 	my (undef, $dir, $opt) = @_;
@@ -185,10 +186,7 @@ sub export1_kw_md ($$$$$) {
 	my $dst = "$mdir/cur/$bn";
 	for my $d (@try) {
 		my $src = "$mdir/$d/$orig";
-		if (link($src, $dst)) {
-			if (!unlink($src) and $! != ENOENT) {
-				syslog('warning', "unlink($src): $!");
-			}
+		if (rename_noreplace($src, $dst)) {
 			# TODO: verify oidbin?
 			$self->{lms}->mv_src("maildir:$mdir",
 					$oidbin, \$orig, $bn);
@@ -196,7 +194,7 @@ sub export1_kw_md ($$$$$) {
 		} elsif ($! == EEXIST) { # lost race with "lei export-kw"?
 			return;
 		} elsif ($! != ENOENT) {
-			syslog('warning', "link($src -> $dst): $!");
+			syslog('warning', "rename_noreplace($src -> $dst): $!");
 		}
 	}
 	for (@try) { return if -e "$mdir/$_/$orig" };

@@ -7,6 +7,7 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::IPC PublicInbox::LeiInput);
 use Errno qw(EEXIST ENOENT);
+use PublicInbox::Syscall qw(rename_noreplace);
 
 sub export_kw_md { # LeiMailSync->each_src callback
 	my ($oidbin, $id, $self, $mdir) = @_;
@@ -30,30 +31,22 @@ sub export_kw_md { # LeiMailSync->each_src callback
 	my $lei = $self->{lei};
 	for my $d (@try) {
 		my $src = "$mdir/$d/$$id";
-
-		# we use link(2) + unlink(2) since rename(2) may
-		# inadvertently clobber if the "uniquefilename" part wasn't
-		# actually unique.
-		if (link($src, $dst)) { # success
-			# unlink(2) may ENOENT from parallel invocation,
-			# ignore it, but not other serious errors
-			if (!unlink($src) and $! != ENOENT) {
-				$lei->child_error(1, "E: unlink($src): $!");
-			}
+		if (rename_noreplace($src, $dst)) { # success
 			$self->{lms}->mv_src("maildir:$mdir",
 						$oidbin, $id, $bn);
-			return; # success anyways if link(2) worked
+			return; # success
 		} elsif ($! == EEXIST) { # lost race with lei/store?
 			return;
 		} elsif ($! != ENOENT) {
-			$lei->child_error(1, "E: link($src -> $dst): $!");
+			$lei->child_error(1,
+				"E: rename_noreplace($src -> $dst): $!");
 		} # else loop @try
 	}
 	my $e = $!;
 	# both tries failed
 	my $oidhex = unpack('H*', $oidbin);
 	my $src = "$mdir/{".join(',', @try)."}/$$id";
-	$lei->child_error(1, "link($src -> $dst) ($oidhex): $e");
+	$lei->child_error(1, "rename_noreplace($src -> $dst) ($oidhex): $e");
 	for (@try) { return if -e "$mdir/$_/$$id" }
 	$self->{lms}->clear_src("maildir:$mdir", $id);
 }

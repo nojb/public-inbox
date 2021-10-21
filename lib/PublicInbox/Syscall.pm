@@ -13,8 +13,9 @@
 # License or the Artistic License, as specified in the Perl README file.
 package PublicInbox::Syscall;
 use strict;
+use v5.10.1;
 use parent qw(Exporter);
-use POSIX qw(ENOSYS O_NONBLOCK);
+use POSIX qw(ENOENT EEXIST ENOSYS O_NONBLOCK);
 use Config;
 
 # $VERSION = '0.25'; # Sys::Syscall version
@@ -22,7 +23,7 @@ our @EXPORT_OK = qw(epoll_ctl epoll_create epoll_wait
                   EPOLLIN EPOLLOUT EPOLLET
                   EPOLL_CTL_ADD EPOLL_CTL_DEL EPOLL_CTL_MOD
                   EPOLLONESHOT EPOLLEXCLUSIVE
-                  signalfd);
+                  signalfd rename_noreplace);
 our %EXPORT_TAGS = (epoll => [qw(epoll_ctl epoll_create epoll_wait
                              EPOLLIN EPOLLOUT
                              EPOLL_CTL_ADD EPOLL_CTL_DEL EPOLL_CTL_MOD
@@ -64,13 +65,16 @@ our (
      $SYS_epoll_ctl,
      $SYS_epoll_wait,
      $SYS_signalfd4,
+     $SYS_renameat2,
      );
 
 my $SFD_CLOEXEC = 02000000; # Perl does not expose O_CLOEXEC
 our $no_deprecated = 0;
 
 if ($^O eq "linux") {
-    my $machine = (POSIX::uname())[-1];
+    my (undef, undef, $release, undef, $machine) = POSIX::uname();
+    my ($maj, $min) = ($release =~ /\A([0-9]+)\.([0-9]+)/);
+    $SYS_renameat2 = 0 if "$maj.$min" < 3.15;
     # whether the machine requires 64-bit numbers to be on 8-byte
     # boundaries.
     my $u64_mod_8 = 0;
@@ -91,22 +95,26 @@ if ($^O eq "linux") {
         $SYS_epoll_ctl    = 255;
         $SYS_epoll_wait   = 256;
         $SYS_signalfd4 = 327;
+        $SYS_renameat2 //= 353;
     } elsif ($machine eq "x86_64") {
         $SYS_epoll_create = 213;
         $SYS_epoll_ctl    = 233;
         $SYS_epoll_wait   = 232;
         $SYS_signalfd4 = 289;
+	$SYS_renameat2 //= 316;
     } elsif ($machine eq 'x32') {
         $SYS_epoll_create = 1073742037;
         $SYS_epoll_ctl = 1073742057;
         $SYS_epoll_wait = 1073742056;
         $SYS_signalfd4 = 1073742113;
+	$SYS_renameat2 //= 0x40000000 + 316;
     } elsif ($machine eq 'sparc64') {
 	$SYS_epoll_create = 193;
 	$SYS_epoll_ctl = 194;
 	$SYS_epoll_wait = 195;
 	$u64_mod_8 = 1;
 	$SYS_signalfd4 = 317;
+	$SYS_renameat2 //= 345;
 	$SFD_CLOEXEC = 020000000;
     } elsif ($machine =~ m/^parisc/) {
         $SYS_epoll_create = 224;
@@ -120,18 +128,21 @@ if ($^O eq "linux") {
         $SYS_epoll_wait   = 238;
         $u64_mod_8        = 1;
         $SYS_signalfd4 = 313;
+	$SYS_renameat2 //= 357;
     } elsif ($machine eq "ppc") {
         $SYS_epoll_create = 236;
         $SYS_epoll_ctl    = 237;
         $SYS_epoll_wait   = 238;
         $u64_mod_8        = 1;
         $SYS_signalfd4 = 313;
+	$SYS_renameat2 //= 357;
     } elsif ($machine =~ m/^s390/) {
         $SYS_epoll_create = 249;
         $SYS_epoll_ctl    = 250;
         $SYS_epoll_wait   = 251;
         $u64_mod_8        = 1;
         $SYS_signalfd4 = 322;
+	$SYS_renameat2 //= 347;
     } elsif ($machine eq "ia64") {
         $SYS_epoll_create = 1243;
         $SYS_epoll_ctl    = 1244;
@@ -153,6 +164,7 @@ if ($^O eq "linux") {
         $u64_mod_8        = 1;
         $no_deprecated    = 1;
         $SYS_signalfd4 = 74;
+	$SYS_renameat2 //= 276;
     } elsif ($machine =~ m/arm(v\d+)?.*l/) {
         # ARM OABI
         $SYS_epoll_create = 250;
@@ -160,18 +172,21 @@ if ($^O eq "linux") {
         $SYS_epoll_wait   = 252;
         $u64_mod_8        = 1;
         $SYS_signalfd4 = 355;
+	$SYS_renameat2 //= 382;
     } elsif ($machine =~ m/^mips64/) {
         $SYS_epoll_create = 5207;
         $SYS_epoll_ctl    = 5208;
         $SYS_epoll_wait   = 5209;
         $u64_mod_8        = 1;
         $SYS_signalfd4 = 5283;
+	$SYS_renameat2 //= 5311;
     } elsif ($machine =~ m/^mips/) {
         $SYS_epoll_create = 4248;
         $SYS_epoll_ctl    = 4249;
         $SYS_epoll_wait   = 4250;
         $u64_mod_8        = 1;
         $SYS_signalfd4 = 4324;
+	$SYS_renameat2 //= 4351;
     } else {
         # as a last resort, try using the *.ph files which may not
         # exist or may be wrong
@@ -277,6 +292,34 @@ sub signalfd ($$) {
 	} else {
 		$! = ENOSYS;
 		undef;
+	}
+}
+
+sub _rename_noreplace_racy ($$) {
+	my ($old, $new) = @_;
+	if (link($old, $new)) {
+		warn "unlink $old: $!\n" if !unlink($old) && $! != ENOENT;
+		1
+	} else {
+		undef;
+	}
+}
+
+# TODO: support FD args?
+sub rename_noreplace ($$) {
+	my ($old, $new) = @_;
+	if ($SYS_renameat2) { # RENAME_NOREPLACE = 1, AT_FDCWD = -100
+		my $ret = syscall($SYS_renameat2, -100, $old, -100, $new, 1);
+		if ($ret == 0) {
+			1; # like rename() perlop
+		} elsif ($! == ENOSYS) {
+			undef $SYS_renameat2;
+			_rename_noreplace_racy($old, $new);
+		} else {
+			undef
+		}
+	} else {
+		_rename_noreplace_racy($old, $new);
 	}
 }
 

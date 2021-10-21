@@ -1,4 +1,4 @@
-# Copyright 2021 all contributors <meta@public-inbox.org>
+# Copyright all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <http://www.gnu.org/licenses/agpl-3.0.txt>
 # Dump syscall numbers under Linux and any other kernel which
 # promises stable syscall numbers.  This is to maintain
@@ -9,7 +9,10 @@
 eval 'exec perl -S $0 ${1+"$@"}' # no shebang
 	if 0; # running under some shell
 use strict;
+use v5.10.1;
 use File::Temp 0.19;
+use POSIX qw(uname);
+say '$machine='.(POSIX::uname())[-1];
 my $cc = $ENV{CC} // 'cc';
 my @cflags = split(/\s+/, $ENV{CFLAGS} // '-Wall');
 my $str = do { local $/; <DATA> };
@@ -43,6 +46,9 @@ int main(void)
 	D(SYS_inotify_add_watch);
 	D(SYS_inotify_rm_watch);
 	D(SYS_prctl);
+#ifdef SYS_renameat2
+	D(SYS_renameat2);
+#endif
 #endif /* Linux, any other OSes with stable syscalls? */
 	printf("size_t=%zu off_t=%zu\n", sizeof(size_t), sizeof(off_t));
 	return 0;

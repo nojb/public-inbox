@@ -12,6 +12,7 @@ use PublicInbox::Spawn qw(spawn);
 use Symbol qw(gensym);
 use IO::Handle; # ->autoflush
 use Fcntl qw(SEEK_SET SEEK_END O_CREAT O_EXCL O_WRONLY);
+use PublicInbox::Syscall qw(rename_noreplace);
 
 my %kw2char = ( # Maildir characters
 	draft => 'D',
@@ -262,10 +263,8 @@ sub _buf2maildir ($$$$) {
 		$rand = '';
 		do {
 			$base = $rand.$common.':2,'.kw2suffix($kw);
-		} while (!($ok = link($tmp, $dst.$base)) && $!{EEXIST} &&
-			($rand = _rand.','));
-		die "link($tmp, $dst$base): $!" unless $ok;
-		unlink($tmp) or warn "W: failed to unlink $tmp: $!\n";
+		} while (!($ok = rename_noreplace($tmp, $dst.$base)) &&
+			$!{EEXIST} && ($rand = _rand.','));
 		\$base;
 	} else {
 		my $err = "Error writing $smsg->{blob} to $dst: $!\n";
