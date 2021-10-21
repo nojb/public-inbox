@@ -7,7 +7,7 @@ require_mods(qw(json DBD::SQLite Search::Xapian));
 
 test_lei(sub {
 	ok(!lei(qw(p2q this-better-cause-format-patch-to-fail)),
-		'p2q fails on bogus arg');
+		'p2q fails on bogus arg') or diag $lei_err;
 	like($lei_err, qr/format-patch.*failed/, 'notes format-patch failure');
 	lei_ok(qw(p2q -w dfpost t/data/0001.patch));
 	is($lei_out, "dfpost:6e006fd73b1d\n", 'pathname') or diag $lei_err;
