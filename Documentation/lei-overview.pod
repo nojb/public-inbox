@@ -137,6 +137,11 @@ Since lei runs as a daemon, L<lei-daemon-kill(1)> is required to kill
 the daemon so it can load new code.  It will be restarted with the
 next invocation of any lei command.
 
+=head1 CAVEATS
+
+IMAP and NNTP client performance is poor on high-latency connections.
+It will hopefully be fixed in 2022.
+
 =head1 CONTACT
 
 Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
