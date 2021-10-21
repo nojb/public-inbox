@@ -7,7 +7,7 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::ExtSearch); # PublicInbox::Search->reopen
 use PublicInbox::Search qw(xap_terms);
-use PublicInbox::ContentHash qw(content_digest content_hash);
+use PublicInbox::ContentHash qw(content_digest content_hash git_sha);
 use PublicInbox::MID qw(mids mids_for_index);
 use Carp qw(croak);
 
@@ -118,6 +118,13 @@ sub xoids_for {
 		}
 	}
 	$git->async_wait_all;
+
+	# it could be an 'lei index'-ed file that just got renamed
+	if (scalar(keys %$xoids) < ($min // 1) && defined($self->{topdir})) {
+		my $hex = git_sha(1, $eml)->hexdigest;
+		my @n = $overs[0]->blob_exists($hex);
+		for (@n) { $xoids->{$hex} //= $_ }
+	}
 	scalar(keys %$xoids) ? $xoids : undef;
 }
 
@@ -129,6 +136,10 @@ sub kw_changed {
 		my $xoids = xoids_for($self, $eml) // return;
 		$docids //= [];
 		@$docids = sort { $a <=> $b } values %$xoids;
+		if (!@$docids && $self->over) {
+			my $bin = git_sha(1, $eml)->digest;
+			@$docids = $self->over->oidbin_exists($bin);
+		}
 	}
 	for my $id (@$docids) {
 		$cur_kw = eval { msg_keywords($self, $id) } and last;
