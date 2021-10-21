@@ -391,11 +391,7 @@ sub watch_atfork_child ($) {
 	PublicInbox::DS::sig_setmask($self->{oldset});
 }
 
-sub watch_atfork_parent ($) {
-	my ($self) = @_;
-	_done_for_now($self);
-	PublicInbox::DS::block_signals();
-}
+sub watch_atfork_parent ($) { _done_for_now($_[0]) }
 
 sub imap_idle_requeue { # DS::add_timer callback
 	my ($self, $uri_intvl) = @_;
@@ -449,13 +445,12 @@ sub event_step {
 	return if $self->{quit};
 	my $idle_todo = $self->{idle_todo};
 	if ($idle_todo && @$idle_todo) {
-		my $oldset = watch_atfork_parent($self);
+		watch_atfork_parent($self);
 		eval {
 			while (my $uri_intvl = shift(@$idle_todo)) {
 				imap_idle_fork($self, $uri_intvl);
 			}
 		};
-		PublicInbox::DS::sig_setmask($oldset);
 		die $@ if $@;
 	}
 	fs_scan_step($self) if $self->{mdre};
@@ -492,7 +487,7 @@ sub poll_fetch_fork { # DS::add_timer callback
 	my ($self, $intvl, $uris) = @_;
 	return if $self->{quit};
 	pipe(my ($r, $w)) or die "pipe: $!";
-	my $oldset = watch_atfork_parent($self);
+	watch_atfork_parent($self);
 	my $seed = rand(0xffffffff);
 	my $pid = fork;
 	if (defined($pid) && $pid == 0) {
@@ -508,7 +503,6 @@ sub poll_fetch_fork { # DS::add_timer callback
 		close $w;
 		_exit(0);
 	}
-	PublicInbox::DS::sig_setmask($oldset);
 	die "fork: $!"  unless defined $pid;
 	$self->{poll_pids}->{$pid} = [ $intvl, $uris ];
 	PublicInbox::EOFpipe->new($r, \&reap, [$pid, \&poll_fetch_reap, $self]);
