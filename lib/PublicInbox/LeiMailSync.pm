@@ -182,16 +182,20 @@ sub mv_src {
 	my ($self, $folder, $oidbin, $id, $newbn) = @_;
 	my $lk = $self->lock_for_scope;
 	my $fid = $self->{fmap}->{$folder} //= fid_for($self, $folder, 1);
+	$self->{dbh}->begin_work;
 	my $sth = $self->{dbh}->prepare_cached(<<'');
 UPDATE blob2name SET name = ? WHERE fid = ? AND oidbin = ? AND name = ?
 
-	my $nr = $sth->execute($newbn, $fid, $oidbin, $$id);
-	if ($nr == 0) { # may race with a clear_src, ensure new value exists
+	# eval since unique constraint may fail due to race
+	my $nr = eval { $sth->execute($newbn, $fid, $oidbin, $$id) };
+	if (!defined($nr) || $nr == 0) { # $nr may be `0E0'
+		# may race with a clear_src, ensure new value exists
 		$sth = $self->{dbh}->prepare_cached(<<'');
 INSERT OR IGNORE INTO blob2name (oidbin, fid, name) VALUES (?, ?, ?)
 
 		$sth->execute($oidbin, $fid, $newbn);
 	}
+	$self->{dbh}->commit;
 }
 
 # read-only, iterates every oidbin + UID or name for a given folder
