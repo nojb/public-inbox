@@ -72,8 +72,7 @@ sub lei_note_event {
 	my $lms = $lei->lms or return;
 	$lms->lms_write_prepare if $new_cur eq ''; # for ->clear_src below
 	$lei->{opt}->{quiet} = 1;
-	eval { $lms->arg2folder($lei, [ $folder ]) };
-	return if $@;
+	$lms->arg2folder($lei, [ $folder ]);
 	my $state = $cfg->get_1("watch.$folder.state") // 'tag-rw';
 	return if $state eq 'pause';
 	return $lms->clear_src($folder, \$bn) if $new_cur eq '';
