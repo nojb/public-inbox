@@ -67,9 +67,13 @@ sub input_path_url {
 		$self->{lms}->each_src($input, \&export_kw_md, $self, $mdir);
 	} elsif ($input =~ m!\Aimaps?://!i) {
 		my $uri = PublicInbox::URIimap->new($input);
-		my $mic = $self->{nwr}->mic_for_folder($uri);
-		$self->{lms}->each_src($$uri, \&export_kw_imap, $self, $mic);
-		$mic->expunge;
+		if (my $mic = $self->{nwr}->mic_for_folder($uri)) {
+			$self->{lms}->each_src($$uri, \&export_kw_imap,
+						$self, $mic);
+			$mic->expunge;
+		} else {
+			$self->{lei}->child_error(0, "$input unavailable: $@");
+		}
 	} else { die "BUG: $input not supported" }
 }
 
@@ -108,6 +112,7 @@ EOM
 		$self->{nwr} = bless $net, 'PublicInbox::NetWriter';
 		$self->{imap_mod_kw} = $net->can($self->{-merge_kw} ?
 					'imap_add_kw' : 'imap_set_kw');
+		$self->{nwr}->{-skip_creat} = 1;
 	}
 	my $ops = {};
 	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};

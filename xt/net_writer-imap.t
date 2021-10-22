@@ -83,8 +83,11 @@ my $mics = do {
 };
 my $mic = (values %$mics)[0];
 my $cleanup = PublicInbox::OnDestroy->new($$, sub {
-	my $mic = $nwr->mic_get($uri);
-	$mic->delete($folder) or fail "delete $folder <$folder_uri>: $@";
+	if (defined($folder)) {
+		my $mic = $nwr->mic_get($uri);
+		$mic->delete($folder) or
+			fail "delete $folder <$folder_uri>: $@";
+	}
 	if ($tmpdir && -f "$tmpdir/.gitconfig") {
 		local $ENV{HOME} = $tmpdir;
 		system(qw(git credential-cache exit));
@@ -250,6 +253,14 @@ EOM
 	lei_ok qw(q m:testmessage --no-external -o), $folder_url;
 	lei_ok qw(up), $folder_url;
 	lei_ok qw(up --all=remote);
+	$mic = $nwr->mic_get($uri);
+	$mic->delete($folder) or fail "delete $folder <$folder_uri>: $@";
+	$mic->expunge;
+	undef $mic;
+	undef $folder;
+	ok(!lei(qw(export-kw), $folder_url),
+		'export-kw fails w/ non-existent folder');
+
 });
 
 undef $cleanup; # remove temporary folder

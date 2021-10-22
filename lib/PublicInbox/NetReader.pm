@@ -359,6 +359,7 @@ sub imap_common_init ($;$) {
 				mic_for($self, $uri, $mic_common, $lei) //
 				die "Unable to continue\n";
 		next unless $self->isa('PublicInbox::NetWriter');
+		next if $self->{-skip_creat};
 		my $dst = $orig_uri->mailbox // next;
 		next if $mic->exists($dst); # already exists
 		$mic->create($dst) or die "CREATE $dst failed <$orig_uri>: $@";
