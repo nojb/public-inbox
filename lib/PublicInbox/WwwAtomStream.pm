@@ -161,7 +161,8 @@ sub feed_entry {
 }
 
 sub feed_updated {
-	'<updated>' . strftime('%Y-%m-%dT%H:%M:%SZ', gmtime(@_)) . '</updated>';
+	my ($t) = @_;
+	'<updated>' . strftime('%Y-%m-%dT%H:%M:%SZ', gmtime($t)) . '</updated>';
 }
 
 1;

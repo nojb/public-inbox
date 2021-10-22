@@ -92,6 +92,11 @@ my $client0 = sub {
 	@bodies = ($res->content =~ /^(hello [^<]+)$/mg);
 	is_deeply(\@bodies, [ "hello world!\n", "hello world\n" ],
 		'new.html ordering is chronological');
+
+	$res = $cb->(GET('/v2test/new.atom'));
+	my @dates = ($res->content =~ m!title><updated>([^<]+)</updated>!g);
+	is_deeply(\@dates, [ "1993-10-02T00:01:00Z", "1993-10-02T00:00:00Z" ],
+		'Date headers made it through');
 };
 test_psgi(sub { $www->call(@_) }, $client0);
 my $env = { TMPDIR => $tmpdir, PI_CONFIG => $cfgpath };
