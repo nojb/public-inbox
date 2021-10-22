@@ -93,6 +93,21 @@ sub redispatch_all ($$) {
 	}
 }
 
+sub filter_lss {
+	my ($self, $lei, $all) = @_;
+	my @outs = PublicInbox::LeiSavedSearch::list($lei);
+	if ($all eq 'local') {
+		$self->{o_local} = [ grep(!/$REMOTE_RE/, @outs) ];
+	} elsif ($all eq 'remote') {
+		$self->{o_remote} = [ grep(/$REMOTE_RE/, @outs) ];
+	} elsif ($all eq '') {
+		$self->{o_remote} = [ grep(/$REMOTE_RE/, @outs) ];
+		$self->{o_local} = [ grep(!/$REMOTE_RE/, @outs) ];
+	} else {
+		undef;
+	}
+}
+
 sub lei_up {
 	my ($lei, @outs) = @_;
 	my $opt = $lei->{opt};
@@ -101,17 +116,8 @@ sub lei_up {
 		return $lei->fail("--all and @outs incompatible") if @outs;
 		defined($opt->{mua}) and return
 			$lei->fail('--all and --mua= are incompatible');
-		@outs = PublicInbox::LeiSavedSearch::list($lei);
-		if ($all eq 'local') {
-			$self->{o_local} = [ grep(!/$REMOTE_RE/, @outs) ];
-		} elsif ($all eq 'remote') {
-			$self->{o_remote} = [ grep(/$REMOTE_RE/, @outs) ];
-		} elsif ($all eq '') {
-			$self->{o_remote} = [ grep(/$REMOTE_RE/, @outs) ];
-			$self->{o_local} = [ grep(!/$REMOTE_RE/, @outs) ];
-		} else {
+		filter_lss($self, $lei, $all) // return
 			$lei->fail("only --all=$all not understood");
-		}
 	} elsif ($lei->{lse}) { # redispatched
 		scalar(@outs) == 1 or die "BUG: lse set w/ >1 out[@outs]";
 		return up1($lei, $outs[0]);

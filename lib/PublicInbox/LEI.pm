@@ -222,8 +222,8 @@ our %CMD = ( # sorted in order of importance/use:
 
 'ls-search' => [ '[PREFIX]', 'list saved search queries',
 		qw(format|f=s pretty l ascii z|0), @c_opt ],
-'forget-search' => [ 'OUTPUT...', 'forget a saved search',
-		qw(verbose|v+), @c_opt ],
+'forget-search' => [ 'OUTPUT...|--prune', 'forget a saved search',
+		qw(verbose|v+ prune:s), @c_opt ],
 'edit-search' => [ 'OUTPUT', "edit saved search via `git config --edit'",
 			@c_opt ],
 'rm' => [ '--stdin|LOCATION...',

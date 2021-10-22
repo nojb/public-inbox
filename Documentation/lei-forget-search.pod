@@ -10,6 +10,19 @@ lei forget-search [OPTIONS] OUTPUT
 
 Forget a saved search at C<OUTPUT>.
 
+=head1 OPTIONS
+
+=over
+
+=item --prune[=<local|remote>]
+
+C<--prune> will forget saved searches if the C<OUTPUT> no longer
+exists.  C<--all=local> only prunes local mailboxes,
+C<--all=remote> only prunes remote mailboxes (currently
+C<imap://> and C<imaps://>).
+
+=back
+
 =head1 CONTACT
 
 Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>

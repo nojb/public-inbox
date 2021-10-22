@@ -4,6 +4,7 @@
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 use PublicInbox::Smsg;
 use List::Util qw(sum);
+use File::Path qw(remove_tree);
 
 my $doc1 = eml_load('t/plack-qp.eml');
 $doc1->header_set('Date', PublicInbox::Smsg::date({ds => time - (86400 * 5)}));
@@ -233,5 +234,11 @@ test_lei(sub {
 		and xbail "-ipe $lss[0]: $?";
 	lei_ok qw(ls-search);
 	is($lei_err, '', 'no errors w/ fixed config');
+
+	like($lei_out, qr!\Q$home/after\E!, "`after' in ls-search");
+	remove_tree("$home/after");
+	lei_ok qw(forget-search --prune);
+	lei_ok qw(ls-search);
+	unlike($lei_out, qr!\Q$home/after\E!, "`after' pruned");
 });
 done_testing;
