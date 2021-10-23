@@ -18,7 +18,13 @@ use PublicInbox::Git;
 	is($?, 0, 'fast-import succeeded');
 }
 {
-	my $git = PublicInbox::Git->new($dir);
+	my $git = PublicInbox::Git->new("$dir/foo.git");
+	my $nick = $git->local_nick; # internal sub
+	unlike($nick, qr/\.git\.git\z/, "no doubled `.git.git' suffix");
+	like($nick, qr/\.git\z/, "one `.git' suffix");
+	$git = PublicInbox::Git->new($dir);
+	$nick = $git->local_nick; # internal sub
+	like($nick, qr/\.git\z/, "local nick always adds `.git' suffix");
 	my @s = $git->date_parse('1970-01-01T00:00:00Z');
 	is($s[0], 0, 'parsed epoch');
 	local $ENV{TZ} = 'UTC';

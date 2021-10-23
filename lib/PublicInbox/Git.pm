@@ -442,13 +442,8 @@ sub packed_bytes {
 sub DESTROY { cleanup(@_) }
 
 sub local_nick ($) {
-	my ($self) = @_;
-	my $ret = '???';
 	# don't show full FS path, basename should be OK:
-	if ($self->{git_dir} =~ m!/([^/]+)(?:/*\.git/*)?\z!) {
-		$ret = "$1.git";
-	}
-	wantarray ? ($ret) : $ret;
+	$_[0]->{git_dir} =~ m!/([^/]+?)(?:/*\.git/*)?\z! ? "$1.git" : '???';
 }
 
 sub host_prefix_url ($$) {
@@ -465,7 +460,7 @@ sub pub_urls {
 	if (my $urls = $self->{cgit_url}) {
 		return map { host_prefix_url($env, $_) } @$urls;
 	}
-	local_nick($self);
+	(local_nick($self));
 }
 
 sub cat_async_begin {
