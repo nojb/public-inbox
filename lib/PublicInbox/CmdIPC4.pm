@@ -17,7 +17,16 @@ no warnings 'once';
 	my ($sock, $fds, undef, $flags) = @_;
 	my $mh = Socket::MsgHdr->new(buf => $_[2]);
 	$mh->cmsghdr(SOL_SOCKET, SCM_RIGHTS, pack('i' x scalar(@$fds), @$fds));
-	Socket::MsgHdr::sendmsg($sock, $mh, $flags);
+	my $s;
+	my $try = 0;
+	do {
+		$s = Socket::MsgHdr::sendmsg($sock, $mh, $flags);
+	} while (!defined($s) &&
+			($!{ENOBUFS} || $!{ENOMEM} || $!{ETOOMANYREFS}) &&
+			(++$try < 50) &&
+			warn "sleeping on sendmsg: $! (#$try)\n" &&
+			select(undef, undef, undef, 0.1) == 0);
+	$s;
 };
 
 *recv_cmd4 = sub ($$$) {

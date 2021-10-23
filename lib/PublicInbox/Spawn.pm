@@ -34,6 +34,9 @@ BEGIN {
 #include <unistd.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <time.h>
+#include <stdio.h>
+#include <string.h>
 
 /* some platforms need alloca.h, but some don't */
 #if defined(__GNUC__) && !defined(alloca)
@@ -162,6 +165,22 @@ int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref,
 	return (int)pid;
 }
 
+static int sleep_wait(unsigned *try, int err)
+{
+	const struct timespec req = { 0, 100000000 }; /* 100ms */
+	switch (err) {
+	case ENOBUFS: case ENOMEM: case ETOOMANYREFS:
+		if (++*try < 50) {
+			fprintf(stderr, "sleeping on sendmsg: %s (#%u)\n",
+				strerror(err), *try);
+			nanosleep(&req, NULL);
+			return 1;
+		}
+	default:
+		return 0;
+	}
+}
+
 #if defined(CMSG_SPACE) && defined(CMSG_LEN)
 #define SEND_FD_CAPA 10
 #define SEND_FD_SPACE (SEND_FD_CAPA * sizeof(int))
@@ -180,6 +199,7 @@ SV *send_cmd4(PerlIO *s, SV *svfds, SV *data, int flags)
 	AV *fds = (AV *)SvRV(svfds);
 	I32 i, nfds = av_len(fds) + 1;
 	int *fdp;
+	unsigned try = 0;
 
 	if (SvOK(data)) {
 		iov.iov_base = SvPV(data, dlen);
@@ -207,7 +227,9 @@ SV *send_cmd4(PerlIO *s, SV *svfds, SV *data, int flags)
 			*fdp++ = SvIV(*fd);
 		}
 	}
-	sent = sendmsg(PerlIO_fileno(s), &msg, flags);
+	do {
+		sent = sendmsg(PerlIO_fileno(s), &msg, flags);
+	} while (sent < 0 && sleep_wait(&try, errno));
 	return sent >= 0 ? newSViv(sent) : &PL_sv_undef;
 }
 
@@ -258,9 +280,6 @@ ALL_LIBC
 #include <linux/magic.h>
 #include <linux/fs.h>
 #include <dirent.h>
-#include <errno.h>
-#include <stdio.h>
-#include <string.h>
 
 void nodatacow_fd(int fd)
 {
