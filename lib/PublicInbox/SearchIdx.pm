@@ -451,7 +451,7 @@ sub add_xapian ($$$$) {
 sub _msgmap_init ($) {
 	my ($self) = @_;
 	die "BUG: _msgmap_init is only for v1\n" if $self->{ibx}->version != 1;
-	$self->{mm} //= eval {
+	$self->{mm} //= do {
 		require PublicInbox::Msgmap;
 		PublicInbox::Msgmap->new_file($self->{ibx}, 1);
 	};
