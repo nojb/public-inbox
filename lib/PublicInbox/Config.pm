@@ -328,30 +328,14 @@ sub parse_cgitrc {
 sub _fill_code_repo {
 	my ($self, $nick) = @_;
 	my $pfx = "coderepo.$nick";
-
-	my $dir = $self->{"$pfx.dir"}; # aka "GIT_DIR"
-	unless (defined $dir) {
+	my $dir = $self->{"$pfx.dir"} // do { # aka "GIT_DIR"
 		warn "$pfx.dir unset\n";
 		return;
-	}
-
+	};
 	my $git = PublicInbox::Git->new($dir);
-	foreach my $t (qw(blob commit tree tag)) {
-		$git->{$t.'_url_format'} =
-				_array($self->{lc("$pfx.${t}UrlFormat")});
-	}
-
 	if (defined(my $cgits = $self->{"$pfx.cgiturl"})) {
 		$git->{cgit_url} = $cgits = _array($cgits);
 		$self->{"$pfx.cgiturl"} = $cgits;
-
-		# cgit supports "/blob/?id=%s", but it's only a plain-text
-		# display and requires an unabbreviated id=
-		foreach my $t (qw(blob commit tag)) {
-			$git->{$t.'_url_format'} //= map {
-				"$_/$t/?id=%s"
-			} @$cgits;
-		}
 	}
 
 	$git;
