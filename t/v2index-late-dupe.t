@@ -10,6 +10,7 @@ require PublicInbox::Inbox;
 require PublicInbox::Git;
 my ($tmpdir, $for_destroy) = tmpdir();
 my $inboxdir = "$tmpdir/i";
+local $ENV{HOME} = $tmpdir;
 PublicInbox::Import::init_bare(my $e0 = "$inboxdir/git/0.git");
 open my $fh, '>', "$inboxdir/inbox.lock" or xbail $!;
 my $git = PublicInbox::Git->new($e0);
