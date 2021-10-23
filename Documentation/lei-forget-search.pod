@@ -17,8 +17,8 @@ Forget a saved search at C<OUTPUT>.
 =item --prune[=<local|remote>]
 
 C<--prune> will forget saved searches if the C<OUTPUT> no longer
-exists.  C<--all=local> only prunes local mailboxes,
-C<--all=remote> only prunes remote mailboxes (currently
+exists.  C<--prune=local> only prunes local mailboxes,
+C<--prune=remote> only prunes remote mailboxes (currently
 C<imap://> and C<imaps://>).
 
 =back
