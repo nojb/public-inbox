@@ -63,15 +63,12 @@ sub new {
 		pi_cfg => $pi_cfg,
 	}, $class;
 
-	# fill in -code_repos mapped to inboxes
-	$pi_cfg->each_inbox($pi_cfg->can('repo_objs'));
-
 	# some cgit repos may not be mapped to inboxes, so ensure those exist:
 	my $code_repos = $pi_cfg->{-code_repos};
 	foreach my $k (keys %$pi_cfg) {
 		$k =~ /\Acoderepo\.(.+)\.dir\z/ or next;
 		my $dir = $pi_cfg->{$k};
-		$code_repos->{$1} ||= PublicInbox::Git->new($dir);
+		$code_repos->{$1} ||= $pi_cfg->fill_code_repo($1);
 	}
 	while (my ($nick, $repo) = each %$code_repos) {
 		$self->{"\0$nick"} = $repo;

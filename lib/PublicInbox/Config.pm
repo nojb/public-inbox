@@ -323,9 +323,8 @@ sub parse_cgitrc {
 	cgit_repo_merge($self, $repo->{dir}, $repo) if $repo;
 }
 
-# parse a code repo
-# Only git is supported at the moment, but SVN and Hg are possibilities
-sub _fill_code_repo {
+# parse a code repo, only git is supported at the moment
+sub fill_code_repo {
 	my ($self, $nick) = @_;
 	my $pfx = "coderepo.$nick";
 	my $dir = $self->{"$pfx.dir"} // do { # aka "GIT_DIR"
@@ -392,7 +391,7 @@ sub repo_objs {
 				next;
 			}
 			my $repo = $code_repos->{$nick} //=
-						_fill_code_repo($self, $nick);
+						fill_code_repo($self, $nick);
 			push @repo_objs, $repo if $repo;
 		}
 		if (scalar @repo_objs) {
