@@ -158,7 +158,8 @@ sub my_read ($$$) {
 			return; # unrecoverable error
 		}
 	}
-	\substr($$rbuf, 0, $len, '');
+	my $no_pad = substr($$rbuf, 0, $len, '');
+	\$no_pad;
 }
 
 sub my_readline ($$) {
