@@ -235,7 +235,7 @@ sub getline_pull {
 	# limit our own running time for fairness with other
 	# clients and to avoid buffering too much:
 	my $buf = eval {
-		local $/ = \8192;
+		local $/ = \65536;
 		$forward->getline;
 	} if $forward;
 
