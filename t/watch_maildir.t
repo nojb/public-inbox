@@ -15,6 +15,7 @@ use_ok 'PublicInbox::Watch';
 use_ok 'PublicInbox::Emergency';
 my $cfgpfx = "publicinbox.test";
 my $addr = 'test-public@example.com';
+my $default_branch = PublicInbox::Import::default_branch;
 PublicInbox::Import::init_bare($git_dir);
 
 my $msg = <<EOF;
@@ -64,7 +65,7 @@ EOF
 my $cfg = PublicInbox::Config->new($cfg_path);
 PublicInbox::Watch->new($cfg)->scan('full');
 my $git = PublicInbox::Git->new($git_dir);
-my @list = $git->qx(qw(rev-list refs/heads/master));
+my @list = $git->qx('rev-list', $default_branch);
 is(scalar @list, 1, 'one revision in rev-list');
 
 my $write_spam = sub {
@@ -80,9 +81,9 @@ my $write_spam = sub {
 $write_spam->();
 is(unlink(glob("$maildir/new/*")), 1, 'unlinked old spam');
 PublicInbox::Watch->new($cfg)->scan('full');
-@list = $git->qx(qw(rev-list refs/heads/master));
+@list = $git->qx('rev-list', $default_branch);
 is(scalar @list, 2, 'two revisions in rev-list');
-@list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
+@list = $git->qx('ls-tree', '-r', '--name-only', $default_branch);
 is(scalar @list, 0, 'tree is empty');
 is(unlink(glob("$spamdir/cur/*")), 1, 'unlinked trained spam');
 
@@ -94,7 +95,7 @@ the body of a message to majordomo\@vger.kernel.org
 More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
 	PublicInbox::Watch->new($cfg)->scan('full');
-	@list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
+	@list = $git->qx('ls-tree', '-r', '--name-only', $default_branch);
 	is(scalar @list, 1, 'tree has one file');
 	my $mref = $git->cat_file('HEAD:'.$list[0]);
 	like($$mref, qr/something\n\z/s, 'message scrubbed on import');
@@ -102,9 +103,9 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	is(unlink(glob("$maildir/new/*")), 1, 'unlinked spam');
 	$write_spam->();
 	PublicInbox::Watch->new($cfg)->scan('full');
-	@list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
+	@list = $git->qx('ls-tree', '-r', '--name-only', $default_branch);
 	is(scalar @list, 0, 'tree is empty');
-	@list = $git->qx(qw(rev-list refs/heads/master));
+	@list = $git->qx('rev-list', $default_branch);
 	is(scalar @list, 4, 'four revisions in rev-list');
 	is(unlink(glob("$spamdir/cur/*")), 1, 'unlinked trained spam');
 }
@@ -120,7 +121,7 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 		local $SIG{__WARN__} = sub {}; # quiet spam check warning
 		PublicInbox::Watch->new($cfg)->scan('full');
 	}
-	@list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
+	@list = $git->qx('ls-tree', '-r', '--name-only', $default_branch);
 	is(scalar @list, 0, 'tree has no files spamc checked');
 	is(unlink(glob("$maildir/new/*")), 1);
 }
@@ -132,16 +133,16 @@ More majordomo info at  http://vger.kernel.org/majordomo-info.html\n);
 	local $ENV{PATH} = $main_path;
 	PublicInbox::Emergency->new($maildir)->prepare(\$msg);
 	$cfg->{'publicinboxwatch.spamcheck'} = 'spamc';
-	@list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
+	@list = $git->qx('ls-tree', '-r', '--name-only', $default_branch);
 	PublicInbox::Watch->new($cfg)->scan('full');
-	@list = $git->qx(qw(ls-tree -r --name-only refs/heads/master));
+	@list = $git->qx('ls-tree', '-r', '--name-only', $default_branch);
 	is(scalar @list, 1, 'tree has one file after spamc checked');
 
 	# XXX: workaround some weird caching/memoization in cat-file,
 	# shouldn't be an issue in real-world use, though...
 	$git = PublicInbox::Git->new($git_dir);
 
-	my $mref = $git->cat_file('refs/heads/master:'.$list[0]);
+	my $mref = $git->cat_file($default_branch.':'.$list[0]);
 	like($$mref, qr/something\n\z/s, 'message scrubbed on import');
 }
 
