@@ -194,7 +194,7 @@ sub show ($$;$) {
 		$hints->{$to} = $v if $v ne '';
 	}
 
-	$ctx->{'log'} = tmpfile("solve.$oid_b");
+	$ctx->{'log'} = tmpfile("solve.$oid_b") // die "tmpfile: $!";
 	$ctx->{fn} = $fn;
 	my $solver = PublicInbox::SolverGit->new($ctx->{ibx},
 						\&solve_result, $ctx);
