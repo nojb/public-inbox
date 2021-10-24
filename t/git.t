@@ -9,7 +9,7 @@ use POSIX qw(strftime);
 use PublicInbox::Git;
 
 {
-	PublicInbox::Import::init_bare($dir);
+	PublicInbox::Import::init_bare($dir, 'master');
 	my $fi_data = './t/git.fast-import-data';
 	open my $fh, '<', $fi_data or die
 		"fast-import data readable (or run test at top level: $!";
