@@ -82,7 +82,7 @@ EOM
 	$lei->{opt}->{'mail-sync'} = 1; # for prepare_inputs
 	$self->prepare_inputs($lei, \@folders) or return;
 	my $ops = {};
-	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
+	$lei->{auth}->op_merge($ops, $self, $lei) if $lei->{auth};
 	(my $op_c, $ops) = $lei->workers_start($self, 1, $ops);
 	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';

@@ -96,7 +96,7 @@ sub lei_ls_mail_source {
 	}
 	$lei->start_pager if $isatty;
 	my $ops = {};
-	$lei->{auth}->op_merge($ops, $self);
+	$lei->{auth}->op_merge($ops, $self, $lei);
 	(my $op_c, $ops) = $lei->workers_start($self, 1, $ops);
 	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';

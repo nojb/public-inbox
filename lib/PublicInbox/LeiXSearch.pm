@@ -548,7 +548,7 @@ sub do_query {
 		'child_error' => [ $lei ],
 		'incr_start_query' => [ $self, $lei ],
 	};
-	$lei->{auth}->op_merge($ops, $l2m) if $l2m && $lei->{auth};
+	$lei->{auth}->op_merge($ops, $l2m, $lei) if $l2m && $lei->{auth};
 	my $end = $lei->pkt_op_pair;
 	$lei->{1}->autoflush(1);
 	$lei->start_pager if delete $lei->{need_pager};

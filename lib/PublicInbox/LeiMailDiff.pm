@@ -83,7 +83,7 @@ sub lei_mail_diff {
 	$lei->{opt}->{color} //= $isatty;
 	$lei->start_pager if $isatty;
 	my $ops = {};
-	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
+	$lei->{auth}->op_merge($ops, $self, $lei) if $lei->{auth};
 	(my $op_c, $ops) = $lei->workers_start($self, 1, $ops);
 	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';

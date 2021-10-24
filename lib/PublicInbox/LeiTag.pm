@@ -49,7 +49,7 @@ sub lei_tag { # the "lei tag" method
 	grep(defined, @$vmd_mod{qw(+kw +L -L -kw)}) or
 		return $lei->fail('no keywords or labels specified');
 	my $ops = {};
-	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
+	$lei->{auth}->op_merge($ops, $self, $lei) if $lei->{auth};
 	(my $op_c, $ops) = $lei->workers_start($self, 1, $ops);
 	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';

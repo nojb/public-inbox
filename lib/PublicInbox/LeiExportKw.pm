@@ -115,7 +115,7 @@ EOM
 		$self->{nwr}->{-skip_creat} = 1;
 	}
 	my $ops = {};
-	$lei->{auth}->op_merge($ops, $self) if $lei->{auth};
+	$lei->{auth}->op_merge($ops, $self, $lei) if $lei->{auth};
 	(my $op_c, $ops) = $lei->workers_start($self, 1, $ops);
 	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';
