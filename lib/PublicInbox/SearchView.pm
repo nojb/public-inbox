@@ -274,10 +274,10 @@ sub search_nav_bot { # also used by WwwListing for searching extindex miscidx
 }
 
 sub sort_relevance {
-	[ sort {
+	@{$_[0]} = sort {
 		(eval { $b->topmost->{pct} } // 0) <=>
 		(eval { $a->topmost->{pct} } // 0)
-	} @{$_[0]} ]
+	} @{$_[0]};
 }
 
 sub mset_thread {

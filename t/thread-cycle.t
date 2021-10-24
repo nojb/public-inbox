@@ -108,7 +108,7 @@ SKIP: {
 	eval 'package EmptyInbox; sub smsg_by_mid { undef }';
 	my $ctx = { ibx => bless {}, 'EmptyInbox' };
 	my $rootset = PublicInbox::SearchThread::thread($smsgs, sub {
-		[ sort { $a->{mid} cmp $b->{mid} } @{$_[0]} ] }, $ctx);
+		@{$_[0]} = sort { $a->{mid} cmp $b->{mid} } @{$_[0]} }, $ctx);
 	my $oldout = select $fh;
 	find_cycle($rootset);
 	select $oldout;
@@ -120,7 +120,7 @@ done_testing;
 sub thread_to_s {
 	my ($msgs) = @_;
 	my $rootset = PublicInbox::SearchThread::thread($msgs, sub {
-		[ sort { $a->{mid} cmp $b->{mid} } @{$_[0]} ] });
+		@{$_[0]} = sort { $a->{mid} cmp $b->{mid} } @{$_[0]} });
 	my $st = '';
 	my @q = map { (0, $_) } @$rootset;
 	while (@q) {

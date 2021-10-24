@@ -1073,10 +1073,10 @@ sub _skel_ghost {
 }
 
 sub sort_ds {
-	[ sort {
+	@{$_[0]} = sort {
 		(eval { $a->topmost->{ds} } || 0) <=>
 		(eval { $b->topmost->{ds} } || 0)
-	} @{$_[0]} ];
+	} @{$_[0]};
 }
 
 # accumulate recent topics if search is supported

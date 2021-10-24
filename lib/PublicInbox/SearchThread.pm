@@ -83,15 +83,15 @@ sub thread {
 		}
 	}
 	my $ibx = $ctx->{ibx};
-	my $rootset = [ grep { # n.b.: delete prevents cyclic refs
+	my @rootset = grep { # n.b.: delete prevents cyclic refs
 			!delete($_->{parent}) && $_->visible($ibx)
-		} values %id_table ];
-	$rootset = $ordersub->($rootset);
-	$_->order_children($ordersub, $ctx) for @$rootset;
+		} values %id_table;
+	$ordersub->(\@rootset);
+	$_->order_children($ordersub, $ctx) for @rootset;
 
 	# parent imposter messages with reused Message-IDs
 	unshift(@{$id_table{$_->{mid}}->{children}}, $_) for @imposters;
-	$rootset;
+	\@rootset;
 }
 
 package PublicInbox::SearchThread::Msg;
@@ -172,12 +172,12 @@ sub order_children {
 	my @q = ($cur);
 	my $ibx = $ctx->{ibx};
 	while (defined($cur = shift @q)) {
-		my $c = $cur->{children}; # The hashref here...
-
-		$c = [ grep { !$seen{$_}++ && visible($_, $ibx) } values %$c ];
-		$c = $ordersub->($c) if scalar @$c > 1;
-		$cur->{children} = $c; # ...becomes an arrayref
-		push @q, @$c;
+		# the {children} hashref here...
+		my @c = grep { !$seen{$_}++ && visible($_, $ibx) }
+			values %{$cur->{children}};
+		$ordersub->(\@c) if scalar(@c) > 1;
+		$cur->{children} = \@c; # ...becomes an arrayref
+		push @q, @c;
 	}
 }
 
