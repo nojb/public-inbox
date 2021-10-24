@@ -67,7 +67,17 @@ sub input_path_url {
 		$self->{lms}->each_src($input, \&export_kw_md, $self, $mdir);
 	} elsif ($input =~ m!\Aimaps?://!i) {
 		my $uri = PublicInbox::URIimap->new($input);
-		if (my $mic = $self->{nwr}->mic_for_folder($uri)) {
+		my $mic = $self->{nwr}->mic_for_folder($uri);
+		if ($mic && !$self->{nwr}->can_store_flags($mic)) {
+			my $m = "$input does not support PERMANENTFLAGS";
+			if (defined $self->{lei}->{opt}->{all}) {
+				$self->{lei}->qerr("# $m");
+			} else { # set error code if user explicitly requested
+				$self->{lei}->child_error(0, "E: $m");
+			}
+			return;
+		}
+		if ($mic) {
 			$self->{lms}->each_src($$uri, \&export_kw_imap,
 						$self, $mic);
 			$mic->expunge;

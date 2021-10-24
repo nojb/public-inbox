@@ -56,4 +56,13 @@ sub imap_set_kw {
 	$mic; # caller must ->expunge
 }
 
+sub can_store_flags {
+	my ($self, $mic) = @_;
+	for ($mic->Results) {
+		/^\* OK \[PERMANENTFLAGS \(([^\)]*)\)\].*/ and
+			return $self->can('perm_fl_ok')->($1);
+	}
+	undef;
+}
+
 1;

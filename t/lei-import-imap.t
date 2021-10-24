@@ -110,6 +110,9 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	is(scalar(@$out), 2, 'got JSON') or diag explain($out);
 	lei_ok qw(lcat), $url_orig;
 	is($lei_out, $orig, 'lcat w/o UID works');
+
+	ok(!lei(qw(export-kw), $url_orig), 'export-kw fails on read-only IMAP');
+	like($lei_err, qr/does not support/, 'error noted in failure');
 });
 
 done_testing;

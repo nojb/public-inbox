@@ -4,7 +4,7 @@
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 use File::Copy qw(cp);
 use File::Path qw(make_path);
-require_mods(qw(lei -imapd Mail::IMAPClient));
+require_mods(qw(lei)); # see lei-import-imap.t for IMAP tests
 my ($tmpdir, $for_destroy) = tmpdir;
 my $expect = eml_load('t/data/0001.patch');
 my $do_export_kw = 1;
