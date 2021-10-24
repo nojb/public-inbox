@@ -27,9 +27,6 @@ sub dbh {
 		});
 		my $opt = $self->{opt} // {};
 		$dbh->do('PRAGMA synchronous = OFF') if !$opt->{fsync};
-		if (my $s = $opt->{cache_size}) {
-			$dbh->do("PRAGMA cache_size = $s");
-		}
 		$dbh->do('PRAGMA journal_mode = '.
 				($opt->{journal_mode} // 'WAL'));
 		$dbh->do(<<'');
