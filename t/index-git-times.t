@@ -7,6 +7,7 @@ use Test::More;
 use PublicInbox::TestCommon;
 use PublicInbox::Config;
 use PublicInbox::Admin;
+use PublicInbox::Import;
 use File::Path qw(remove_tree);
 
 require_mods(qw(DBD::SQLite Search::Xapian));
@@ -16,27 +17,28 @@ my ($tmpdir, $for_destroy) = tmpdir();
 local $ENV{PI_CONFIG} = "$tmpdir/cfg";
 my $v1dir = "$tmpdir/v1";
 my $addr = 'x@example.com';
+my $default_branch = PublicInbox::Import::default_branch;
 run_script(['-init', '--indexlevel=medium', 'v1', $v1dir,
 		'http://example.com/x', $addr])
 	or die "init failed";
 
 {
-	my $data = <<'EOF';
+	my $data = <<"EOF";
 blob
 mark :1
 data 133
-From: timeless <t@example.com>
-To: x <x@example.com>
+From: timeless <t\@example.com>
+To: x <x\@example.com>
 Subject: can I haz the time?
-Message-ID: <19700101000000-1234@example.com>
+Message-ID: <19700101000000-1234\@example.com>
 
 plz
 
-reset refs/heads/master
-commit refs/heads/master
+reset $default_branch
+commit $default_branch
 mark :2
-author timeless <t@example.com> 749520000 +0100
-committer x <x@example.com> 1285977600 -0100
+author timeless <t\@example.com> 749520000 +0100
+committer x <x\@example.com> 1285977600 -0100
 data 20
 can I haz the time?
 M 100644 :1 53/256f6177504c2878d3a302ef5090dacf5e752c
