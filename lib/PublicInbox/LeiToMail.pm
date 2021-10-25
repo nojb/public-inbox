@@ -135,8 +135,8 @@ sub git_to_mail { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $arg) = @_;
 	$type // return; # called by git->async_abort
 	my ($write_cb, $smsg) = @$arg;
-	if ($type eq 'missing' && $smsg->{-lms_ro}) {
-		if ($bref = $smsg->{-lms_ro}->local_blob($oid, 1)) {
+	if ($type eq 'missing' && $smsg->{-lms_rw}) {
+		if ($bref = $smsg->{-lms_rw}->local_blob($oid, 1)) {
 			$type = 'blob';
 			$size = length($$bref);
 		}
@@ -280,8 +280,8 @@ sub _maildir_write_cb ($$) {
 	$dedupe->prepare_dedupe if $dedupe;
 	my $dst = $lei->{ovv}->{dst};
 	my $lse = $lei->{lse}; # may be undef
-	my $sto = $lei->{opt}->{'mail-sync'} ? $lei->{sto} : undef;
-	my $out = $sto ? 'maildir:'.$lei->abs_path($dst) : undef;
+	my $lms = $self->{-lms_rw};
+	my $out = $lms ? 'maildir:'.$lei->abs_path($dst) : undef;
 
 	# Favor cur/ and only write to new/ when augmenting.  This
 	# saves MUAs from having to do a mass rename when the initial
@@ -296,7 +296,7 @@ sub _maildir_write_cb ($$) {
 		$lse->xsmsg_vmd($smsg) if $lse;
 		my $n = _buf2maildir($dst, $bref // \($eml->as_string),
 					$smsg, $dir);
-		$sto->wq_do('set_sync_info', $smsg->{blob}, $out, $n) if $sto;
+		$lms->set_src($smsg->oidbin, $out, $n) if $lms;
 		++$lei->{-nr_write};
 	}
 }
@@ -311,7 +311,7 @@ sub _imap_write_cb ($$) {
 	my $folder = $uri->mailbox;
 	$uri->uidvalidity($mic->uidvalidity($folder));
 	my $lse = $lei->{lse}; # may be undef
-	my $sto = $lei->{opt}->{'mail-sync'} ? $lei->{sto} : undef;
+	my $lms = $self->{-lms_rw};
 	sub { # for git_to_mail
 		my ($bref, $smsg, $eml) = @_;
 		$mic // return $lei->fail; # mic may be undef-ed in last run
@@ -325,9 +325,8 @@ sub _imap_write_cb ($$) {
 			die $err;
 		}
 		# imap_append returns UID if IMAP server has UIDPLUS extension
-		($sto && $uid =~ /\A[0-9]+\z/) and
-			$sto->wq_do('set_sync_info',
-					$smsg->{blob}, $$uri, $uid + 0);
+		($lms && $uid =~ /\A[0-9]+\z/) and
+			$lms->set_src($smsg->oidbin, $$uri, $uid + 0);
 		++$lei->{-nr_write};
 	}
 }
@@ -751,9 +750,7 @@ sub ipc_atfork_child {
 	my ($self) = @_;
 	my $lei = $self->{lei};
 	$lei->_lei_atfork_child;
-	if (my $lse = $lei->{lse}) {
-		$self->{-lms_ro} = $lse->{-lms_ro} //= $lse->lms;
-	}
+	$self->{-lms_rw}->lms_write_prepare if $self->{-lms_rw};
 	$lei->{auth}->do_auth_atfork($self) if $lei->{auth};
 	$SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
 	$self->SUPER::ipc_atfork_child;
@@ -775,7 +772,7 @@ sub poke_dst {
 sub write_mail { # via ->wq_io_do
 	my ($self, $smsg, $eml) = @_;
 	return $self->{wcb}->(undef, $smsg, $eml) if $eml;
-	$smsg->{-lms_ro} = $self->{-lms_ro};
+	$smsg->{-lms_rw} = $self->{-lms_rw};
 	$self->{lei}->{ale}->git->cat_async($smsg->{blob}, \&git_to_mail,
 				[$self->{wcb}, $smsg]);
 }

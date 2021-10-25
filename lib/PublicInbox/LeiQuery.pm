@@ -32,10 +32,13 @@ sub _start_query { # used by "lei q" and "lei up"
 	if ($l2m && grep { $opt->{$_} //= \1 } (qw(mail-sync import-remote
 							import-before))) {
 		$self->_lei_store(1)->write_prepare($self);
+		if ($opt->{'mail-sync'}) {
+			my $lms = $l2m->{-lms_rw} = $self->lms(1);
+			$lms->lms_write_prepare->lms_pause; # just create
+		}
 	}
-	$l2m and $l2m->{-wq_nr_workers} = $mj // do {
-		$mj = int($nproc * 0.75 + 0.5); # keep some CPU for git
-	};
+	$l2m and $l2m->{-wq_nr_workers} = $mj //
+		int($nproc * 0.75 + 0.5); # keep some CPU for git
 
 	# descending docid order is cheapest, MUA controls sorting order
 	$self->{mset_opt}->{relevance} //= -2 if $l2m || $opt->{threads};

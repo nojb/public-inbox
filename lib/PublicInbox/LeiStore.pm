@@ -265,11 +265,6 @@ sub _lms_rw ($) { # it is important to have eidx processes open before lms
 	};
 }
 
-sub set_sync_info {
-	my ($self, $oidhex, $folder, $id) = @_;
-	_lms_rw($self)->set_src(pack('H*', $oidhex), $folder, $id);
-}
-
 sub _remove_if_local { # git->cat_async arg
 	my ($bref, $oidhex, $type, $size, $self) = @_;
 	$self->{im}->remove($bref) if $bref;
@@ -349,7 +344,7 @@ sub add_eml {
 	$smsg->{-eidx_git} = $eidx->git if !$self->{-fake_im};
 	my $im_mark = $im->add($eml, undef, $smsg);
 	if ($vmd && $vmd->{sync_info}) {
-		set_sync_info($self, $smsg->{blob}, @{$vmd->{sync_info}});
+		_lms_rw($self)->set_src($smsg->oidbin, @{$vmd->{sync_info}});
 	}
 	unless ($im_mark) { # duplicate blob returns undef
 		return unless wantarray;
