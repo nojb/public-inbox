@@ -57,6 +57,10 @@ Dump output that shows the information collected for every prefix.
 This information can be useful for seeing how a patch is processed,
 but the format should not be considered stable.
 
+=item --uri
+
+URI escape output for interacting with HTTP(S) public-inbox instances.
+
 =item -q
 
 =item --quiet
@@ -64,6 +68,14 @@ but the format should not be considered stable.
 Suppress feedback messages.
 
 =back
+
+=head1 EXAMPLES
+
+  # to search for all threads which touch a given thread:
+  lei p2q $COMMIT_OID | lei q -t -o /tmp/results
+
+  # to view results on a remote HTTP(S) public-inbox instance
+  $BROWSER https://example.com/pub-inbox/?q=$(lei p2q --uri $COMMIT_OID)
 
 =head1 CONTACT
 
@@ -74,11 +86,10 @@ L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/>
 
 =head1 COPYRIGHT
 
-Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+Copyright all contributors L<mailto:meta@public-inbox.org>
 
 License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
 
-
 =head1 SEE ALSO
 
-L<lei-add-external(1)>
+L<lei-q(1)>

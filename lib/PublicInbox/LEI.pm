@@ -353,6 +353,7 @@ my %OPTDESC = (
 
 'want|w=s@' => [ 'PREFIX|dfpost|dfn', # common ones in help...
 		'search prefixes to extract (default: dfpost7)' ],
+'uri	p2q' => [ 'URI escape output' ],
 
 'alert=s@' => ['CMD,:WINCH,:bell,<any command>',
 	'run command(s) or perform ops when done writing to output ' .
