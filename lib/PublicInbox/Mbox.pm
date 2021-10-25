@@ -18,7 +18,7 @@ sub getline {
 	my ($ctx) = @_; # ctx
 	my $smsg = $ctx->{smsg} or return;
 	my $ibx = $ctx->{ibx};
-	my $eml = $ibx->smsg_eml($smsg) or return;
+	my $eml = delete($ctx->{eml}) // $ibx->smsg_eml($smsg) // return;
 	my $n = $ctx->{smsg} = $ibx->over->next_by_mid(@{$ctx->{next_arg}});
 	$ctx->zmore(msg_hdr($ctx, $eml));
 	if ($n) {
@@ -45,14 +45,15 @@ sub async_eml { # for async_blob_cb
 	my $smsg = delete $ctx->{smsg};
 	# next message
 	$ctx->{smsg} = $ctx->{ibx}->over->next_by_mid(@{$ctx->{next_arg}});
-
+	local $ctx->{eml} = $eml; # for mbox_hdr
 	$ctx->zmore(msg_hdr($ctx, $eml));
 	$ctx->write(msg_body($eml));
 }
 
-sub res_hdr ($$) {
-	my ($ctx, $subject) = @_;
-	my $fn = $subject // '';
+sub mbox_hdr ($) {
+	my ($ctx) = @_;
+	my $eml = $ctx->{eml} //= $ctx->{ibx}->smsg_eml($ctx->{smsg});
+	my $fn = $eml->header_str('Subject') // '';
 	$fn =~ s/^re:\s+//i;
 	$fn = to_filename($fn) // 'no-subject';
 	my @hdr = ('Content-Type');
@@ -64,17 +65,19 @@ sub res_hdr ($$) {
 		push @hdr, 'text/plain';
 		$fn .= '.txt';
 	}
+	my $cs = $ctx->{eml}->ct->{attributes}->{charset} // 'UTF-8';
+	$cs = 'UTF-8' if $cs =~ /[^a-zA-Z0-9\-\_]/; # avoid header injection
+	$hdr[-1] .= "; charset=$cs";
 	push @hdr, 'Content-Disposition', "inline; filename=$fn";
-	\@hdr;
+	[ 200, \@hdr ];
 }
 
 # for rare cases where v1 inboxes aren't indexed w/ ->over at all
 sub no_over_raw ($) {
 	my ($ctx) = @_;
 	my $mref = $ctx->{ibx}->msg_by_mid($ctx->{mid}) or return;
-	my $eml = PublicInbox::Eml->new($mref);
-	[ 200, res_hdr($ctx, $eml->header_str('Subject')),
-		[ msg_hdr($ctx, $eml) . msg_body($eml) ] ]
+	my $eml = $ctx->{eml} = PublicInbox::Eml->new($mref);
+	[ @{mbox_hdr($ctx)}, [ msg_hdr($ctx, $eml) . msg_body($eml) ] ]
 }
 
 # /$INBOX/$MESSAGE_ID/raw
@@ -85,9 +88,8 @@ sub emit_raw {
 	my ($id, $prev);
 	my $mip = $ctx->{next_arg} = [ $ctx->{mid}, \$id, \$prev ];
 	my $smsg = $ctx->{smsg} = $over->next_by_mid(@$mip) or return;
-	my $res_hdr = res_hdr($ctx, $smsg->{subject});
 	bless $ctx, __PACKAGE__;
-	$ctx->psgi_response(200, $res_hdr);
+	$ctx->psgi_response(\&mbox_hdr);
 }
 
 sub msg_hdr ($$) {

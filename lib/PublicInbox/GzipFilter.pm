@@ -46,11 +46,10 @@ sub gz_or_noop {
 sub gzf_maybe ($$) { bless { gz => gz_or_noop(@_) }, __PACKAGE__ }
 
 sub psgi_response {
+	# $code may be an HTTP response code (e.g. 200) or a CODE ref (mbox_hdr)
 	my ($self, $code, $res_hdr) = @_;
-	my $env = $self->{env};
-	$self->{gz} //= gz_or_noop($res_hdr, $env);
-	if ($env->{'pi-httpd.async'}) {
-		my $http = $env->{'psgix.io'}; # PublicInbox::HTTP
+	if ($self->{env}->{'pi-httpd.async'}) {
+		my $http = $self->{env}->{'psgix.io'}; # PublicInbox::HTTP
 		$http->{forward} = $self;
 		sub {
 			my ($wcb) = @_; # -httpd provided write callback
@@ -58,6 +57,9 @@ sub psgi_response {
 			$self->can('async_next')->($http); # start stepping
 		};
 	} else { # generic PSGI code path
+		ref($code) eq 'CODE' and
+			($code, $res_hdr) = @{$code->($self)};
+		$self->{gz} //= gz_or_noop($res_hdr, $self->{env});
 		[ $code, $res_hdr, $self ];
 	}
 }
@@ -116,9 +118,13 @@ sub translate ($$) {
 
 sub http_out ($) {
 	my ($self) = @_;
-	$self->{http_out} //= do {
+	$self->{http_out} // do {
 		my $args = delete $self->{wcb_args} // return undef;
-		pop(@$args)->($args); # $wcb->([$code, $hdr_ary])
+		my $wcb = pop @$args; # from PublicInbox:HTTP async
+		# $args->[0] may be \&mbox_hdr or similar
+		$args = $args->[0]->($self) if ref($args->[0]) eq 'CODE';
+		$self->{gz} //= gz_or_noop($args->[1], $self->{env});
+		$self->{http_out} = $wcb->($args); # $wcb->([$code, $hdr_ary])
 	};
 }
 
@@ -131,6 +137,7 @@ sub write {
 # more data to buffer after this
 sub zmore {
 	my $self = $_[0]; # $_[1] => input
+	http_out($self);
 	my $err = $self->{gz}->deflate($_[1], $self->{zbuf});
 	die "gzip->deflate: $err" if $err != Z_OK;
 	undef;

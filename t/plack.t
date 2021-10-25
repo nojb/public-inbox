@@ -10,17 +10,24 @@ require_mods(@mods);
 foreach my $mod (@mods) { use_ok $mod; }
 ok(-f $psgi, "psgi example file found");
 my $pfx = 'http://example.com/test';
-# ensure successful message delivery
-my $ibx = create_inbox('test', sub {
+my $eml = eml_load('t/iso-2202-jp.eml');
+# ensure successful message deliveries
+my $ibx = create_inbox('test-1', sub {
 	my ($im, $ibx) = @_;
 	my $addr = $ibx->{-primary_address};
-	$im->add(PublicInbox::Eml->new(<<EOF)) or BAIL_OUT '->add';
+	$im->add($eml) or xbail '->add';
+	$eml->header_set('Content-Type',
+		"text/plain; charset=\rso\rb\0gus\rithurts");
+	$eml->header_set('Message-ID', '<broken@example.com>');
+	$im->add($eml) or xbail '->add';
+	$im->add(PublicInbox::Eml->new(<<EOF)) or xbail '->add';
 From: Me <me\@example.com>
 To: You <you\@example.com>
 Cc: $addr
 Message-Id: <blah\@example.com>
 Subject: hihi
 Date: Fri, 02 Oct 1993 00:00:00 +0000
+Content-Type: text/plain; charset=iso-8859-1
 
 > quoted text
 zzzzzz
@@ -195,6 +202,19 @@ test_psgi($app, sub {
 	my $res = $cb->(GET($pfx . '/blah@example.com/raw'));
 	is(200, $res->code, 'success response received for /*/raw');
 	like($res->content, qr!^From !sm, "mbox returned");
+	is($res->header('Content-Type'), 'text/plain; charset=iso-8859-1',
+		'charset from message used');
+
+	$res = $cb->(GET($pfx . '/broken@example.com/raw'));
+	is($res->header('Content-Type'), 'text/plain; charset=UTF-8',
+		'broken charset ignored');
+
+	$res = $cb->(GET($pfx . '/199707281508.AAA24167@hoyogw.example/raw'));
+	is($res->header('Content-Type'), 'text/plain; charset=ISO-2022-JP',
+		'ISO-2002-JP returned');
+	chomp(my $body = $res->content);
+	my $raw = PublicInbox::Eml->new(\$body);
+	is($raw->body_raw, $eml->body_raw, 'ISO-2022-JP body unmodified');
 
 	$res = $cb->(GET($pfx . '/blah@example.com/t.mbox.gz'));
 	is(501, $res->code, '501 when overview missing');

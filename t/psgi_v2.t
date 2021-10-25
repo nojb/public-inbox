@@ -20,11 +20,12 @@ To: test@example.com
 Subject: this is a subject
 Message-ID: <a-mid@b>
 Date: Fri, 02 Oct 1993 00:00:00 +0000
+Content-Type: text/plain; charset=iso-8859-1
 
 hello world
 EOF
 my $new_mid;
-my $ibx = create_inbox 'v2', version => 2, indexlevel => 'medium',
+my $ibx = create_inbox 'v2-1', version => 2, indexlevel => 'medium',
 			tmpdir => "$tmpdir/v2", sub {
 	my ($im, $ibx) = @_;
 	$im->add($eml) or BAIL_OUT;
@@ -68,6 +69,8 @@ my $client0 = sub {
 	like($res->content, qr!\$INBOX_DIR/description missing!,
 		'got v2 description missing message');
 	$res = $cb->(GET('/v2test/a-mid@b/raw'));
+	is($res->header('Content-Type'), 'text/plain; charset=iso-8859-1',
+		'charset from message used');
 	$raw = $res->content;
 	unlike($raw, qr/^From oldbug/sm, 'buggy "From_" line omitted');
 	like($raw, qr/^hello world$/m, 'got first message');
