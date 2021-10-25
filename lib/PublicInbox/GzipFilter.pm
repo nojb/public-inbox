@@ -54,7 +54,7 @@ sub psgi_response {
 		$http->{forward} = $self;
 		sub {
 			my ($wcb) = @_; # -httpd provided write callback
-			$self->{http_out} = $wcb->([$code, $res_hdr]);
+			$self->{wcb_args} = [ $code, $res_hdr, $wcb ];
 			$self->can('async_next')->($http); # start stepping
 		};
 	} else { # generic PSGI code path
@@ -114,9 +114,17 @@ sub translate ($$) {
 	}
 }
 
+sub http_out ($) {
+	my ($self) = @_;
+	$self->{http_out} //= do {
+		my $args = delete $self->{wcb_args} // return undef;
+		pop(@$args)->($args); # $wcb->([$code, $hdr_ary])
+	};
+}
+
 sub write {
 	# my $ret = bytes::length($_[1]); # XXX does anybody care?
-	$_[0]->{http_out}->write(translate($_[0], $_[1]));
+	http_out($_[0])->write(translate($_[0], $_[1]));
 }
 
 # similar to ->translate; use this when we're sure we know we have
@@ -145,10 +153,9 @@ sub zflush ($;$) {
 
 sub close {
 	my ($self) = @_;
-	if (my $http_out = delete $self->{http_out}) {
-		$http_out->write(zflush($self));
-		$http_out->close;
-	}
+	my $http_out = http_out($self) // return;
+	$http_out->write(zflush($self));
+	delete($self->{http_out})->close;
 }
 
 sub bail  {

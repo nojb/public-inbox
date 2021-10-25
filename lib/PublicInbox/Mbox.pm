@@ -47,7 +47,7 @@ sub async_eml { # for async_blob_cb
 	$ctx->{smsg} = $ctx->{ibx}->over->next_by_mid(@{$ctx->{next_arg}});
 
 	$ctx->zmore(msg_hdr($ctx, $eml));
-	$ctx->{http_out}->write($ctx->translate(msg_body($eml)));
+	$ctx->write(msg_body($eml));
 }
 
 sub res_hdr ($$) {

@@ -28,7 +28,7 @@ sub async_next ($) {
 		if (my $smsg = $ctx->{smsg} = $ctx->{cb}->($ctx)) {
 			$ctx->smsg_blob($smsg);
 		} else {
-			$ctx->{http_out}->write($ctx->translate('</feed>'));
+			$ctx->write('</feed>');
 			$ctx->close;
 		}
 	};
@@ -38,7 +38,7 @@ sub async_next ($) {
 sub async_eml { # for async_blob_cb
 	my ($ctx, $eml) = @_;
 	my $smsg = delete $ctx->{smsg};
-	$ctx->{http_out}->write($ctx->translate(feed_entry($ctx, $smsg, $eml)))
+	$ctx->write(feed_entry($ctx, $smsg, $eml));
 }
 
 sub response {

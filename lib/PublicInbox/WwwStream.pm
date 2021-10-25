@@ -32,7 +32,7 @@ sub init {
 
 sub async_eml { # for async_blob_cb
 	my ($ctx, $eml) = @_;
-	$ctx->{http_out}->write($ctx->translate($ctx->{cb}->($ctx, $eml)));
+	$ctx->write($ctx->{cb}->($ctx, $eml));
 }
 
 sub html_top ($) {
@@ -187,8 +187,7 @@ sub async_next ($) {
 		if (my $smsg = $ctx->{smsg} = $ctx->{cb}->($ctx)) {
 			$ctx->smsg_blob($smsg);
 		} else {
-			$ctx->{http_out}->write(
-					$ctx->translate(_html_end($ctx)));
+			$ctx->write(_html_end($ctx));
 			$ctx->close; # GzipFilter->close
 		}
 	};
