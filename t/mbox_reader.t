@@ -138,7 +138,11 @@ EOM
 		PublicInbox::MboxReader->$m($fh, sub {
 			push @x, $_[0]->as_string
 		});
-		is_deeply(\@x, [], "messages in invalid $m");
+		if ($m =~ /\Amboxcl/) {
+			is_deeply(\@x, [], "messages in invalid $m");
+		} else {
+			is_deeply(\@x, [ "\n$html" ], "body-only $m");
+		}
 		is_deeply([grep(!/^W: leftover/, @w)], [],
 			"no extra warnings besides leftover ($m)");
 	}

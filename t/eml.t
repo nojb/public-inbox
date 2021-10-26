@@ -216,6 +216,17 @@ if ('one newline before headers') {
 	is($eml->body, "");
 }
 
+if ('body only') {
+	my $str = <<EOM;
+--- a/lib/PublicInbox/Eml.pm
++++ b/lib/PublicInbox/Eml.pm
+@@ -122,9 +122,10 @@ sub new {
+\x20
+EOM
+	my $eml = PublicInbox::Eml->new($str);
+	is($eml->body, $str, 'body-only accepted');
+}
+
 for my $cls (@classes) { # XXX: matching E::M, but not sure about this
 	my $s = <<EOF;
 Content-Type: multipart/mixed; boundary="b"

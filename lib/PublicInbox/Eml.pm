@@ -122,9 +122,10 @@ sub new {
 		my $hdr = substr($$ref, 0, $header_size_limit + 1);
 		hdr_truncate($hdr) if length($hdr) > $header_size_limit;
 		bless { hdr => \$hdr, crlf => $1 }, __PACKAGE__;
-	} else { # nothing useful
-		my $hdr = $$ref = '';
-		bless { hdr => \$hdr, crlf => "\n" }, __PACKAGE__;
+	} else { # just a body w/o header?
+		my $hdr = '';
+		my $eol = ($$ref =~ /(\r?\n)/) ? $1 : "\n";
+		bless { hdr => \$hdr, crlf => $eol, bdy => $ref }, __PACKAGE__;
 	}
 }
 
