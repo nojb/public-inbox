@@ -19,20 +19,9 @@ sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 	}
 }
 
-sub input_mbox_cb {
-	my ($eml, $self) = @_;
-	$eml->header_set($_) for (qw(X-Status Status));
-	input_eml_cb($self, $eml);
-}
-
 sub pmdir_cb { # called via wq_io_do from LeiPmdir->each_mdir_fn
 	my ($self, $f) = @_;
 	my $eml = eml_from_path($f) or return;
-	input_eml_cb($self, $eml);
-}
-
-sub input_net_cb { # imap_each, nntp_each cb
-	my ($url, $uid, $kw, $eml, $self) = @_;
 	input_eml_cb($self, $eml);
 }
 
