@@ -64,6 +64,11 @@ sub input_mbox_cb { # base MboxReader callback
 	$self->input_eml_cb($eml);
 }
 
+sub input_net_cb { # imap_each, nntp_each cb
+	my ($url, $uid, $kw, $eml, $self) = @_;
+	$self->input_eml_cb($eml);
+}
+
 # import a single file handle of $name
 # Subclass must define ->input_eml_cb and ->input_mbox_cb
 sub input_fh {
@@ -108,10 +113,10 @@ sub handle_http_input ($$@) {
 	grep(/\A--compressed\z/, @$curl) or
 		$fh = IO::Uncompress::Gunzip->new($fh, MultiStream => 1);
 	eval { $self->input_fh('mboxrd', $fh, $url, @args) };
-	my $err = $@;
+	my @err = ($@ ? $@ : ());
 	$ar->join;
-	$? || $err and
-		$lei->child_error($?, "@$cmd failed".$err ? " $err" : '');
+	push(@err, "\$?=$?") if $?;
+	$lei->child_error($?, "@$cmd failed: @err") if @err;
 }
 
 sub input_path_url {
@@ -184,7 +189,17 @@ EOM
 						$self, @args);
 		}
 	} elsif ($self->{missing_ok} && !-e $input) { # don't ->fail
-		$self->folder_missing("$ifmt:$input");
+		if ($lei->{cmd} eq 'p2q') {
+			my $fp = [ qw(git format-patch --stdout -1), $input ];
+			my $rdr = { 2 => $lei->{2} };
+			my $fh = popen_rd($fp, undef, $rdr);
+			eval { $self->input_fh('eml', $fh, $input, @args) };
+			my @err = ($@ ? $@ : ());
+			close($fh) or push @err, "\$?=$?";
+			$lei->child_error($?, "@$fp failed: @err") if @err;
+		} else {
+			$self->folder_missing("$ifmt:$input");
+		}
 	} else {
 		$lei->fail("$ifmt_pfx$input unsupported (TODO)");
 	}
@@ -330,9 +345,12 @@ $input is `eml', not --in-format=$in_fmt
 				}
 				push @md, $input;
 			} elsif ($self->{missing_ok} && !-e $input) {
-				# for lei rm-watch
-				$may_sync and $input = 'maildir:'.
+				if ($lei->{cmd} eq 'p2q') {
+					# will run "git format-patch"
+				} elsif ($may_sync) { # for lei rm-watch
+					$input = 'maildir:'.
 						$lei->abs_path($input);
+				}
 			} else {
 				return $lei->fail("Unable to handle $input")
 			}

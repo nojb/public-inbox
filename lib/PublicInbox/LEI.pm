@@ -274,9 +274,9 @@ our %CMD = ( # sorted in order of importance/use:
 	'one-time conversion from URL or filesystem to another format',
 	qw(stdin| in-format|F=s out-format|f=s output|mfolder|o=s lock=s@ kw!),
 	@net_opt, @c_opt ],
-'p2q' => [ 'FILE|COMMIT_OID|--stdin',
+'p2q' => [ 'LOCATION_OR_COMMIT...|--stdin',
 	"use a patch to generate a query for `lei q --stdin'",
-	qw(stdin| want|w=s@ uri debug), @c_opt ],
+	qw(stdin| in-format|F=s want|w=s@ uri debug), @net_opt, @c_opt ],
 'config' => [ '[...]', sub {
 		'git-config(1) wrapper for '._config_path($_[0]);
 	}, qw(config-file|system|global|file|f=s), # for conflict detection

@@ -1,16 +1,16 @@
-# Copyright (C) 2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # front-end for the "lei patch-to-query" sub-command
 package PublicInbox::LeiP2q;
 use strict;
 use v5.10.1;
-use parent qw(PublicInbox::IPC);
+use parent qw(PublicInbox::IPC PublicInbox::LeiInput);
 use PublicInbox::Eml;
 use PublicInbox::Smsg;
 use PublicInbox::MsgIter qw(msg_part_text);
 use PublicInbox::Git qw(git_unquote);
-use PublicInbox::Spawn qw(popen_rd);
+use PublicInbox::OnDestroy;
 use URI::Escape qw(uri_escape_utf8);
 my $FN = qr!((?:"?[^/\n]+/[^\r\n]+)|/dev/null)!;
 
@@ -28,8 +28,16 @@ sub xphrase ($) {
 	} ($s =~ m!(\w[\|=><,\./:\\\@\-\w\s]+)!g);
 }
 
+sub add_qterm ($$@) {
+	my ($self, $p, @v) = @_;
+	for (@v) {
+		$self->{qseen}->{"$p\0$_"} //=
+			push(@{$self->{qterms}->{$p}}, $_);
+	}
+}
+
 sub extract_terms { # eml->each_part callback
-	my ($p, $lei) = @_;
+	my ($p, $self) = @_;
 	my $part = $p->[0]; # ignore $depth and @idx;
 	my $ct = $part->content_type || 'text/plain';
 	my ($s, undef) = msg_part_text($part, $ct);
@@ -38,7 +46,7 @@ sub extract_terms { # eml->each_part callback
 	# TODO: b: nq: q:
 	for (split(/\n/, $s)) {
 		if ($in_diff && s/^ //) { # diff context
-			push @{$lei->{qterms}->{dfctx}}, xphrase($_);
+			add_qterm($self, 'dfctx', xphrase($_));
 		} elsif (/^-- $/) { # email signature begins
 			$in_diff = undef;
 		} elsif (m!^diff --git $FN $FN!) {
@@ -46,21 +54,21 @@ sub extract_terms { # eml->each_part callback
 			$in_diff = 1;
 		} elsif (/^index ([a-f0-9]+)\.\.([a-f0-9]+)\b/) {
 			my ($oa, $ob) = ($1, $2);
-			push @{$lei->{qterms}->{dfpre}}, $oa;
-			push @{$lei->{qterms}->{dfpost}}, $ob;
+			add_qterm($self, 'dfpre', $oa);
+			add_qterm($self, 'dfpost', $ob);
 			# who uses dfblob?
 		} elsif (m!^(?:---|\+{3}) ($FN)!) {
 			next if $1 eq '/dev/null';
 			my $fn = (split(m!/!, git_unquote($1.''), 2))[1];
-			push @{$lei->{qterms}->{dfn}}, xphrase($fn);
+			add_qterm($self, 'dfn', xphrase($fn));
 		} elsif ($in_diff && s/^\+//) { # diff added
-			push @{$lei->{qterms}->{dfb}}, xphrase($_);
+			add_qterm($self, 'dfb', xphrase($_));
 		} elsif ($in_diff && s/^-//) { # diff removed
-			push @{$lei->{qterms}->{dfa}}, xphrase($_);
+			add_qterm($self, 'dfa', xphrase($_));
 		} elsif (/^@@ (?:\S+) (?:\S+) @@\s*$/) {
 			# traditional diff w/o -p
 		} elsif (/^@@ (?:\S+) (?:\S+) @@\s*(\S+.*)/) {
-			push @{$lei->{qterms}->{dfhh}}, xphrase($1);
+			add_qterm($self, 'dfhh', xphrase($1));
 		} elsif (/^(?:dis)similarity index/ ||
 				/^(?:old|new) mode/ ||
 				/^(?:deleted|new) file mode/ ||
@@ -92,53 +100,43 @@ my %pfx2smsg = (
 	rt => [ qw(ts) ], # ditto...
 );
 
-sub do_p2q { # via wq_do
-	my ($self) = @_;
-	my $lei = $self->{lei};
-	my $want = $lei->{opt}->{want} // [ qw(dfpost7) ];
-	my @want = split(/[, ]+/, "@$want");
-	for (@want) {
-		/\A(?:(d|dt|rt):)?([0-9]+)(\.(?:day|weeks)s?)?\z/ or next;
-		my ($pfx, $n, $unit) = ($1, $2, $3);
-		$n *= 86400 * ($unit =~ /week/i ? 7 : 1);
-		$_ = [ $pfx, $n ];
-	}
-	my $smsg = bless {}, 'PublicInbox::Smsg';
-	my $in = $self->{0};
-	my @cmd;
-	unless ($in) {
-		my $input = $self->{input};
-		my $devfd = $lei->path_to_fd($input) // return;
-		if ($devfd >= 0) {
-			$in = $lei->{$devfd};
-		} elsif (-e $input) {
-			open($in, '<', $input) or
-				return $lei->fail("open < $input: $!");
-		} else {
-			@cmd = (qw(git format-patch --stdout -1), $input);
-			$in = popen_rd(\@cmd, undef, { 2 => $lei->{2} });
+sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
+	my ($self, $eml) = @_;
+	my $diff_want = $self->{diff_want} // do {
+		my $want = $self->{lei}->{opt}->{want} // [ qw(dfpost7) ];
+		my @want = split(/[, ]+/, "@$want");
+		for (@want) {
+			/\A(?:(d|dt|rt):)?([0-9]+)(\.(?:day|weeks)s?)?\z/
+				or next;
+			my ($pfx, $n, $unit) = ($1, $2, $3);
+			$n *= 86400 * ($unit =~ /week/i ? 7 : 1);
+			$_ = [ $pfx, $n ];
 		}
+		$self->{want_order} = \@want;
+		$self->{diff_want} = +{ map { $_ => 1 } @want };
 	};
-	my $str = do { local $/; <$in> };
-	@cmd && !close($in) and return $lei->fail("E: @cmd failed: $?");
-	my $eml = PublicInbox::Eml->new(\$str);
-	$lei->{diff_want} = +{ map { $_ => 1 } @want };
+	my $smsg = bless {}, 'PublicInbox::Smsg';
 	$smsg->populate($eml);
 	while (my ($pfx, $fields) = each %pfx2smsg) {
-		next unless $lei->{diff_want}->{$pfx};
+		next unless $diff_want->{$pfx};
 		for my $f (@$fields) {
 			my $v = $smsg->{$f} // next;
-			push @{$lei->{qterms}->{$pfx}}, xphrase($v);
+			add_qterm($self, $pfx, xphrase($v));
 		}
 	}
-	$eml->each_part(\&extract_terms, $lei, 1);
+	$eml->each_part(\&extract_terms, $self, 1);
+}
+
+sub emit_query {
+	my ($self) = @_;
+	my $lei = $self->{lei};
 	if ($lei->{opt}->{debug}) {
 		my $json = ref(PublicInbox::Config->json)->new;
 		$json->utf8->canonical->pretty;
-		print { $lei->{2} } $json->encode($lei->{qterms});
+		print { $lei->{2} } $json->encode($self->{qterms});
 	}
 	my (@q, %seen);
-	for my $pfx (@want) {
+	for my $pfx (@{$self->{want_order}}) {
 		if (ref($pfx) eq 'ARRAY') {
 			my ($p, $t_range) = @$pfx; # TODO
 
@@ -148,7 +146,7 @@ sub do_p2q { # via wq_do
 		} else {
 			my $plusminus = ($pfx =~ s/\A([\+\-])//) ? $1 : '';
 			my $end = ($pfx =~ s/([0-9\*]+)\z//) ? $1 : '';
-			my $x = delete($lei->{qterms}->{$pfx}) or next;
+			my $x = delete($self->{qterms}->{$pfx}) or next;
 			my $star = $end =~ tr/*//d ? '*' : '';
 			my $min_len = ($end || 0) + 0;
 
@@ -181,24 +179,25 @@ sub do_p2q { # via wq_do
 }
 
 sub lei_p2q { # the "lei patch-to-query" entry point
-	my ($lei, $input) = @_;
-	my $self = bless {}, __PACKAGE__;
-	if ($lei->{opt}->{stdin}) {
-		$self->{0} = delete $lei->{0}; # guard from _lei_atfork_child
-	} else {
-		$self->{input} = $input;
-	}
-	my ($op_c, $ops) = $lei->workers_start($self, 1);
+	my ($lei, @inputs) = @_;
+	$lei->{opt}->{'in-format'} //= 'eml' if $lei->{opt}->{stdin};
+	my $self = bless { missing_ok => 1 }, __PACKAGE__;
+	$self->prepare_inputs($lei, \@inputs) or return;
+	my $ops = {};
+	$lei->{auth}->op_merge($ops, $self, $lei) if $lei->{auth};
+	(my $op_c, $ops) = $lei->workers_start($self, 1, $ops);
 	$lei->{wq1} = $self;
-	$self->wq_io_do('do_p2q', []);
-	$self->wq_close;
+	net_merge_all_done($self) unless $lei->{auth};
 	$lei->wait_wq_events($op_c, $ops);
 }
 
 sub ipc_atfork_child {
 	my ($self) = @_;
-	$self->{lei}->_lei_atfork_child;
-	$self->SUPER::ipc_atfork_child;
+	PublicInbox::LeiInput::input_only_atfork_child($self);
+	PublicInbox::OnDestroy->new($$, \&emit_query, $self);
 }
+
+no warnings 'once';
+*net_merge_all_done = \&PublicInbox::LeiInput::input_only_net_merge_all_done;
 
 1;

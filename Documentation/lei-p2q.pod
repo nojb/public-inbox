@@ -77,6 +77,12 @@ Suppress feedback messages.
   # to view results on a remote HTTP(S) public-inbox instance
   $BROWSER https://example.com/pub-inbox/?q=$(lei p2q --uri $COMMIT_OID)
 
+  # to view unapplied patches for a given $FILE from the past year:
+  echo \( rt:last.year.. AND dfn:$FILE \) AND NOT \( \
+	$(git log -p --pretty=mboxrd --since=last.year $FILE |
+		lei p2q -F mboxrd )
+	\) | lei q -o /tmp/unapplied
+
 =head1 CONTACT
 
 Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
