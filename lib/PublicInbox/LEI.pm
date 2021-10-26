@@ -179,7 +179,7 @@ our %CMD = ( # sorted in order of importance/use:
 
 'up' => [ 'OUTPUT...|--all', 'update saved search',
 	qw(jobs|j=s lock=s@ alert=s@ mua=s verbose|v+ exclude=s@
-	remote-fudge-time=s all:s remote! local! external!), @c_opt ],
+	remote-fudge-time=s all:s remote! local! external!), @net_opt, @c_opt ],
 
 'lcat' => [ '--stdin|MSGID_OR_URL...', 'display local copy of message(s)',
 	'stdin|', # /|\z/ must be first for lone dash
@@ -215,7 +215,7 @@ our %CMD = ( # sorted in order of importance/use:
 'ls-mail-sync' => [ '[FILTER]', 'list mail sync folders',
 		qw(z|0 globoff|g invert-match|v local remote), @c_opt ],
 'ls-mail-source' => [ 'URL', 'list IMAP or NNTP mail source folders',
-		qw(z|0 ascii l pretty url), @c_opt ],
+		qw(z|0 ascii l pretty url), @net_opt, @c_opt ],
 'forget-external' => [ 'LOCATION...|--prune',
 	'exclude further results from a publicinbox|extindex',
 	qw(prune), @c_opt ],
@@ -265,7 +265,8 @@ our %CMD = ( # sorted in order of importance/use:
 'forget-mail-sync' => [ 'LOCATION...',
 	'forget sync information for a mail folder', @c_opt ],
 'refresh-mail-sync' => [ 'LOCATION...|--all',
-	'prune dangling sync data for a mail folder', 'all:s', @c_opt ],
+	'prune dangling sync data for a mail folder', 'all:s',
+		@net_opt, @c_opt ],
 'export-kw' => [ 'LOCATION...|--all',
 	'one-time export of keywords of sync sources',
 	qw(all:s mode=s), @net_opt, @c_opt ],
