@@ -76,7 +76,7 @@ sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 
 sub lei_mail_diff {
 	my ($lei, @argv) = @_;
-	$lei->{opt}->{'in-format'} //= 'eml';
+	$lei->{opt}->{'in-format'} //= 'eml' if !grep(/\A[a-z0-9]+:/i, @argv);
 	my $self = bless {}, __PACKAGE__;
 	$self->prepare_inputs($lei, \@argv) or return;
 	my $isatty = -t $lei->{1};
@@ -94,7 +94,7 @@ sub lei_mail_diff {
 no warnings 'once';
 *net_merge_all_done = \&PublicInbox::LeiInput::input_only_net_merge_all_done;
 
-package PublicInbox::ContentDigestDbg;
+package PublicInbox::ContentDigestDbg; # cf. PublicInbox::ContentDigest
 use strict;
 use v5.10.1;
 use Data::Dumper;
@@ -103,7 +103,7 @@ sub new { bless { dig => Digest::SHA->new(256), fh => $_[1] }, __PACKAGE__ }
 
 sub add {
 	$_[0]->{dig}->add($_[1]);
-	print { $_[0]->{fh} } Dumper($_[1]) or die "print $!";
+	print { $_[0]->{fh} } Dumper([split(/^/sm, $_[1])]) or die "print $!";
 }
 
 sub hexdigest { $_[0]->{dig}->hexdigest; }

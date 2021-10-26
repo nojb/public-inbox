@@ -202,7 +202,7 @@ our %CMD = ( # sorted in order of importance/use:
 
 'mail-diff' => [ '--stdin|LOCATION...', 'diff the contents of emails',
 	'stdin|', # /|\z/ must be first for lone dash
-	qw(verbose|v+ color:s no-color raw-header),
+	qw(verbose|v+ in-format|F=s color:s no-color raw-header),
 	@diff_opt, @net_opt, @c_opt ],
 
 'add-external' => [ 'LOCATION',
