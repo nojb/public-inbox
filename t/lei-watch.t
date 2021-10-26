@@ -58,7 +58,7 @@ test_lei(sub {
 	lei_ok qw(q mid:testmessage@example.com -o), $md2, '-I', "$ro_home/t1";
 	my @f2 = glob("$md2/*/*");
 	is(scalar(@f2), 1, 'got one result');
-	like($f2[0], qr/S\z/, 'seen set from rename');
+	like($f2[0], qr/S\z/, 'seen set from rename') or diag explain(\@f2);
 	my $e2 = eml_load($f2[0]);
 	my $e1 = eml_load("$f[0]S");
 	is_deeply($e2, $e1, 'results match');
