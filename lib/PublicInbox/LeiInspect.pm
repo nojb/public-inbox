@@ -294,7 +294,7 @@ sub _complete_inspect {
 	# TODO: message-ids?, blobs? could get expensive...
 }
 
-sub input_only_atfork_child {
+sub ipc_atfork_child {
 	my ($self) = @_;
 	$self->{lei}->_lei_atfork_child;
 	$self->SUPER::ipc_atfork_child;
