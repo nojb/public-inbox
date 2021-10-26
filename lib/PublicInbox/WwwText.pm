@@ -284,7 +284,7 @@ sub _add_imap_nntp_urls ($$) {
   # each subfolder (starting with `0') holds 50K messages at most
 EOM
 	}
-	$urls = $ctx->{ibx}->imap_url($ctx);
+	$urls = $ctx->{ibx}->nntp_url($ctx);
 	if (@$urls) {
 		$$txt .= "\n";
 		$$txt .= @$urls == 1 ? 'Newsgroup' : 'Newsgroups are';
