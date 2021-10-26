@@ -282,6 +282,7 @@ sub _maildir_write_cb ($$) {
 	my $lse = $lei->{lse}; # may be undef
 	my $lms = $self->{-lms_rw};
 	my $out = $lms ? 'maildir:'.$lei->abs_path($dst) : undef;
+	$lms->lms_write_prepare if $lms;
 
 	# Favor cur/ and only write to new/ when augmenting.  This
 	# saves MUAs from having to do a mass rename when the initial
@@ -312,6 +313,7 @@ sub _imap_write_cb ($$) {
 	$uri->uidvalidity($mic->uidvalidity($folder));
 	my $lse = $lei->{lse}; # may be undef
 	my $lms = $self->{-lms_rw};
+	$lms->lms_write_prepare if $lms;
 	sub { # for git_to_mail
 		my ($bref, $smsg, $eml) = @_;
 		$mic // return $lei->fail; # mic may be undef-ed in last run
@@ -750,7 +752,6 @@ sub ipc_atfork_child {
 	my ($self) = @_;
 	my $lei = $self->{lei};
 	$lei->_lei_atfork_child;
-	$self->{-lms_rw}->lms_write_prepare if $self->{-lms_rw};
 	$lei->{auth}->do_auth_atfork($self) if $lei->{auth};
 	$SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
 	$self->SUPER::ipc_atfork_child;
