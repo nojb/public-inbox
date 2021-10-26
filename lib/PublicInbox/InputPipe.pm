@@ -18,7 +18,7 @@ sub consume {
 
 sub event_step {
 	my ($self) = @_;
-	my $r = sysread($self->{sock}, my $rbuf, 65536);
+	my $r = sysread($self->{sock} // return, my $rbuf, 65536);
 	if ($r) {
 		$self->{cb}->(@{$self->{args} // []}, $rbuf);
 		return $self->requeue; # may be regular file or pipe
