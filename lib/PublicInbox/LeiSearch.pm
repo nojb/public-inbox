@@ -175,6 +175,8 @@ sub all_terms {
 sub qparse_new {
 	my ($self) = @_;
 	my $qp = $self->SUPER::qparse_new; # PublicInbox::Search
+	$self->{qp_flags} |= PublicInbox::Search::FLAG_PHRASE() |
+				PublicInbox::Search::FLAG_PURE_NOT();
 	$qp->add_boolean_prefix('kw', 'K');
 	$qp->add_boolean_prefix('L', 'L');
 	$qp
