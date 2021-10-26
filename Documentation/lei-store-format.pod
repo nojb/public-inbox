@@ -30,7 +30,6 @@ prevent them from being accidentally treated as a v2 inbox.
   $SHARD - Integer starting with 0 based on parallelism
 
   ~/.local/share/lei/store
-  - ipc.lock                        # lock file for internal lei IPC
   - local/$EPOCH.git                # normal bare git repositories
   - mail_sync.sqlite3               # sync state IMAP, Maildir, NNTP
 
@@ -66,11 +65,18 @@ stored in Xapian indices, volatile metadata is associated with
 the Xapian document, thus it is shared across different blobs of
 the "same" message.
 
+=head2 mail_sync.sqlite3
+
+This SQLite database maintained for bidirectional mapping of
+git blobs to IMAP UIDs, Maildir file names, and NNTP article numbers.
+
+It is also used for retrieving messages from Maildirs indexed by
+L<lei-index(1)>.
+
 =head1 IPC
 
-When L<lei(1)> is run in daemon mode, L<flock(2)> is used on
-C<ipc.lock> is used to serialize writes to C<lei/store> across
-multiple internal lei workers while minimizing commits.
+L<lei-daemon(8)> communicates with the C<lei/store> process using
+L<unix(7)> C<SOCK_SEQPACKET> sockets.
 
 =head1 CAVEATS
 
