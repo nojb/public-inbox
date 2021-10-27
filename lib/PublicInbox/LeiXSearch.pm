@@ -283,20 +283,22 @@ sub each_remote_eml { # callback for MboxReader->mboxrd
 	my $smsg = bless {}, 'PublicInbox::Smsg';
 	if ($self->{import_sto} && !$xoids) {
 		my ($res, $kw) = $self->{import_sto}->wq_do('add_eml', $eml);
-		$smsg = $res if ref($res) eq ref($smsg); # totally new message
+		if (ref($res) eq ref($smsg)) { # totally new message
+			$smsg = $res;
+			$self->{-imported} = 1;
+		}
 		$smsg->{kw} = $kw; # short-circuit xsmsg_vmd
 	}
 	$smsg->{blob} //= $xoids ? (keys(%$xoids))[0]
 				: $lei->git_oid($eml)->hexdigest;
 	_smsg_fill($smsg, $eml);
 	wait_startq($lei);
+	my $nr = ++$lei->{-nr_remote_eml}; # needed for lss->cfg_set
 	if ($lei->{-progress}) {
-		++$lei->{-nr_remote_eml};
 		my $now = now();
 		my $next = $lei->{-next_progress} //= ($now + 1);
 		if ($now > $next) {
 			$lei->{-next_progress} = $now + 1;
-			my $nr = $lei->{-nr_remote_eml};
 			mset_progress($lei, $lei->{-current_url}, $nr, '?');
 		}
 	}
@@ -374,13 +376,14 @@ sub query_remote_mboxrd {
 		$fh = IO::Uncompress::Gunzip->new($fh, MultiStream => 1);
 		PublicInbox::MboxReader->mboxrd($fh, \&each_remote_eml, $self,
 						$lei, $each_smsg);
-		my $nr = $lei->{-nr_remote_eml};
-		my $wait = $lei->{sto}->wq_do('done') if $nr && $lei->{sto};
+		if ($self->{import_sto} && delete($self->{-imported})) {
+			my $wait = $self->{import_sto}->wq_do('done');
+		}
 		$reap_curl->join;
 		if ($? == 0) {
 			# don't update if no results, maybe MTA is down
-			$key && $nr and
-				$lei->{lss}->cfg_set($key, $start);
+			my $nr = $lei->{-nr_remote_eml};
+			$lei->{lss}->cfg_set($key, $start) if $key && $nr;
 			mset_progress($lei, $lei->{-current_url}, $nr, $nr);
 			next;
 		}
