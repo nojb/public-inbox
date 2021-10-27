@@ -674,8 +674,10 @@ sub create_inbox ($$;@) {
 	my %opt = @_;
 	require PublicInbox::Lock;
 	require PublicInbox::InboxWritable;
+	require PublicInbox::Import;
 	my ($base) = ($0 =~ m!\b([^/]+)\.[^\.]+\z!);
-	my $dir = "t/data-gen/$base.$ident";
+	my ($db) = (PublicInbox::Import::default_branch() =~ m!([^/]+)\z!);
+	my $dir = "t/data-gen/$base.$ident-$db";
 	my $new = !-d $dir;
 	if ($new) {
 		mkdir $dir; # may race
