@@ -556,16 +556,20 @@ SKIP: {
 	require_git(2.6, 1) or skip('git 2.6+ required for lei test', 2);
 	my $mods = $test_opt->{mods} // [ 'lei' ];
 	require_mods(@$mods, 2);
+
+	# set PERL_INLINE_DIRECTORY before clobbering XDG_CACHE_HOME
+	require PublicInbox::Spawn;
 	require PublicInbox::Config;
 	require File::Path;
+
 	local %ENV = %ENV;
 	delete $ENV{XDG_DATA_HOME};
 	delete $ENV{XDG_CONFIG_HOME};
+	delete $ENV{XDG_CACHE_HOME};
 	$ENV{GIT_COMMITTER_EMAIL} = 'lei@example.com';
 	$ENV{GIT_COMMITTER_NAME} = 'lei user';
 	my (undef, $fn, $lineno) = caller(0);
 	my $t = "$fn:$lineno";
-	require PublicInbox::Spawn;
 	state $lei_daemon = PublicInbox::Spawn->can('send_cmd4') ||
 				eval { require Socket::MsgHdr; 1 };
 	unless ($lei_daemon) {
