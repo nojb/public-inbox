@@ -55,6 +55,7 @@ sub lei_convert { # the main "lei convert" method
 	my $devfd = $lei->path_to_fd($ovv->{dst}) // return;
 	$lei->{opt}->{augment} = 1 if $devfd < 0;
 	$self->prepare_inputs($lei, \@inputs) or return;
+	# n.b. {net} {auth} is handled by l2m worker
 	my ($op_c, $ops) = $lei->workers_start($self, 1);
 	$lei->{wq1} = $self;
 	$self->wq_io_do('process_inputs', []);

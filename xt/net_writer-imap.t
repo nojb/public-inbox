@@ -137,6 +137,13 @@ test_lei(sub {
 	is_deeply($res->[0]->[1], $plack_qp_eml,
 			'lei q wrote expected result');
 
+	my $mdir = "$ENV{HOME}/t.mdir";
+	lei_ok 'convert', $folder_url, '-o', $mdir;
+	my @mdfiles = glob("$mdir/*/*");
+	is(scalar(@mdfiles), 1, '1 message from IMAP => Maildir conversion');
+	is_deeply(eml_load($mdfiles[0]), $plack_qp_eml,
+		'conversion from IMAP to Maildir');
+
 	lei_ok qw(q f:matz -a -o), $folder_url;
 	$nwr->imap_each($folder_uri, $imap_slurp_all, my $aug = []);
 	is(scalar(@$aug), 2, '2 results after augment') or diag explain($aug);
