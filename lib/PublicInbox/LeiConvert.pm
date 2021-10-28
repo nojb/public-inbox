@@ -23,11 +23,6 @@ sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 	$self->{wcb}->(undef, {}, $eml);
 }
 
-sub input_net_cb { # callback for ->imap_each, ->nntp_each
-	my (undef, undef, $kw, $eml, $self) = @_; # @_[0,1]: url + uid ignored
-	$self->{wcb}->(undef, { kw => $kw }, $eml);
-}
-
 sub input_maildir_cb {
 	my (undef, $kw, $eml, $self) = @_; # $_[0] $filename ignored
 	$self->{wcb}->(undef, { kw => $kw }, $eml);
