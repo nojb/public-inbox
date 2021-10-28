@@ -34,6 +34,8 @@ sub lei_add_watch {
 		next if defined $cfg->{"watch.$w.state"};
 		$lei->_config("watch.$w.state", $state);
 	}
+	$lei->_lei_store(1); # create
+	$lei->lms(1)->lms_write_prepare->add_folders(@{$self->{inputs}});
 	delete $lei->{cfg}; # force reload
 	$lei->refresh_watches;
 }
