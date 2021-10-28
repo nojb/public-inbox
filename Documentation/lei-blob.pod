@@ -9,9 +9,10 @@ lei blob [OPTIONS] OID
 =head1 DESCRIPTION
 
 Display a git blob.  The blob may correspond to a message from the
-local store, an existing blob in the current repository, or a
-not-yet-created blob in the current git project repository (if any)
-that can be reconstructed from a message.
+local store, any local external, or blobs associated with a
+project git repository (if run from a git (working) directory).
+For blobs which do not exist, it will attempt to recreate the blob
+using patch emails.
 
 =head1 OPTIONS
 
@@ -64,7 +65,10 @@ L<lei-q(1)>.
 
 =over
 
-=item --[no-]remote
+=item --remote
+
+Remote externals only get queried when the blob needs to be
+reconstructed from patch emails.
 
 =item --no-local
 
