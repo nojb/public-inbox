@@ -51,7 +51,7 @@ sub lei_convert { # the main "lei convert" method
 	my $self = bless {}, __PACKAGE__;
 	my $ovv = PublicInbox::LeiOverview->new($lei, 'out-format');
 	$lei->{l2m} or return
-		$lei->fail("output not specified or is not a mail destination");
+		$lei->fail('--output unspecified or is not a mail destination');
 	my $devfd = $lei->path_to_fd($ovv->{dst}) // return;
 	$lei->{opt}->{augment} = 1 if $devfd < 0;
 	$self->prepare_inputs($lei, \@inputs) or return;
