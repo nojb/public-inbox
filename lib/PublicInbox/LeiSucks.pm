@@ -11,6 +11,7 @@ use Digest::SHA ();
 use Config;
 use POSIX ();
 use PublicInbox::Config;
+use PublicInbox::IPC;
 
 sub lei_sucks {
 	my ($lei, @argv) = @_;
@@ -22,9 +23,10 @@ sub lei_sucks {
 	}
 	eval { require PublicInbox };
 	my $pi_ver = eval('$PublicInbox::VERSION') // '(???)';
+	my $nproc = PublicInbox::IPC::detect_nproc() // '?';
 	my @out = ("lei $pi_ver\n",
 		"perl $Config{version} / $os $rel / $mac ".
-		"ptrsize=$Config{ptrsize}\n");
+		"ptrsize=$Config{ptrsize} nproc=$nproc\n");
 	chomp(my $gv = `git --version` || "git missing");
 	$gv =~ s/ version / /;
 	my $json = ref(PublicInbox::Config->json);
