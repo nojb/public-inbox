@@ -11,6 +11,11 @@ lei add-watch [OPTIONS] LOCATION [LOCATION...]
 Tell lei to watch C<LOCATION> for new messages and flag changes.
 Currently only Maildir locations are supported.
 
+WARNING: watches are not always reliable, occasional use
+of L<lei-index(1)> and L<lei-refresh-mail-sync(1)> is recommended
+if L<lei-daemon(8)> crashes or needs to be restarted.  This will
+be improved in the future.
+
 =for comment
 TODO: Document --state?  Believe valid values are pause, import-ro,
 
@@ -23,10 +28,9 @@ L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/>
 
 =head1 COPYRIGHT
 
-Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+Copyright all contributors L<mailto:meta@public-inbox.org>
 
 License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
-
 
 =head1 SEE ALSO
 
