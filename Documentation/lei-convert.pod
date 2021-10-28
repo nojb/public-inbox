@@ -1,23 +1,23 @@
 =head1 NAME
 
-lei-convert - one-time conversion from URL or filesystem to another format
+lei-convert - one-time conversion from one mail format to another
 
 =head1 SYNOPSIS
 
-lei convert [OPTIONS] LOCATION
+lei convert -o OUTPUT [OPTIONS] LOCATION
 
-lei convert [OPTIONS] (--stdin|-)
+lei convert -o OUTPUT [OPTIONS] (--stdin|-)
 
 =head1 DESCRIPTION
 
 Convert messages to another format.  C<LOCATION> is a source of
-messages: a directory (Maildir), a file, or a URL (C<imap://>,
-C<imaps://>, C<nntp://>, or C<nntps://>).  URLs requiring
-authentication use L<git-credential(1)> to
+messages: a directory (Maildir), a file (various mbox), or a URL
+(C<imap://>, C<imaps://>, C<nntp://>, or C<nntps://>).  URLs
+requiring authentication use L<git-credential(1)> to
 fill in the username and password.
 
 For a regular file, the location must have a C<E<lt>formatE<gt>:>
-prefix specifying one of the following formats: C<eml>, C<mboxrd>,
+prefix specifying one of the following formats: C<mboxrd>,
 C<mboxcl2>, C<mboxcl>, or C<mboxo>.
 
 =head1 OPTIONS
@@ -44,8 +44,6 @@ L<lei-q(1)>.
 
 =item --no-kw
 
-=item --no-import-remote
-
 =item --torsocks=auto|no|yes
 
 =item --no-torsocks
@@ -63,11 +61,10 @@ and L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta
 
 =head1 COPYRIGHT
 
-Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+Copyright all contributors L<mailto:meta@public-inbox.org>
 
 License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
 
-
 =head1 SEE ALSO
 
-L<lei-add-external(1)>
+L<lei-mail-formats(5)>
