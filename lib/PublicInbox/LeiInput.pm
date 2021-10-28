@@ -64,6 +64,11 @@ sub input_mbox_cb { # base MboxReader callback
 	$self->input_eml_cb($eml);
 }
 
+sub input_maildir_cb {
+	my ($fn, $kw, $eml, $self) = @_;
+	$self->input_eml_cb($eml);
+}
+
 sub input_net_cb { # imap_each, nntp_each cb
 	my ($url, $uid, $kw, $eml, $self) = @_;
 	$self->input_eml_cb($eml);

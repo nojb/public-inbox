@@ -13,11 +13,6 @@ sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 	$self->{lei}->{sto}->wq_do('remove_eml', $eml);
 }
 
-sub input_maildir_cb {
-	my (undef, $kw, $eml, $self) = @_; # $_[0] $filename ignored
-	input_eml_cb($self, $eml);
-}
-
 sub lei_rm {
 	my ($lei, @inputs) = @_;
 	$lei->_lei_store(1)->write_prepare($lei);

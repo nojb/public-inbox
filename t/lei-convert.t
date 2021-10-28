@@ -115,5 +115,15 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	@bar = ();
 	PublicInbox::MboxReader->mboxrd($fh, sub { push @bar, shift });
 	is_deeply(\@bar, [ $qp_eml ], 'readed gzipped mboxrd');
+
+	# Status => Maildir flag => Status round trip
+	$lei_out =~ s/^Status: O/Status: RO/sm or xbail "`seen' Status";
+	$rdr = { 0 => \($in = $lei_out), %$lei_opt };
+	lei_ok([qw(convert -F mboxrd -o), "$d/md2"], undef, $rdr);
+	@md = glob("$d/md2/*/*");
+	is(scalar(@md), 1, 'one message');
+	like($md[0], qr/:2,S\z/, "`seen' flag set in Maildir");
+	lei_ok(qw(convert -o mboxrd:/dev/stdout), "$d/md2");
+	like($lei_out, qr/^Status: RO/sm, "`seen' flag preserved");
 });
 done_testing;
