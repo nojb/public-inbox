@@ -1127,7 +1127,7 @@ sub event_step {
 	local %ENV = %{$self->{env}};
 	local $current_lei = $self;
 	eval {
-		my @fds = $recv_cmd->($self->{sock}, my $buf, 4096);
+		my @fds = $recv_cmd->($self->{sock} // return, my $buf, 4096);
 		if (scalar(@fds) == 1 && !defined($fds[0])) {
 			return if $! == EAGAIN;
 			die "recvmsg: $!" if $! != ECONNRESET;
