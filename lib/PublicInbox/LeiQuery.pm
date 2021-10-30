@@ -37,7 +37,7 @@ sub _start_query { # used by "lei q" and "lei up"
 			$lms->lms_write_prepare->lms_pause; # just create
 		}
 	}
-	$l2m and $l2m->{-wq_nr_workers} = $mj //
+	$l2m and $l2m->{-wq_nr_workers} //= $mj //
 		int($nproc * 0.75 + 0.5); # keep some CPU for git
 
 	# descending docid order is cheapest, MUA controls sorting order

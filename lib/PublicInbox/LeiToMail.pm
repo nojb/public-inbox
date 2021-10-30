@@ -415,11 +415,13 @@ sub new {
 		require PublicInbox::LeiViewText;
 		$lei->{lvt} = PublicInbox::LeiViewText->new($lei, $fmt);
 		$self->{base_type} = 'text';
+		$self->{-wq_nr_workers} = 1; # for pager
 		@conflict = qw(mua save);
 	} elsif ($fmt eq 'v2') {
 		die "--dedupe=oid and v2 are incompatible\n" if
 			($lei->{opt}->{dedupe}//'') eq 'oid';
 		$self->{base_type} = 'v2';
+		$self->{-wq_nr_workers} = 1; # v2 has shards
 		$lei->{opt}->{save} = \1;
 		$dst = $lei->{ovv}->{dst} = $lei->abs_path($dst);
 		@conflict = qw(mua sort);
