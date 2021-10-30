@@ -409,7 +409,10 @@ sub git { $_[0]->{git} // die 'BUG: git uninitialized' }
 sub xsearch_done_wait { # dwaitpid callback
 	my ($arg, $pid) = @_;
 	my ($wq, $lei) = @$arg;
-	$lei->child_error($?, 'non-fatal error from '.ref($wq)) if $?;
+	return if !$?;
+	my $s = $? & 127;
+	return $lei->child_error($?) if $s == 13 || $s == 15;
+	$lei->child_error($?, 'non-fatal error from '.ref($wq)." \$?=$?");
 }
 
 sub query_done { # EOF callback for main daemon

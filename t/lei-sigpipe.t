@@ -8,7 +8,7 @@ use POSIX qw(WTERMSIG WIFSIGNALED SIGPIPE);
 test_lei(sub {
 	my $f = "$ENV{HOME}/big.eml";
 	my $imported;
-	for my $out ([], [qw(-f mboxcl2)]) {
+	for my $out ([], [qw(-f mboxcl2)], [qw(-f text)]) {
 		pipe(my ($r, $w)) or BAIL_OUT $!;
 		my $size = 65536;
 		if ($^O eq 'linux' && fcntl($w, 1031, 4096)) {
@@ -27,7 +27,7 @@ EOM
 		}
 
 		lei_ok(qw(import), $f) if $imported++ == 0;
-		open my $errfh, '>>', "$ENV{HOME}/stderr.log" or xbail $!;
+		open my $errfh, '+>', "$ENV{HOME}/stderr.log" or xbail $!;
 		my $opt = { run_mode => 0, 2 => $errfh, 1 => $w };
 		my $cmd = [qw(lei q -q -t), @$out, 'z:1..'];
 		my $tp = start_script($cmd, undef, $opt);
@@ -37,6 +37,9 @@ EOM
 		$tp->join;
 		ok(WIFSIGNALED($?), "signaled @$out");
 		is(WTERMSIG($?), SIGPIPE, "got SIGPIPE @$out");
+		seek($errfh, 0, 0) or xbail $!;
+		my $s = do { local $/; <$errfh> };
+		is($s, '', "quiet after sigpipe @$out");
 	}
 });
 
