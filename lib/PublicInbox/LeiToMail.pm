@@ -756,6 +756,12 @@ sub ipc_atfork_child {
 	$lei->_lei_atfork_child;
 	$lei->{auth}->do_auth_atfork($self) if $lei->{auth};
 	$SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
+	$self->{git} = $self->{lei}->{ale}->git;
+	$SIG{TERM} = sub { # avoid ->DESTROY ordering problems
+		my $git = delete $self->{git};
+		$git->async_wait_all if $git;
+		exit(15 + 128);
+	};
 	$self->SUPER::ipc_atfork_child;
 }
 
@@ -776,7 +782,7 @@ sub write_mail { # via ->wq_io_do
 	my ($self, $smsg, $eml) = @_;
 	return $self->{wcb}->(undef, $smsg, $eml) if $eml;
 	$smsg->{-lms_rw} = $self->{-lms_rw};
-	$self->{lei}->{ale}->git->cat_async($smsg->{blob}, \&git_to_mail,
+	$self->{git}->cat_async($smsg->{blob}, \&git_to_mail,
 				[$self->{wcb}, $smsg]);
 }
 
