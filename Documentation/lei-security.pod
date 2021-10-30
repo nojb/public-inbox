@@ -64,6 +64,12 @@ public-facing L<public-inbox-daemon(8)> processes.  They may
 reside on shared storage and may be made world-readable to
 other users on the local system.
 
+=head1 CORE DUMPS
+
+In case any process crashes, a core dumps may contain passwords or
+contents of sensitive messages.  Please report these so they can be
+fixed (see L</CONTACT>).
+
 =head1 NETWORK ACCESS
 
 lei currently uses the L<curl(1)> and L<git(1)> executables in
