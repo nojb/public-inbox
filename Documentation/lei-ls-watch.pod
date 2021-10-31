@@ -8,7 +8,8 @@ lei ls-watch
 
 =head1 DESCRIPTION
 
-List locations that lei is configured to watch.
+List locations that lei is configured to watch.  This command is
+incomplete, mail-sync locations are implicitly watched.
 
 =head1 CONTACT
 

@@ -4,8 +4,8 @@ lei - an overview of lei
 
 =head1 DESCRIPTION
 
-L<lei(1)> is a local email interface for public-inbox.  This document
-provides some basic examples.
+L<lei(1)> is a local email interface for public-inbox and personal mail.
+This document provides some basic examples.
 
 =head1 LEI STORE
 
@@ -48,6 +48,11 @@ registered by passing a URL or local path to L<lei-add-external(1)>.
 For existing local paths, the external needs to be indexed with
 L<public-inbox-index(1)> (in the case of a regular inbox) or
 L<public-inbox-extindex(1)> (in the case of an external index).
+
+=head1 SYNCHRONIZATION
+
+lei currently has primitive mail synchronization abilities;
+see L<lei-mail-sync-overview(7)> for more details.
 
 =head2 EXAMPLES
 
@@ -154,3 +159,7 @@ L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/>
 Copyright all contributors L<mailto:meta@public-inbox.org>
 
 License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<lei-mail-sync-overview(7)>

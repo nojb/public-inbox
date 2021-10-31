@@ -12,6 +12,9 @@ lei export-kw MFOLDER [MFOLDER...]
 
 C<lei export-kw> propagates keywords (e.g. C<seen>, C<answered>,
 C<flagged>, etc.) from lei/store to IMAP folders and/or Maildirs.
+It only works for messages lei knows about (e.g. was used as a
+C<lei q --output>, or imported via L<lei-import(1)>, or indexed
+via L<lei-index(1)>).
 
 It does not delete, write, nor modify messages themselves;
 it only sets metadata on Maildirs and IMAP folders.

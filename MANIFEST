@@ -47,6 +47,7 @@ Documentation/lei-ls-search.pod
 Documentation/lei-ls-watch.pod
 Documentation/lei-mail-diff.pod
 Documentation/lei-mail-formats.pod
+Documentation/lei-mail-sync-overview.pod
 Documentation/lei-overview.pod
 Documentation/lei-p2q.pod
 Documentation/lei-q.pod

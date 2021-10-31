@@ -43,6 +43,26 @@ Suppress feedback messages.
 
 =back
 
+=head1 LABELS
+
+Labels are user-defined values analogous to IMAP/JMAP mailbox
+names.  They must only contain lowercase characters, digits, and
+a limited amount of punctuation (e.g. C<.>, C<->, C<@>).
+
+Messages may have multiple labels.
+
+=head1 KEYWORDS
+
+Keywords are "flags" in Maildir and IMAP terminology.
+Common keywords include: C<seen>, C<answered>, C<flagged>, and
+C<draft>, though C<forwarded>, C<phishing>, C<junk>, and C<notjunk>
+are also supported.
+
+When writing to various mboxes, the common keywords will be
+mapped to the C<Status> and C<X-Status> headers.
+
+Messages may have multiple keywords.
+
 =head1 CONTACT
 
 Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
@@ -55,7 +75,6 @@ L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/>
 Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
 
 License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
-
 
 =head1 SEE ALSO
 

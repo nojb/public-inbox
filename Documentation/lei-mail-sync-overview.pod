@@ -1,0 +1,53 @@
+=head1 NAME
+
+lei - an overview of lei mail synchronization
+
+=head1 DESCRIPTION
+
+L<lei(1)> provides several plumbing-level commands to synchronize
+mail and keywords (flags) between lei/store and existing IMAP
+and Maildir stores.  Nothing documented in this manpage is required
+for day-to-day use against externals.
+
+Mail and keyword synchronization is currently a clunky process.
+Future work will be done to improve it and add IMAP IDLE support.
+
+=head1 TYPICAL WORKFLOW
+
+  # import mail from a user's IMAP inbox and give it the "inbox" label:
+  lei import +L:inbox imaps://user@example.com/INBOX
+
+  # dump "inbox" labeled files from the past week to a Maildir
+  lei q L:inbox rt:last.week.. -o /tmp/results
+
+  # open /tmp/results in your favorite mail agent.  If inotify or kevent
+  # works, keyword changes (e.g. marking messages as `seen') are
+  # synchronized automatically.
+
+  # If the inotify queue overflows, or if lei-daemon crashes,
+  # "lei index" will tell lei about keyword changes:
+  lei index /tmp/results
+
+  # Optional: cleanup stale entries from mail_sync.sqlite3
+  lei refresh-mail-sync /tmp/results
+
+  # to export keyword changes back to IMAP
+  lei export-kw imaps://user@example.com/INBOX
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/> and
+L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<lei-import(1)>, L<lei-q(1)>, L<lei-index(1)>,
+L<lei-refresh-mail-sync(1)>, L<lei-export-kw(1)>

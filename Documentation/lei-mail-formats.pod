@@ -96,7 +96,10 @@ it worth supporting.
 
 Depending on the IMAP server software and configuration, IMAP
 servers may use any (or combination) of the aforementioned
-formats or a non-standard database backend.
+formats or a non-standard database backend.  Currently, lei
+uses L<Mail::IMAPClient> which has acceptable performance
+over low-latency links.  Performance over high-latency links
+is currently poor.
 
 =head1 eml
 

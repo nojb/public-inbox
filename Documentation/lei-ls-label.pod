@@ -9,6 +9,7 @@ lei ls-label [OPTIONS]
 =head1 DESCRIPTION
 
 List all known message labels ("mailboxes" in JMAP terminology).
+This is handy for writing L<lei-import(1)> invocations.
 
 =head1 OPTIONS
 

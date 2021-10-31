@@ -20,6 +20,9 @@ Combined with L<lei-q(1)>, C<lei index> allows Maildir users to
 have similar functionality to L<mairix(1)> by not duplicating
 messages into C<lei/store>.
 
+Occasional invocations of C<lei-refresh-mail-sync --all=local>
+are recommended to keep indexed messages retrievable.
+
 =head1 OPTIONS
 
 =over
@@ -58,4 +61,4 @@ License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
 
 =head1 SEE ALSO
 
-L<lei-store-format(5)>, L<lei-import(1)>
+L<lei-refresh-mail-sync(1)>, L<lei-store-format(5)>, L<lei-import(1)>

@@ -9,8 +9,9 @@ lei forget-mail-sync [OPTIONS] LOCATION [LOCATION...]
 =head1 DESCRIPTION
 
 Forget synchronization information for C<LOCATION>, an IMAP or Maildir
-folder.  Note that this won't delete any messages stored in Git,
-leaving C<lei-index(1)> users with dangling references.
+folder.  Note that this won't delete any messages on the filesystem.
+Users using L<lei-index(1)> without L<lei-import(1)> will be left
+with dangling references in search results.
 
 =head1 CONTACT
 

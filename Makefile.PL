@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# Copyright (C) 2013-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use ExtUtils::MakeMaker;
@@ -57,7 +57,7 @@ $v->{-m5} = [ qw(public-inbox-config public-inbox-v1-format
 		public-inbox-v2-format public-inbox-extindex-format
 		lei-mail-formats lei-store-format
 		) ];
-$v->{-m7} = [ qw(lei-overview lei-security
+$v->{-m7} = [ qw(lei-mail-sync-overview lei-overview lei-security
 		public-inbox-overview public-inbox-tuning
 		public-inbox-glossary) ];
 $v->{-m8} = [ qw(public-inbox-daemon lei-daemon) ];
