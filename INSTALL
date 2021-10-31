@@ -72,13 +72,6 @@ Numerous optional modules are likely to be useful as well:
                                    rpm: perl-Search-Xapian
                                    (HTTP and IMAP search)
 
-- Net::Server                      deb: libnet-server-perl
-                                   pkg: pkg-Net-Server
-                                   rpm: perl-Net-Server
-                                   (for HTTP/IMAP/NNTP background daemons,
-                                    not needed as systemd services or
-                                    foreground servers)
-
 - Inline::C                        deb: libinline-c-perl
                                    pkg: pkg-Inline-C
                                    rpm: perl-Inline (or perl-Inline-C)
@@ -95,6 +88,11 @@ Numerous optional modules are likely to be useful as well:
                                    pkg: p5-Parse-RecDescent
                                    rpm: perl-ParseRecDescent
                                    (optional, for public-inbox-imapd(1))
+
+- Mail::IMAPClient                 deb: libmail-imapclient-perl
+                                   pkg: p5-Mail-IMAPClient
+                                   rpm: perl-Mail-IMAPClient
+                                   (optional for lei and public-inbox-watch)
 
 - BSD::Resource                    deb: libbsd-resource-perl
                                    pkg: p5-BSD-Resource
@@ -116,9 +114,24 @@ Numerous optional modules are likely to be useful as well:
                                    rpm: xapian-core
                                    (optional, for public-inbox-compact(1))
 
+* curl (tool)                      deb, pkg, rpm: curl
+                                   (for HTTP(S) externals with curl)
+
 - Linux::Inotify2                  deb: liblinux-inotify2-perl
                                    rpm: perl-Linux-Inotify2
-                                   (for public-inbox-watch and -imapd on Linux)
+                                   (for lei, public-inbox-watch and -imapd
+                                    on Linux)
+
+- IO::KQueue                       pkg: p5-IO-KQueue
+                                   (for lei, public-inbox-watch and -imapd
+                                    on *BSDs)
+
+- Net::Server                      deb: libnet-server-perl
+                                   pkg: pkg-Net-Server
+                                   rpm: perl-Net-Server
+                                   (for HTTP/IMAP/NNTP background daemons,
+                                    not needed as systemd services or
+                                    foreground servers)
 
 The following module is typically pulled in by dependencies listed
 above, so there is no need to explicitly install them:

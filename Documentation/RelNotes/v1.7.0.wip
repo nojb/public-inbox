@@ -20,6 +20,9 @@ Another big release focused on multi-inbox search and scalability.
   and process limits.  See public-inbox-tuning(7) manpage
   for more details.
 
+* various memory usage reductions and workarounds for leaks in
+  Encode <3.15, these mainly affect PublicInbox::WWW
+
 * public-inbox-extindex
 
   A new Xapian + SQLite index able to search across several inboxes.
@@ -49,7 +52,9 @@ Another big release focused on multi-inbox search and scalability.
   An experimental, subject-to-change, likely-to-eat-your-mail tool for
   personal mail as well as interacting with public-inboxes on the local
   filesystem or over HTTP(S).  See lei(1), lei-overview(7), and other
-  lei-* manpages for details.
+  lei-* manpages for details.  This is ready-to-use w.r.t. external
+  public-inbox instances but mail synchronization for personal mail
+  remains clunky.
 
 * public-inbox-index
 
