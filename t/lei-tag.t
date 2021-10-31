@@ -84,11 +84,19 @@ test_lei(sub {
 	lei_ok(qw(ls-label));
 	is($lei_out, "nope\nqp\nurgent\n", 'ls-label shows qp');
 
-	lei_ok qw(tag -F eml t/utf8.eml +L:INBOX +L:x);
+	lei_ok qw(tag -F eml t/utf8.eml +L:inbox +L:x);
 	lei_ok qw(q m:testmessage@example.com);
-	$check_kw->([qw(answered seen)], L => [qw(INBOX nope urgent x)]);
+	$check_kw->([qw(answered seen)], L => [qw(inbox nope urgent x)]);
 	lei_ok(qw(ls-label));
-	is($lei_out, "INBOX\nnope\nqp\nurgent\nx\n", 'ls-label shows qp');
+	is($lei_out, "inbox\nnope\nqp\nurgent\nx\n", 'ls-label shows qp');
+
+	lei_ok qw(q L:inbox);
+	is(json_utf8->decode($lei_out)->[0]->{blob},
+		$r2->[0]->{blob}, 'label search works');
+
+	ok(!lei(qw(tag -F eml t/utf8.eml +L:ALLCAPS)), '+L:ALLCAPS fails');
+	lei_ok(qw(ls-label));
+	is($lei_out, "inbox\nnope\nqp\nurgent\nx\n", 'ls-label unchanged');
 
 	if (0) { # TODO label+kw search w/ externals
 		lei_ok(qw(q L:qp), "mid:$mid", '--only', "$ro_home/t2");

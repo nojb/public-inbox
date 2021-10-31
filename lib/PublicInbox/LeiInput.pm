@@ -30,7 +30,7 @@ my %ERR = (
 		my ($label) = @_;
 		length($label) >= $L_MAX and
 			return "`$label' too long (must be <= $L_MAX)";
-		$label =~ m{\A[a-z0-9_](?:[a-z0-9_\-\./\@,]*[a-z0-9])?\z}i ?
+		$label =~ m{\A[a-z0-9_](?:[a-z0-9_\-\./\@,]*[a-z0-9])?\z} ?
 			undef : "`$label' is invalid";
 	},
 	kw => sub {
