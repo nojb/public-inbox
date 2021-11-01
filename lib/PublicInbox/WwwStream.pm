@@ -170,9 +170,9 @@ sub html_oneshot ($$;$) {
 		'Content-Length' => undef ];
 	bless $ctx, __PACKAGE__;
 	$ctx->{gz} = PublicInbox::GzipFilter::gz_or_noop($res_hdr, $ctx->{env});
-	$ctx->{base_url} //= do {
+	$ctx->{base_url} // do {
 		$ctx->zmore(html_top($ctx));
-		base_url($ctx);
+		$ctx->{base_url} = base_url($ctx);
 	};
 	$ctx->zmore($$sref) if $sref;
 	my $bdy = $ctx->zflush(_html_end($ctx));

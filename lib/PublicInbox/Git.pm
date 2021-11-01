@@ -71,7 +71,7 @@ sub new {
 
 sub git_path ($$) {
 	my ($self, $path) = @_;
-	$self->{-git_path}->{$path} ||= do {
+	$self->{-git_path}->{$path} //= do {
 		local $/ = "\n";
 		chomp(my $str = $self->qx(qw(rev-parse --git-path), $path));
 

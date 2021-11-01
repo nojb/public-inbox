@@ -377,8 +377,8 @@ sub get_1 {
 
 sub repo_objs {
 	my ($self, $ibxish) = @_;
-	my $ibx_code_repos = $ibxish->{coderepo} or return;
-	$ibxish->{-repo_objs} //= do {
+	my $ibx_code_repos = $ibxish->{coderepo} // return;
+	$ibxish->{-repo_objs} // do {
 		my $code_repos = $self->{-code_repos};
 		my @repo_objs;
 		for my $nick (@$ibx_code_repos) {
@@ -395,10 +395,9 @@ sub repo_objs {
 			push @repo_objs, $repo if $repo;
 		}
 		if (scalar @repo_objs) {
-			\@repo_objs;
+			$ibxish ->{-repo_objs} = \@repo_objs;
 		} else {
 			delete $ibxish->{coderepo};
-			undef;
 		}
 	}
 }

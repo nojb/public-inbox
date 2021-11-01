@@ -48,7 +48,7 @@ sub _cleanup_later ($) {
 sub _set_limiter ($$$) {
 	my ($self, $pi_cfg, $pfx) = @_;
 	my $lkey = "-${pfx}_limiter";
-	$self->{$lkey} ||= do {
+	$self->{$lkey} //= do {
 		# full key is: publicinbox.$NAME.httpbackendmax
 		my $mkey = $pfx.'max';
 		my $val = $self->{$mkey} or return;

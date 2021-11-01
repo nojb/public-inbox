@@ -130,9 +130,10 @@ sub url_folder_cache {
 
 sub ale {
 	my ($self) = @_;
-	$self->{ale} //= do {
+	$self->{ale} // do {
 		require PublicInbox::LeiALE;
-		$self->_lei_cfg(1)->{ale} //= PublicInbox::LeiALE->new($self);
+		my $cfg = $self->_lei_cfg(1);
+		$self->{ale} = $cfg->{ale} //= PublicInbox::LeiALE->new($self);
 	};
 }
 
@@ -1159,10 +1160,10 @@ sub event_step {
 sub event_step_init {
 	my ($self) = @_;
 	my $sock = $self->{sock} or return;
-	$self->{-event_init_done} //= do { # persist til $ops done
+	$self->{-event_init_done} // do { # persist til $ops done
 		$sock->blocking(0);
 		$self->SUPER::new($sock, EPOLLIN);
-		$sock;
+		$self->{-event_init_done} = $sock;
 	};
 }
 

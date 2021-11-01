@@ -468,7 +468,7 @@ sub serve_mbox_range {
 
 sub news_www {
 	my ($self) = @_;
-	$self->{news_www} ||= do {
+	$self->{news_www} //= do {
 		require PublicInbox::NewsWWW;
 		PublicInbox::NewsWWW->new($self->{pi_cfg});
 	}
@@ -476,7 +476,7 @@ sub news_www {
 
 sub cgit {
 	my ($self) = @_;
-	$self->{cgit} ||= do {
+	$self->{cgit} //= do {
 		my $pi_cfg = $self->{pi_cfg};
 
 		if (defined($pi_cfg->{'publicinbox.cgitrc'})) {

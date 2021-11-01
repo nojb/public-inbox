@@ -218,7 +218,7 @@ my %path_re_cache;
 sub path_info_raw ($) {
 	my ($env) = @_;
 	my $sn = $env->{SCRIPT_NAME};
-	my $re = $path_re_cache{$sn} ||= do {
+	my $re = $path_re_cache{$sn} //= do {
 		$sn = '/'.$sn unless index($sn, '/') == 0;
 		$sn =~ s!/\z!!;
 		qr!\A(?:https?://[^/]+)?\Q$sn\E(/[^\?\#]+)!;

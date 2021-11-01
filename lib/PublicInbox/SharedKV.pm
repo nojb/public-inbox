@@ -15,7 +15,7 @@ use File::Path qw(rmtree make_path);
 
 sub dbh {
 	my ($self, $lock) = @_;
-	$self->{dbh} //= do {
+	$self->{dbh} // do {
 		my $f = $self->{filename};
 		$lock //= $self->lock_for_scope_fast;
 		my $dbh = DBI->connect("dbi:SQLite:dbname=$f", '', '', {
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS kv (
 	UNIQUE (k)
 )
 
-		$dbh;
+		$self->{dbh} = $dbh;
 	}
 }
 

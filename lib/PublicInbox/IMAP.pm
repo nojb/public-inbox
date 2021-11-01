@@ -871,12 +871,12 @@ sub eml_index_offs_i { # PublicInbox::Eml::each_part callback
 # prepares an index for BODY[$SECTION_IDX] fetches
 sub eml_body_idx ($$) {
 	my ($eml, $section_idx) = @_;
-	my $idx = $eml->{imap_all_parts} //= do {
+	my $idx = $eml->{imap_all_parts} // do {
 		my $all = {};
 		$eml->each_part(\&eml_index_offs_i, $all, 0, 1);
 		# top-level of multipart, BODY[0] not allowed (nz-number)
 		delete $all->{0};
-		$all;
+		$eml->{imap_all_parts} = $all;
 	};
 	$idx->{$section_idx};
 }
