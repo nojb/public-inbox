@@ -20,12 +20,12 @@ sub new {
 sub push_rec {
 	my ($self, $file_char, $at, $ct, $blob_oid, $cmt_oid) = @_;
 	my $rec = pack(PACK_FMT, $file_char, $at, $ct, $blob_oid, $cmt_oid);
-	$self->{unpack_fmt} //= do {
+	$self->{unpack_fmt} // do {
 		my $len = length($cmt_oid);
 		my $fmt = PACK_FMT;
 		$fmt =~ s/H\*/H$len/g;
 		$self->{rec_size} = length($rec);
-		$fmt;
+		$self->{unpack_fmt} = $fmt;
 	};
 	print { $self->{wr} } $rec or die "print: $!";
 	$self->{tot_size} += length($rec);
