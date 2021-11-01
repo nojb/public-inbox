@@ -95,6 +95,8 @@ will also be parsed for diff coloring.  git diff color slots
 (C<color.diff.SLOT>) supported are C<new>, C<old>, C<meta>,
 C<frag>, C<func>, and C<context>.
 
+=back
+
 =head1 CONTACT
 
 Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
