@@ -144,7 +144,7 @@ sub reads {
 # { foo => '' } means "--foo" is passed to the command-line,
 # otherwise { foo => '--bar' } passes "--bar"
 my %zsfx2cmd = (
-	gz => [ qw(GZIP pigz gzip), { rsyncable => '' } ],
+	gz => [ qw(GZIP pigz gzip) ],
 	bz2 => [ 'bzip2', {} ],
 	xz => [ 'xz', {} ],
 	# don't add new entries here unless MUA support is widely available
@@ -160,7 +160,7 @@ sub zsfx2cmd ($$$) {
 	my ($zsfx, $decompress, $lei) = @_;
 	my $x = $zsfx2cmd{$zsfx} // die "BUG: no support for suffix=.$zsfx";
 	my @info = @$x;
-	my $cmd_opt = pop @info;
+	my $cmd_opt = ref($info[-1]) ? pop(@info) : undef;
 	my @cmd = (undef, $decompress ? qw(-dc) : qw(-c));
 	require PublicInbox::Spawn;
 	for my $exe (@info) {
@@ -172,9 +172,23 @@ sub zsfx2cmd ($$$) {
 		$cmd[0] = PublicInbox::Spawn::which($exe) and last;
 	}
 	$cmd[0] // die join(' or ', @info)." missing for .$zsfx";
-	# push @cmd, @{$cmd_opt->{-default}} if $cmd_opt->{-default};
-	for my $bool (qw(rsyncable)) {
-		my $switch = $cmd_opt->{rsyncable} // next;
+
+	# not all gzip support --rsyncable, FreeBSD gzip doesn't even exit
+	# with an error code
+	if (!$decompress && $cmd[0] =~ m!/gzip\z! && !defined($cmd_opt)) {
+		pipe(my ($r, $w)) or die "pipe: $!";
+		open my $null, '+>', '/dev/null' or die "open: $!";
+		my $rdr = { 0 => $null, 1 => $null, 2 => $w };
+		my $tst = [ $cmd[0], '--rsyncable' ];
+		my $pid = PublicInbox::Spawn::spawn($tst, undef, $rdr);
+		close $w;
+		my $err = do { local $/; <$r> };
+		waitpid($pid, 0) == $pid or die "BUG: waitpid: $!";
+		$cmd_opt = $err ? {} : { rsyncable => '' };
+		push(@$x, $cmd_opt);
+	}
+	for my $bool (keys %$cmd_opt) {
+		my $switch = $cmd_opt->{$bool} // next;
 		push @cmd, '--'.($switch || $bool);
 	}
 	for my $key (qw(rsyncable)) { # support compression level?
