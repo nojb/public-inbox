@@ -245,6 +245,55 @@ Default: C<auto>
 
 =back
 
+=head1 SEARCH TERMS
+
+C<lei q> supports the same search prefixes used by HTTP(S) public-inbox
+instances:
+
+=for comment
+AUTO-GENERATED-SEARCH-TERMS-BEGIN
+
+  s:       match within Subject  e.g. s:"a quick brown fox"
+  d:       match date-time range, git "approxidate" formats supported
+           Open-ended ranges such as `d:last.week..' and
+           `d:..2.days.ago' are supported
+  b:       match within message body, including text attachments
+  nq:      match non-quoted text within message body
+  q:       match quoted text within message body
+  n:       match filename of attachment(s)
+  t:       match within the To header
+  c:       match within the Cc header
+  f:       match within the From header
+  a:       match within the To, Cc, and From headers
+  tc:      match within the To and Cc headers
+  l:       match contents of the List-Id header
+  bs:      match within the Subject and body
+  dfn:     match filename from diff
+  dfa:     match diff removed (-) lines
+  dfb:     match diff added (+) lines
+  dfhh:    match diff hunk header context (usually a function name)
+  dfctx:   match diff context lines
+  dfpre:   match pre-image git blob ID
+  dfpost:  match post-image git blob ID
+  dfblob:  match either pre or post-image git blob ID
+  rt:      match received time, like `d:' if sender's clock was correct
+
+=for comment
+AUTO-GENERATED-SEARCH-TERMS-END
+
+Additional search prefixes which only affect the local lei/store:
+
+  L:       match the given label
+  kw:      match the given keywords
+
+See L<lei-tag(1)> for more info on labels and keywords.
+
+Most prefixes are probabilistic, meaning they support stemming
+and wildcards (C<*>).  Ranges (such as C<d:>) and boolean prefixes
+do not support stemming or wildcards.
+The upstream Xapian query parser documentation fully explains
+the query syntax: L<https://xapian.org/docs/queryparser.html>
+
 =head1 TIPS
 
 C<-f reply> is intended to aid in turning a cover letter
@@ -261,7 +310,7 @@ L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/>
 
 =head1 COPYRIGHT
 
-Copyright 2021 all contributors L<mailto:meta@public-inbox.org>
+Copyright all contributors L<mailto:meta@public-inbox.org>
 
 License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
 

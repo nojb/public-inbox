@@ -155,9 +155,9 @@ my %prob_prefix = (
 our @HELP = (
 	's:' => 'match within Subject  e.g. s:"a quick brown fox"',
 	'd:' => <<EOF,
-match date range, git "approxidate" formats supported
-Open-ended ranges such as `d:last.week..' and `d:..2.days.ago'
-are supported
+match date-time range, git "approxidate" formats supported
+Open-ended ranges such as `d:last.week..' and
+`d:..2.days.ago' are supported
 EOF
 	'b:' => 'match within message body, including text attachments',
 	'nq:' => 'match non-quoted text within message body',
@@ -179,7 +179,7 @@ EOF
 	'dfpost:' => 'match post-image git blob ID',
 	'dfblob:' => 'match either pre or post-image git blob ID',
 	'rt:' => <<EOF,
-match received time, like `d:' unless sender's clock was broken
+match received time, like `d:' if sender's clock was correct
 EOF
 );
 chomp @HELP;

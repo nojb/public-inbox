@@ -80,6 +80,9 @@ Documentation/flow.txt : Documentation/flow.ge
 	touch -r Documentation/flow.ge $@+
 	mv $@+ $@
 
+Documentation/lei-q.pod : lib/PublicInbox/Search.pm Documentation/common.perl
+	$(PERL) -I lib -w Documentation/common.perl $@
+
 NEWS NEWS.atom NEWS.html : $(news_deps)
 	$(PERL) -I lib -w Documentation/mknews.perl $@ $(RELEASES)
 

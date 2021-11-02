@@ -13,6 +13,7 @@ Documentation/RelNotes/v1.6.0.eml
 Documentation/RelNotes/v1.6.1.eml
 Documentation/RelNotes/v1.7.0.wip
 Documentation/clients.txt
+Documentation/common.perl
 Documentation/dc-dlvr-spam-flow.txt
 Documentation/design_notes.txt
 Documentation/design_www.txt
