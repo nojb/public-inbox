@@ -102,14 +102,9 @@ sub do_import_index ($$@) {
 	}
 	($lei->{opt}->{'new-only'} && (!$net || !$net->{imap_order})) and
 		warn "# --new-only is only for IMAP\n";
-	my $ops = {};
-	$lei->{auth}->op_merge($ops, $self, $lei) if $lei->{auth};
 	$lei->{-eml_noisy} = 1;
-	(my $op_c, $ops) = $lei->workers_start($self, $j, $ops);
-	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';
-	net_merge_all_done($self) unless $lei->{auth};
-	$lei->wait_wq_events($op_c, $ops);
+	$lei->wq1_start($self, $j);
 }
 
 sub lei_import { # the main "lei import" method

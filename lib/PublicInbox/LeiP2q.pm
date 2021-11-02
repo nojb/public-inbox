@@ -183,12 +183,7 @@ sub lei_p2q { # the "lei patch-to-query" entry point
 	$lei->{opt}->{'in-format'} //= 'eml' if $lei->{opt}->{stdin};
 	my $self = bless { missing_ok => 1 }, __PACKAGE__;
 	$self->prepare_inputs($lei, \@inputs) or return;
-	my $ops = {};
-	$lei->{auth}->op_merge($ops, $self, $lei) if $lei->{auth};
-	(my $op_c, $ops) = $lei->workers_start($self, 1, $ops);
-	$lei->{wq1} = $self;
-	net_merge_all_done($self) unless $lei->{auth};
-	$lei->wait_wq_events($op_c, $ops);
+	$lei->wq1_start($self);
 }
 
 sub ipc_atfork_child {

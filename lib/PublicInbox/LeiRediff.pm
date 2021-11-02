@@ -279,10 +279,7 @@ sub lei_rediff {
 	my $isatty = -t $lei->{1};
 	$lei->{opt}->{color} //= $isatty;
 	$lei->start_pager if $isatty;
-	my ($op_c, $ops) = $lei->workers_start($self, 1);
-	$lei->{wq1} = $self;
-	net_merge_all_done($self) unless $lei->{auth};
-	$lei->wait_wq_events($op_c, $ops);
+	$lei->wq1_start($self);
 }
 
 sub ipc_atfork_child {

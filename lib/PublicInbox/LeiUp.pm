@@ -136,10 +136,7 @@ EOM
 	if ($lei->{auth}) { # start auth worker
 		require PublicInbox::NetWriter;
 		bless $lei->{net}, 'PublicInbox::NetWriter';
-		$lei->{auth}->op_merge(my $ops = {}, $self, $lei);
-		(my $op_c, $ops) = $lei->workers_start($self, 1, $ops);
-		$lei->{wq1} = $self;
-		$lei->wait_wq_events($op_c, $ops);
+		$lei->wq1_start($self);
 		# net_merge_all_done will fire when auth is done
 	} else {
 		redispatch_all($self, $lei); # see below

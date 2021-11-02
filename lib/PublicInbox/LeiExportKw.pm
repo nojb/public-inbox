@@ -124,13 +124,8 @@ EOM
 					'imap_add_kw' : 'imap_set_kw');
 		$self->{nwr}->{-skip_creat} = 1;
 	}
-	my $ops = {};
-	$lei->{auth}->op_merge($ops, $self, $lei) if $lei->{auth};
-	(my $op_c, $ops) = $lei->workers_start($self, 1, $ops);
-	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';
-	net_merge_all_done($self) unless $lei->{auth};
-	$lei->wait_wq_events($op_c, $ops); # net_merge_all_done if !{auth}
+	$lei->wq1_start($self);
 }
 
 sub _complete_export_kw {

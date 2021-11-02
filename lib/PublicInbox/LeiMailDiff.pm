@@ -81,13 +81,8 @@ sub lei_mail_diff {
 	my $isatty = -t $lei->{1};
 	$lei->{opt}->{color} //= $isatty;
 	$lei->start_pager if $isatty;
-	my $ops = {};
-	$lei->{auth}->op_merge($ops, $self, $lei) if $lei->{auth};
-	(my $op_c, $ops) = $lei->workers_start($self, 1, $ops);
-	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';
-	net_merge_all_done($self) unless $lei->{auth};
-	$lei->wait_wq_events($op_c, $ops);
+	$lei->wq1_start($self);
 }
 
 no warnings 'once';

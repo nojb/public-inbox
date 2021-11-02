@@ -19,11 +19,8 @@ sub lei_rm {
 	$lei->{opt}->{'in-format'} //= 'eml';
 	my $self = bless {}, __PACKAGE__;
 	$self->prepare_inputs($lei, \@inputs) or return;
-	my ($op_c, $ops) = $lei->workers_start($self, 1);
-	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';
-	net_merge_all_done($self) unless $lei->{auth};
-	$lei->wait_wq_events($op_c, $ops);
+	$lei->wq1_start($self);
 }
 
 no warnings 'once';

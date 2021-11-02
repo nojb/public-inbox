@@ -81,13 +81,8 @@ EOM
 	my $self = bless { missing_ok => 1, lms => $lms }, __PACKAGE__;
 	$lei->{opt}->{'mail-sync'} = 1; # for prepare_inputs
 	$self->prepare_inputs($lei, \@folders) or return;
-	my $ops = {};
-	$lei->{auth}->op_merge($ops, $self, $lei) if $lei->{auth};
-	(my $op_c, $ops) = $lei->workers_start($self, 1, $ops);
-	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';
-	net_merge_all_done($self) unless $lei->{auth};
-	$lei->wait_wq_events($op_c, $ops); # net_merge_all_done if !{auth}
+	$lei->wq1_start($self);
 }
 
 sub ipc_atfork_child { # needed for PublicInbox::LeiPmdir

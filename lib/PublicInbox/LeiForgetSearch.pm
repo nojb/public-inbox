@@ -45,12 +45,7 @@ sub lei_forget_search {
 	if ($self->{o_remote}) { # setup lei->{auth}
 		$self->prepare_inputs($lei, $self->{o_remote}) or return;
 	}
-	my $ops = {};
-	$lei->{auth}->op_merge($ops, $self, $lei) if $lei->{auth};
-	(my $op_c, $ops) = $lei->workers_start($self, 1, $ops);
-	$lei->{wq1} = $self;
-	net_merge_all_done($self) unless $lei->{auth};
-	$lei->wait_wq_events($op_c, $ops);
+	$lei->wq1_start($self);
 }
 
 sub do_prune {

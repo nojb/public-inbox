@@ -95,13 +95,8 @@ sub lei_ls_mail_source {
 		$json->pretty(1)->indent(2) if $isatty || $lei->{opt}->{pretty};
 	}
 	$lei->start_pager if $isatty;
-	my $ops = {};
-	$lei->{auth}->op_merge($ops, $self, $lei);
-	(my $op_c, $ops) = $lei->workers_start($self, 1, $ops);
-	$lei->{wq1} = $self;
 	$lei->{-err_type} = 'non-fatal';
-	net_merge_all_done($self) unless $lei->{auth};
-	$lei->wait_wq_events($op_c, $ops); # net_merge_all_done if !{auth}
+	$lei->wq1_start($self);
 }
 
 sub _complete_ls_mail_source {
