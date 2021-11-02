@@ -88,12 +88,9 @@ SKIP: {
 		$sock_cls //= ref($s);
 		my $cmd = [ "-$x", '-W0', "--stdout=$home/$x.out",
 			"--stderr=$home/$x.err" ];
-		my $td = start_script($cmd, $env, { 3 => $s}) or xbail("-$x");
-		$srv->{$x} = {
-			addr => (my $scalar = tcp_host_port($s)),
-			td => $td,
-			cmd => $cmd,
-		};
+		my $td = start_script($cmd, $env, { 3 => $s }) or xbail("-$x");
+		my $addr = tcp_host_port($s);
+		$srv->{$x} = { addr => $addr, td => $td, cmd => $cmd, s => $s };
 	}
 	my $url = "imap://$srv->{imapd}->{addr}/t.v1.0";
 	lei_ok 'import', $url, '+L:v1';
@@ -123,20 +120,26 @@ SKIP: {
 	$before = $lei_out;
 	delete $srv->{imapd}->{td}; # kill + join daemon
 
+	my $pid = fork // xbail "fork";
+	if ($pid == 0) { # dummy server to kill new connections
+		$SIG{TERM} = sub { POSIX::_exit(0) };
+		$srv->{imapd}->{s}->blocking(1);
+		while (1) {
+			my $caddr = accept(my $c, $srv->{imapd}->{s}) // next;
+			shutdown($c, 2);
+		}
+		POSIX::_exit(0);
+	}
+	my $ar = PublicInbox::AutoReap->new($pid);
 	ok(!(lei 'refresh-mail-sync', $url), 'URL fails on dead -imapd');
 	ok(!(lei 'refresh-mail-sync', '--all'), '--all fails on dead -imapd');
+	$ar->kill for qw(avoid sig wake miss-no signalfd or EVFILT_SIG);
+	$ar->join('TERM');
 
-	# restart server (somewhat dangerous since we released the socket)
-	my $listen = $sock_cls->new(
-		ReuseAddr => 1,
-		Proto => 'tcp',
-		Type => Socket::SOCK_STREAM(),
-		Listen => 1024,
-		Blocking => 0,
-		LocalAddr => $srv->{imapd}->{addr},
-	) or xbail "$sock_cls->new: $!";
 	my $cmd = $srv->{imapd}->{cmd};
-	$srv->{imapd}->{td} = start_script($cmd, $env, { 3 => $listen }) or
+	my $s = $srv->{imapd}->{s};
+	$s->blocking(0);
+	$srv->{imapd}->{td} = start_script($cmd, $env, { 3 => $s }) or
 		xbail "@$cmd";
 	lei_ok 'refresh-mail-sync', '--all';
 	lei_ok 'inspect', "blob:$oid";
