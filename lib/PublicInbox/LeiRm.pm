@@ -16,7 +16,7 @@ sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 sub lei_rm {
 	my ($lei, @inputs) = @_;
 	$lei->_lei_store(1)->write_prepare($lei);
-	$lei->{opt}->{'in-format'} //= 'eml';
+	$lei->{opt}->{'in-format'} //= 'eml' if $lei->{opt}->{stdin};
 	my $self = bless {}, __PACKAGE__;
 	$self->prepare_inputs($lei, \@inputs) or return;
 	$lei->{-err_type} = 'non-fatal';

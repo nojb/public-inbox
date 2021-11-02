@@ -27,8 +27,8 @@ sub pmdir_cb { # called via wq_io_do from LeiPmdir->each_mdir_fn
 
 sub lei_tag { # the "lei tag" method
 	my ($lei, @argv) = @_;
-	my $sto = $lei->_lei_store(1);
-	$sto->write_prepare($lei);
+	$lei->{opt}->{'in-format'} //= 'eml' if $lei->{opt}->{stdin};
+	my $sto = $lei->_lei_store(1)->write_prepare($lei);
 	my $self = bless {}, __PACKAGE__;
 	$lei->ale; # refresh and prepare
 	my $vmd_mod = $self->vmd_mod_extract(\@argv);

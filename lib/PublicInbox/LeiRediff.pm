@@ -256,7 +256,7 @@ sub lei_rediff {
 	($lei->{opt}->{drq} && !$lei->{opt}->{verbose}) and
 		$lei->{opt}->{quiet} //= 1;
 	$lei->_lei_store(1)->write_prepare($lei);
-	$lei->{opt}->{'in-format'} //= 'eml';
+	$lei->{opt}->{'in-format'} //= 'eml' if $lei->{opt}->{stdin};
 	# maybe it's a non-email (code) blob from a coderepo
 	my $git_dirs = $lei->{opt}->{'git-dir'} //= [];
 	if ($lei->{opt}->{cwd} // 1) {
