@@ -76,7 +76,6 @@ sub input_eml_cb { # used by PublicInbox::LeiInput::input_fh
 
 sub lei_mail_diff {
 	my ($lei, @argv) = @_;
-	$lei->{opt}->{'in-format'} //= 'eml' if !grep(/\A[a-z0-9]+:/i, @argv);
 	my $self = bless {}, __PACKAGE__;
 	$self->prepare_inputs($lei, \@argv) or return;
 	my $isatty = -t $lei->{1};
