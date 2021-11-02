@@ -97,10 +97,16 @@ sub quiet_fail {
 	$cmd = [ '-init', 'deep-non-existent', "$tmpdir/a/b/c/d",
 		   qw(http://example.com/abcd abcd@example.com) ];
 	$err = '';
+	my $umask = umask(022) // xbail "umask: $!";
 	ok(run_script($cmd, $env, $rdr), 'initializes non-existent hierarchy');
+	umask($umask) // xbail "umask: $!";
 	ok(-d "$tmpdir/a/b/c/d", 'directory created');
-	is(PublicInbox::Inbox::try_cat("$tmpdir/a/b/c/d/description"),
+	my $desc = "$tmpdir/a/b/c/d/description";
+	is(PublicInbox::Inbox::try_cat($desc),
 		"public inbox for abcd\@example.com\n", 'description set');
+	my $mode = (stat($desc))[2];
+	is(sprintf('0%03o', $mode & 0777), '0644',
+		'description respects umask');
 
 	open my $fh, '>', "$tmpdir/d" or BAIL_OUT "open: $!";
 	close $fh;

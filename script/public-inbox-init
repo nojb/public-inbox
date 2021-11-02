@@ -212,6 +212,12 @@ if ($skip_docdata) {
 }
 $ibx->init_inbox(0, $skip_epoch, $skip_artnum);
 
+my $f = "$inboxdir/description";
+if (sysopen $fh, $f, O_CREAT|O_EXCL|O_WRONLY) {
+	print $fh "public inbox for $address[0]\n" or die "print($f): $!";
+	close $fh or die "close($f): $!";
+}
+
 # needed for git prior to v2.1.0
 umask(0077) if defined $perm;
 
@@ -248,9 +254,3 @@ if (defined $perm) {
 rename $pi_config_tmp, $pi_config or
 	die "failed to rename `$pi_config_tmp' to `$pi_config': $!\n";
 undef $auto_unlink; # trigger ->DESTROY
-
-my $f = "$inboxdir/description";
-if (sysopen $fh, $f, O_CREAT|O_EXCL|O_WRONLY) {
-	print $fh "public inbox for $address[0]\n" or die "print($f): $!";
-	close $fh or die "close($f): $!";
-}
