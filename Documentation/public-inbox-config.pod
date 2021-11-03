@@ -358,6 +358,22 @@ more than once, in which case the values are merged.
 
 Default: none
 
+=item extindex.<name>.topdir
+
+The directory of an external index.  See
+L<public-inbox-extindex(1)> for more details.
+
+=item extindex.<name>.url
+
+Identical to L</publicinbox.E<lt>nameE<gt>.url>, but for
+external indices
+
+=item extindex.<name>.coderepo
+
+Identical to L</publicinbox.E<lt>nameE<gt>.coderepo>, but for
+external indices.  Code repos may be freely associated with
+any number of public inboxes and external indices.
+
 =back
 
 =head2 NAMED LIMITER (PSGI)

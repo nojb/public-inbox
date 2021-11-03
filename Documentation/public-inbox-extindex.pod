@@ -10,9 +10,6 @@ public-inbox-extindex [OPTIONS] [EXTINDEX_DIR] --all
 
 =head1 DESCRIPTION
 
-FIXME: behavior not finalized  It should probably write to the
-config file the first time --all is used.
-
 public-inbox-extindex creates and updates an external search and
 overview database used by the read-only public-inbox PSGI (HTTP),
 NNTP, and IMAP interfaces.  This requires either the
@@ -70,7 +67,19 @@ L<public-inbox-extindex-format(5)>
 
 =head1 CONFIGURATION
 
-... TODO, see L<public-inbox-index(5)>
+public-inbox-extindex does not currently write to the
+L<public-inbox-config(5)> file, configuration may be entered
+manually.  The extindex name of C<all> is a special case which
+corresponds to indexing C<--all> inboxes.  An example for
+C<--all> is as follows:
+
+	[extindex "all"]
+		topdir = /path/to/extindex_dir
+		url = all
+		coderepo = foo
+		coderepo = bar
+
+See L<public-inbox-config(5)> for more details.
 
 =head1 ENVIRONMENT
 
