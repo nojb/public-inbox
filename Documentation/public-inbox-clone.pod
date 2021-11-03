@@ -18,6 +18,11 @@ L<public-inbox-index(1)>.  Those commands must be run separately
 if serving/searching the mirror is required.  As-is,
 public-inbox-clone is suitable for creating a git-only backup.
 
+public-inbox-clone creates a Makefile with handy targets to update the
+inbox once indexed.  This Makefile may be edited by the user; it will
+not be rewritten by L<public-inbox-fetch(1)> unless it is removed
+completely.
+
 public-inbox-clone does not use nor require any extra
 configuration files (not even C<~/.public-inbox/config>).
 

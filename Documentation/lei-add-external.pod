@@ -29,6 +29,8 @@ Default: 0
 =item --mirror=URL
 
 Create C<LOCATION> by mirroring the public-inbox at C<URL>.
+C<LOCATION> will have a Makefile with a C<make update>
+target to update the external.
 
 =item --epoch=RANGE
 
