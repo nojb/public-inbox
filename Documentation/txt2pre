@@ -76,11 +76,6 @@ for (qw[lei(1)
 	$xurls{$n} = "$n.html";
 }
 
-for (qw[copydatabase(1) xapian-compact(1)]) {
-	my ($n) = (/([\w\-\.]+)/);
-	$xurls{$_} = ".$n.1.html"
-}
-
 for (qw[make(1) flock(2) setrlimit(2) vfork(2) tmpfs(5)]) {
 	my ($n, $s) = (/([\w\-]+)\((\d)\)/);
 	$xurls{$_} = "http://www.man7.org/linux/man-pages/man$s/$n.$s.html";
@@ -103,6 +98,7 @@ for (qw[git(1)
 	git-init(1)
 	git-send-email(1)
 	gitrepository-layout(5)
+	gitglossary(7)
 ]) {
 	my ($n) = (/([\w\-\.]+)/);
 	$xurls{$_} = "https://kernel.org/pub/software/scm/git/docs/$n.html"
@@ -118,6 +114,7 @@ for (qw[
 	$xurls{$_} = "https://www.freedesktop.org/software/systemd/man/$n.html";
 }
 
+# favor upstream docs if they exist, use manpages.debian.org if they don't
 $xurls{'netrc(5)'} = 'https://manpages.debian.org/stable/ftp/netrc.5.en.html';
 $xurls{'mbsync(1)'} =
 	'https://manpages.debian.org/stable/isync/mbsync.1.en.html';
@@ -135,6 +132,13 @@ $xurls{'cgitrc(5)'} = 'https://git.zx2c4.com/cgit/tree/cgitrc.5.txt';
 $xurls{'prove(1)'} = 'https://perldoc.perl.org/prove.html';
 $xurls{'mbox(5)'} = 'https://manpages.debian.org/stable/mutt/mbox.5.en.html';
 $xurls{'mmdf(5)'} = 'https://manpages.debian.org/stable/mutt/mmdf.5.en.html';
+$xurls{'torsocks(1)'} =
+	'https://manpages.debian.org/stable/torsocks/torsocks.1.en.html';
+$xurls{'curl(1)'} = 'https://manpages.debian.org/stable/curl/curl.1.en.html';
+$xurls{'copydatabase(1)'} =
+ 'https://manpages.debian.org/stable/xapian-tools/copydatabase.1.en.html';
+$xurls{'xapian-compact(1)'} =
+ 'https://manpages.debian.org/stable/xapian-tools/xapian-compact.1.en.html';
 
 my $str = do { local $/; <STDIN> };
 my ($title) = ($str =~ /\A([^\n]+)/);

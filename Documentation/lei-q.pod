@@ -237,7 +237,7 @@ Suppress feedback messages.
 
 =item --no-torsocks
 
-Whether to wrap L<git(1)> and L<curl(1)> commands with torsocks.
+Whether to wrap L<git(1)> and L<curl(1)> commands with L<torsocks(1)>.
 
 Default: C<auto>
 

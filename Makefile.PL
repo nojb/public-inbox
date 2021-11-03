@@ -101,23 +101,6 @@ $v->{gz_docs} = [ map { "$_.gz" } (@{$v->{docs}},@{$v->{docs_html}}) ];
 $v->{rsync_docs} = [ @{$v->{gz_docs}}, @{$v->{docs}},
 	@{$v->{docs_html}}, qw(NEWS.atom NEWS.atom.gz)];
 
-# external manpages which we host ourselves, since some packages
-# (currently just Xapian) doesn't host manpages themselves.
-my @xman = qw(copydatabase.1 xapian-compact.1);
-$v->{xdocs} = [ map { "Documentation/.$_.txt" } @xman ];
-$v->{xdocs_html} = [ map { "Documentation/.$_.html" } @xman ];
-for (@{$v->{xdocs}}) {
-	$t->{"$_:"} = [
-		'$(PERL) -w Documentation/extman.perl $@ >$@+',
-		'mv $@+ $@'
-	];
-	my $html = $_;
-	$html =~ s/\.txt\z/.html/;
-	$t->{"$html : $_"} = [ "\$(txt2pre) <$_" ];
-}
-$v->{gz_xdocs} = [ map { "$_.gz" } (@{$v->{xdocs_html}}, @{$v->{xdocs}}) ];
-$v->{rsync_xdocs} = [ @{$v->{gz_xdocs}}, @{$v->{xdocs_html}}, @{$v->{xdocs}} ];
-
 my $TGTS = join("\n", map {;
 	my $tgt_prereq = $_;
 	my $cmds = $t->{$_};

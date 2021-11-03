@@ -105,18 +105,16 @@ doc: $(docs)
 
 gz-doc: $(gz_docs)
 
-gz-xdoc: $(gz_xdocs)
-
 rsync-doc: NEWS.atom.gz
 	# /usr/share/doc/rsync/scripts/git-set-file-times{.gz} on Debian systems
 	# It is also at: https://yhbt.net/git-set-file-times
 	-git set-file-times $(docs) $(txt)
-	$(MAKE) gz-doc gz-xdoc
-	$(RSYNC) --chmod=Fugo=r -av $(rsync_docs) $(rsync_xdocs) $(RSYNC_DEST)
+	$(MAKE) gz-doc
+	$(RSYNC) --chmod=Fugo=r -av $(rsync_docs) $(RSYNC_DEST)
 
 clean-doc:
 	$(RM_F) $(man1) $(man5) $(man7) $(man8) $(gz_docs) $(docs_html) \
-		$(mantxt) $(rsync_xdocs) \
+		$(mantxt) \
 		NEWS NEWS.atom NEWS.html Documentation/standards.txt \
 		Documentation/flow.html Documentation/flow.html.gz \
 		Documentation/flow.txt.gz
