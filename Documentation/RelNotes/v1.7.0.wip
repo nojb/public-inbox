@@ -14,15 +14,6 @@ Another big release focused on multi-inbox search and scalability.
 
   - "PRAGMA optimize" is now issued on commits for SQLite 3.18+
 
-* read-only public-inbox-daemon (-httpd, -nntpd, -imapd):
-
-  libgit2 may be used via Inline::C to avoid hitting system pipe
-  and process limits.  See public-inbox-tuning(7) manpage
-  for more details.
-
-* various memory usage reductions and workarounds for leaks in
-  Encode <3.15, these mainly affect PublicInbox::WWW
-
 * public-inbox-extindex
 
   A new Xapian + SQLite index able to search across several inboxes.
@@ -32,6 +23,15 @@ Another big release focused on multi-inbox search and scalability.
 
   See public-inbox-extindex-format(5) and
   public-inbox-extindex(1) manpages for more details.
+
+* read-only public-inbox-daemon (-httpd, -nntpd, -imapd):
+
+  libgit2 may be used via Inline::C to avoid hitting system pipe
+  and process limits.  See public-inbox-tuning(7) manpage
+  for more details.
+
+* various memory usage reductions and workarounds for leaks in
+  Encode <3.15, these mainly affect PublicInbox::WWW
 
 * public-inbox-nntpd
 
@@ -46,6 +46,8 @@ Another big release focused on multi-inbox search and scalability.
     by "git log --since="
 
   - manifest.js.gz generation is ~25x faster with -extindex
+
+  - minor navigation improvements in search results page
 
 * lei - local email interface
 
