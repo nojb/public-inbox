@@ -14,17 +14,13 @@ XMLSTARLET = xmlstarlet
 # libgraph-easy-perl from Debian, Graph::Easy from CPAN
 GRAPH_EASY = graph-easy
 
-# same as pod2text
-COLUMNS = 76
-
 INSTALL = install
 PODMAN = pod2man
 PODMAN_OPTS = -v --stderr -d 1993-10-02 -c 'public-inbox user manual'
 PODMAN_OPTS += -r public-inbox.git
 podman = $(PODMAN) $(PODMAN_OPTS)
-PODTEXT = pod2text
-PODTEXT_OPTS = --stderr
-podtext = $(PODTEXT) $(PODTEXT_OPTS)
+
+man2text = COLUMNS=80 MANWIDTH=80 TERM=dumb MANOPT='--nj --nh' man
 
 all:: man
 

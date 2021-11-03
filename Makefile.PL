@@ -72,7 +72,7 @@ for my $i (@sections) {
 		my $pod = "Documentation/$m.pod";
 		my $txt = "Documentation/$m.txt";
 		$t->{"$m.$i : $pod"} = [ "\$(podman) -s$i $pod \$@" ];
-		$t->{"$txt : $pod"} = [ "\$(podtext) $pod \$\@+",
+		$t->{"$txt : $m.$i"} = [ "\$(man2text) ./$m.$i >\$\@+",
 					"touch -r $pod \$\@+",
 					"mv \$\@+ \$@" ];
 		$t->{"Documentation/$m.html : $txt"} = [ "\$(txt2pre) <$txt" ];
