@@ -76,9 +76,10 @@ for (qw[lei(1)
 	$xurls{$n} = "$n.html";
 }
 
-for (qw[make(1) flock(2) setrlimit(2) vfork(2) tmpfs(5)]) {
+for (qw[make(1) flock(2) setrlimit(2) vfork(2) tmpfs(5) inotify(7) unix(7)
+		syslog(3)]) {
 	my ($n, $s) = (/([\w\-]+)\((\d)\)/);
-	$xurls{$_} = "http://www.man7.org/linux/man-pages/man$s/$n.$s.html";
+	$xurls{$_} = "https://www.man7.org/linux/man-pages/man$s/$n.$s.html";
 }
 
 for (qw[git(1)
@@ -132,6 +133,7 @@ $xurls{'cgitrc(5)'} = 'https://git.zx2c4.com/cgit/tree/cgitrc.5.txt';
 $xurls{'prove(1)'} = 'https://perldoc.perl.org/prove.html';
 $xurls{'mbox(5)'} = 'https://manpages.debian.org/stable/mutt/mbox.5.en.html';
 $xurls{'mmdf(5)'} = 'https://manpages.debian.org/stable/mutt/mmdf.5.en.html';
+$xurls{'mutt(1)'} = 'https://manpages.debian.org/stable/mutt/mutt.1.en.html';
 $xurls{'torsocks(1)'} =
 	'https://manpages.debian.org/stable/torsocks/torsocks.1.en.html';
 $xurls{'curl(1)'} = 'https://manpages.debian.org/stable/curl/curl.1.en.html';
@@ -139,6 +141,14 @@ $xurls{'copydatabase(1)'} =
  'https://manpages.debian.org/stable/xapian-tools/copydatabase.1.en.html';
 $xurls{'xapian-compact(1)'} =
  'https://manpages.debian.org/stable/xapian-tools/xapian-compact.1.en.html';
+$xurls{'gzip(1)'} = 'https://manpages.debian.org/stable/gzip/gzip.1.en.html';
+$xurls{'chmod(1)'} =
+	'https://manpages.debian.org/stable/coreutils/chmod.1.en.html';
+$xurls{'kqueue(2)'} =
+	'https://www.freebsd.org/cgi/man.cgi?query=kqueue&sektion=2';
+$xurls{'notmuch(1)'} = 'https://notmuchmail.org/manpages/notmuch-1/';
+$xurls{'mairix(1)'} =
+	'https://manpages.debian.org/stable/mairix/mairix.1.en.html';
 
 my $str = do { local $/; <STDIN> };
 my ($title) = ($str =~ /\A([^\n]+)/);
