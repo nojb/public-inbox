@@ -75,6 +75,11 @@ EOM
 sub for_uri {
 	my ($self, $lei, $uri, @opt) = @_;
 	my $pfx = torsocks($self, $lei, $uri) or return; # error
+	if ($uri->scheme =~ /\Ahttps?\z/i) {
+		my $cfg = $lei->_lei_cfg;
+		my $p = $cfg ? $cfg->urlmatch('http.Proxy', $$uri) : undef;
+		push(@opt, "--proxy=$p") if defined($p);
+	}
 	bless [ @$pfx, @$self, @opt, $uri->as_string ], ref($self);
 }
 
