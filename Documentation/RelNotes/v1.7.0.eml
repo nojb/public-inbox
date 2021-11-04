@@ -1,10 +1,16 @@
+From: Eric Wong <e@80x24.org>
 To: meta@public-inbox.org
-Subject: [WIP] public-inbox 1.7.0
+Subject: [ANNOUNCE] public-inbox 1.7.0
+Date: Thu, 04 Nov 2021 07:52:00 +0000
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
+Message-ID: <2021-11-04-public-inbox-1.7.0-finally-rele@sed>
 Content-Disposition: inline
 
 Another big release focused on multi-inbox search and scalability.
+
+Special thanks to Konstantin Ryabitsev and Kyle Meyer for
+numerous bug reports and documentation help.
 
 * general changes
 

@@ -11,7 +11,8 @@ my $v = {};
 my $t = {};
 
 # do not sort
-my @RELEASES = qw(v1.6.1 v1.6.0 v1.5.0 v1.4.0 v1.3.0 v1.2.0 v1.1.0-pre1 v1.0.0);
+my @RELEASES = qw(v1.7.0 v1.6.1 v1.6.0 v1.5.0 v1.4.0 v1.3.0 v1.2.0
+	v1.1.0-pre1 v1.0.0);
 
 $v->{news_deps} = [ map { "Documentation/RelNotes/$_.eml" } @RELEASES ];
 $v->{txt} = [ qw(INSTALL README COPYING TODO HACKING) ];
@@ -130,7 +131,7 @@ WriteMakefile(
 	NAME => 'PublicInbox', # n.b. camel-case is not our choice
 
 	# XXX drop "PENDING" in .pod before updating this!
-	VERSION => '1.7.0.PENDING',
+	VERSION => '1.7.0',
 
 	AUTHOR => 'Eric Wong <e@80x24.org>',
 	ABSTRACT => 'public-inbox server infrastructure',
