@@ -21,6 +21,7 @@ my %cquote = ("\n" => '\\n', "\t" => '\\t', "\b" => '\\b');
 sub cquote_val ($) { # cf. git-config(1)
 	my ($val) = @_;
 	$val =~ s/([\n\t\b])/$cquote{$1}/g;
+	$val =~ s/\"/\\\"/g;
 	$val;
 }
 
@@ -162,6 +163,10 @@ EOM
 		my $val = $lei->{opt}->{$k} // next;
 		print $fh "\t$k = $val\n";
 	}
+	$lei->{opt}->{stdin} and print $fh <<EOM;
+[lei "internal"]
+	rawstr = 1 # stdin was used initially
+EOM
 	close($fh) or return $lei->fail("close $f: $!");
 	$self->{lock_path} = "$self->{-f}.flock";
 	$self->{-ovf} = "$dir/over.sqlite3";

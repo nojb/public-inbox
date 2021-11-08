@@ -240,5 +240,46 @@ test_lei(sub {
 	lei_ok qw(forget-search --prune);
 	lei_ok qw(ls-search);
 	unlike($lei_out, qr!\Q$home/after\E!, "`after' pruned");
+
+	my $d = "$home/d";
+	lei_ok [qw(import -q -F eml)], undef,
+		{0 => \"Subject: do not call\n\n"};
+	lei_ok qw(q -o), $d, 's:do not call';
+
+	my @orig = glob("$d/*/*");
+	is(scalar(@orig), 1, 'got one message via argv');
+	lei_ok [qw(import -q -Feml)], undef,
+		{0 => \"Subject: do not ever call\n\n"};
+	lei_ok 'up', $d;
+	is_deeply([glob("$d/*/*")], \@orig, 'nothing written');
+	lei_ok [qw(import -q -Feml)], undef,
+		{0 => \"Subject: do not call, ever\n\n"};
+	lei_ok 'up', $d;
+	@after = glob("$d/*/*");
+	is(scalar(@after), 2, '2 total, messages, now');
+	is_deeply([glob("$d/cur/*")], \@orig, 'cur untouched');
+	my @new = glob("$d/new/*");
+	is(scalar(@new), 1, "new message written to `new'");
+	is(eml_load($new[0])->header('Subject'), 'do not call, ever',
+		'up retrieved correct message');
+
+	$d = "$home/d-stdin";
+	lei_ok [ qw(q -q -o), $d ], undef, { 0 => \'s:"do not ever call"' };
+	@orig = glob("$d/*/*");
+	is(scalar(@orig), 1, 'got one message via stdin');
+
+	lei_ok [qw(import -q -Feml)], undef,
+		{0 => \"Subject: do not fall or ever call\n\n"};
+	lei_ok [qw(import -q -Feml)], undef,
+		{0 => \"Subject: do not ever call, again\n\n"};
+	lei_ok 'up', $d;
+	@new = glob("$d/new/*");
+	is(scalar(@new), 1, "new message written to `new'") or do {
+		for (@new) { diag "$_ ".eml_load($_)->header('Subject') }
+	};
+	is_deeply([glob("$d/cur/*")], \@orig, 'cur untouched');
+	is(eml_load($new[0])->header('Subject'), 'do not ever call, again',
+		'up retrieved correct message');
+
 });
 done_testing;

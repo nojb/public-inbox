@@ -26,13 +26,15 @@ sub up1 ($$) {
 	my $lss = PublicInbox::LeiSavedSearch->up($lei, $out) or return;
 	my $f = $lss->{'-f'};
 	my $mset_opt = $lei->{mset_opt} = { relevance => -2 };
-	my $q = $mset_opt->{q_raw} = $lss->{-cfg}->{'lei.q'} //
+	my $q = $lss->{-cfg}->get_all('lei.q') //
 				die("lei.q unset in $f (out=$out)\n");
 	my $lse = $lei->{lse} // die 'BUG: {lse} missing';
-	if (ref($q)) {
-		$mset_opt->{qstr} = $lse->query_argv_to_string($lse->git, $q);
+	if ($lss->{-cfg}->{'lei.internal.rawstr'}) {
+		scalar(@$q) > 1 and
+			die "$f: lei.q has multiple values (@$q) (out=$out)\n";
+		$lse->query_approxidate($lse->git, $mset_opt->{qstr} = $q->[0]);
 	} else {
-		$lse->query_approxidate($lse->git, $mset_opt->{qstr} = $q);
+		$mset_opt->{qstr} = $lse->query_argv_to_string($lse->git, $q);
 	}
 	# n.b. only a few CLI args are accepted for "up", so //= usually sets
 	for my $k ($lss->ARRAY_FIELDS) {
