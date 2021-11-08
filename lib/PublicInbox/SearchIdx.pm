@@ -259,6 +259,7 @@ sub index_diff ($$$) {
 		} elsif (m!^diff --git "?[^/]+/.+ "?[^/]+/.+\z!) {
 			# wait until "---" and "+++" to capture filenames
 			$in_diff = 1;
+			push @xnq, $_;
 		# traditional diff:
 		} elsif (m/^diff -(.+) (\S+) (\S+)$/) {
 			my ($opt, $fa, $fb) = ($1, $2, $3);
