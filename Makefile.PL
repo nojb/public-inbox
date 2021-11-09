@@ -23,7 +23,7 @@ push @dtxt, @{$v->{txt}};
 for my $txt (@dtxt) {
 	my $html = $txt;
 	$html =~ s/\.txt\z/.html/ or $html .= '.html';
-	$t->{"$html : $txt"} = [ "\$(txt2pre) <$txt" ];
+	$t->{"$html : $txt"} = [ "\$(txt2pre) <$txt", "touch -r $txt \$@" ];
 }
 $v->{t_slash_star_dot_t} = [ grep(m!\At/.*\.t\z!, @manifest) ];
 my @scripts = qw(scripts/ssoma-replay); # legacy
@@ -74,9 +74,10 @@ for my $i (@sections) {
 		my $txt = "Documentation/$m.txt";
 		$t->{"$m.$i : $pod"} = [ "\$(podman) -s$i $pod \$@" ];
 		$t->{"$txt : $m.$i"} = [ "\$(man2text) ./$m.$i >\$\@+",
-					"touch -r $pod \$\@+",
+					"touch -r $pod \$\@+ ./$m.$i",
 					"mv \$\@+ \$@" ];
-		$t->{"Documentation/$m.html : $txt"} = [ "\$(txt2pre) <$txt" ];
+		$t->{"Documentation/$m.html : $txt"} = [ "\$(txt2pre) <$txt",
+							"touch -r $txt \$@" ];
 		$t->{".$m.cols : $m.$i"} = [
 			"\@echo CHECK80 $m.$i;".
 			"COLUMNS=80 \$(MAN) ./$m.$i | \$(check_man)",
@@ -91,13 +92,13 @@ for my $i (@sections) {
 	push @{$v->{manuals}}, @$manuals;
 	push @{$v->{mantxt}}, map { "Documentation/$_.txt" } @$ary;
 }
-push @dtxt, @{$v->{mantxt}};
+push @dtxt;
 $v->{docs} = [ @dtxt, 'NEWS' ];
 $v->{docs_html} = [ map {;
 		my $x = $_;
 		$x =~ s/\.txt\z//;
 		"$x.html"
-	} @{$v->{docs}} ];
+	} (@{$v->{docs}}, @{$v->{mantxt}}) ];
 $v->{gz_docs} = [ map { "$_.gz" } (@{$v->{docs}},@{$v->{docs_html}}) ];
 $v->{rsync_docs} = [ @{$v->{gz_docs}}, @{$v->{docs}},
 	@{$v->{docs_html}}, qw(NEWS.atom NEWS.atom.gz)];

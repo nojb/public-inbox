@@ -34,11 +34,15 @@ L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/>
 			^AUTO-GENERATED-SEARCH-TERMS-END\n
 			!search_terms()!emsx;
 	$s =~ s/[ \t]+$//sgm;
-	next if $s eq $orig;
-	seek($fh, 0, SEEK_SET) or die "seek: $!";
-	truncate($fh, 0) or die "truncate: $!";
-	print $fh $s or die "print: $!";
-	close $fh or die "close: $!";
+	if ($s eq $orig) {
+		my $t = time;
+		utime($t, $t, $fh);
+	} else {
+		seek($fh, 0, SEEK_SET) or die "seek: $!";
+		truncate($fh, 0) or die "truncate: $!";
+		print $fh $s or die "print: $!";
+		close $fh or die "close: $!";
+	}
 }
 
 sub search_terms {

@@ -177,9 +177,3 @@ print '<html><head>',
   "<title>$title</title>",
   "</head><body><pre>",  $str , '</pre></body></html>';
 STDOUT->flush;
-
-# keep mtime on website consistent so clients can cache
-if (-f STDIN && -f STDOUT) {
-	my @st = stat(STDIN);
-	utime($st[8], $st[9], \*STDOUT);
-}
