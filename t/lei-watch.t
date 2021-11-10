@@ -52,7 +52,7 @@ test_lei(sub {
 	my @f = glob("$md/cur/*:2,");
 	is(scalar(@f), 1, 'got populated maildir with one result');
 	rename($f[0], "$f[0]S") or xbail "rename $!"; # set (S)een
-	tick($have_fast_inotify ? 0.1 : 2.1); # always needed for 1 CPU systems
+	tick($have_fast_inotify ? 0.2 : 2.2); # always needed for 1 CPU systems
 	lei_ok qw(note-event done); # flushes immediately (instead of 5s)
 
 	lei_ok qw(q mid:testmessage@example.com -o), $md2, '-I', "$ro_home/t1";
