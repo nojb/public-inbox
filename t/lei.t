@@ -143,6 +143,9 @@ my $test_fail = sub {
 	lei('-C', '/dev/null', 'q', 'whatever');
 	is($? >> 8, 1, 'chdir at beginning fails to /dev/null');
 
+	lei_ok('q', "foo\n");
+	like($lei_err, qr/trailing `\\n' removed/s, "noted `\\n' removal");
+
 	for my $lk (qw(ei inbox)) {
 		my $d = "$home/newline\n$lk";
 		mkdir $d;
