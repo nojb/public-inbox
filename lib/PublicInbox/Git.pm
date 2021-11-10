@@ -94,6 +94,13 @@ sub alternates_changed {
 	$self->{alt_st} = $st; # always a true value
 }
 
+sub object_format {
+	$_[0]->{object_format} //= do {
+		my $fmt = $_[0]->qx(qw(config extensions.objectformat));
+		$fmt eq "sha256\n" ? \'sha256' : \undef;
+	}
+}
+
 sub last_check_err {
 	my ($self) = @_;
 	my $fh = $self->{err_c} or return;

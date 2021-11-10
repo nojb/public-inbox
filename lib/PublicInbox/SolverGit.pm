@@ -293,14 +293,21 @@ sub do_git_init ($) {
 		mkdir("$git_dir/$_") or die "mkdir $_: $!";
 	}
 	open my $fh, '>', "$git_dir/config" or die "open git/config: $!";
-	print $fh <<'EOF' or die "print git/config $!";
+	my $first = $self->{gits}->[0];
+	my $fmt = $first->object_format;
+	my $v = defined($$fmt) ? 1 : 0;
+	print $fh <<EOF or die "print git/config $!";
 [core]
-	repositoryFormatVersion = 0
+	repositoryFormatVersion = $v
 	filemode = true
 	bare = false
 	fsyncObjectfiles = false
 	logAllRefUpdates = false
 EOF
+	print $fh <<EOM if defined($$fmt);
+[extensions]
+	objectformat = $$fmt
+EOM
 	close $fh or die "close git/config: $!";
 
 	open $fh, '>', "$git_dir/HEAD" or die "open git/HEAD: $!";
