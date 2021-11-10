@@ -29,7 +29,9 @@ sub up1 ($$) {
 	my $q = $lss->{-cfg}->get_all('lei.q') //
 				die("lei.q unset in $f (out=$out)\n");
 	my $lse = $lei->{lse} // die 'BUG: {lse} missing';
-	if ($lss->{-cfg}->{'lei.internal.rawstr'}) {
+	my $rawstr = $lss->{-cfg}->{'lei.internal.rawstr'} //
+		(scalar(@$q) == 1 && substr($q->[0], -1) eq "\n");
+	if ($rawstr) {
 		scalar(@$q) > 1 and
 			die "$f: lei.q has multiple values (@$q) (out=$out)\n";
 		$lse->query_approxidate($lse->git, $mset_opt->{qstr} = $q->[0]);
