@@ -247,7 +247,7 @@ sub recv_and_run {
 	undef $buf;
 	my $sub = shift @$args;
 	eval { $self->$sub(@$args) };
-	warn "$$ $0 wq_worker: $@" if $@;
+	warn "$$ $0 wq_worker: $sub: $@" if $@;
 	delete @$self{0..($nfd-1)};
 	$n;
 }
