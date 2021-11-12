@@ -411,6 +411,9 @@ my %OPTDESC = (
 'url	ls-mail-source' => 'show full URL of newsgroup or IMAP folder',
 'format|f=s	ls-external' => $ls_format,
 
+'prune:s	forget-search' =>
+	['TYPE|local|remote', 'prune all, remote or local folders' ],
+
 'limit|n=i@' => ['NUM', 'limit on number of matches (default: 10000)' ],
 'offset=i' => ['OFF', 'search result offset (default: 0)'],
 
