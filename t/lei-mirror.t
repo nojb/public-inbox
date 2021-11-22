@@ -170,12 +170,18 @@ SKIP: {
 	local $ENV{HOME} = $tmpdir;
 	ok(run_script([qw(-index -Lbasic), "$d/t1"]), 'index v1');
 	ok(run_script([qw(-index -Lbasic), "$d/t2"]), 'index v2');
-	my $f = "$d/t1/public-inbox/msgmap.sqlite3";
-	my $ca = PublicInbox::Msgmap->new_file($f)->created_at;
-	is($ca, $created{v1}, 'clone + index v1 synced ->created_at');
-	$f = "$d/t2/msgmap.sqlite3";
-	$ca = PublicInbox::Msgmap->new_file($f)->created_at;
-	is($ca, $created{v2}, 'clone + index v1 synced ->created_at');
+
+	SKIP: {
+		join('', sort(keys %created)) eq 'v1v2' or
+			skip "lei didn't run", 2;
+		my $f = "$d/t1/public-inbox/msgmap.sqlite3";
+		my $ca = PublicInbox::Msgmap->new_file($f)->created_at;
+		is($ca, $created{v1}, 'clone + index v1 synced ->created_at');
+
+		$f = "$d/t2/msgmap.sqlite3";
+		$ca = PublicInbox::Msgmap->new_file($f)->created_at;
+		is($ca, $created{v2}, 'clone + index v2 synced ->created_at');
+	}
 	test_lei(sub {
 		lei_ok qw(inspect num:1 --dir), "$d/t1";
 		ok(ref(json_utf8->decode($lei_out)), 'inspect num: on v1');
