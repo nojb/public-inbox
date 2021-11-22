@@ -896,20 +896,20 @@ sub log2stack ($$$) {
 		push @cmd, "--$k=$v";
 	}
 	my $fh = $git->popen(@cmd, $range);
-	my ($at, $ct, $stk, $cmt);
-	while (<$fh>) {
+	my ($at, $ct, $stk, $cmt, $l);
+	while (defined($l = <$fh>)) {
 		return if $sync->{quit};
-		if (/\A([0-9]+)-([0-9]+)-($OID)$/o) {
+		if ($l =~ /\A([0-9]+)-([0-9]+)-($OID)$/o) {
 			($at, $ct, $cmt) = ($1 + 0, $2 + 0, $3);
 			$stk //= PublicInbox::IdxStack->new($cmt);
-		} elsif (/$del/) {
+		} elsif ($l =~ /$del/) {
 			my $oid = $1;
 			if ($D) { # reindex case
 				$D->{pack('H*', $oid)}++;
 			} else { # non-reindex case:
 				$stk->push_rec('d', $at, $ct, $oid, $cmt);
 			}
-		} elsif (/$add/) {
+		} elsif ($l =~ /$add/) {
 			my $oid = $1;
 			if ($D) {
 				my $oid_bin = pack('H*', $oid);
