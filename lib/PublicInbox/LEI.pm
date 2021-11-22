@@ -818,7 +818,8 @@ sub dispatch {
 				next if $d eq ''; # same as git(1)
 				chdir $d or return fail($self, "cd $d: $!");
 			}
-			open $self->{3}, '.' or return fail($self, "open . $!");
+			open $self->{3}, '<', '.' or
+				return fail($self, "open . $!");
 		}
 		$cb->($self, @argv);
 	} elsif (grep(/\A-/, $cmd, @argv)) { # --help or -h only
