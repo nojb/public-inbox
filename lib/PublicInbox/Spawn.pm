@@ -165,14 +165,14 @@ int pi_fork_exec(SV *redirref, SV *file, SV *cmdref, SV *envref, SV *rlimref,
 	return (int)pid;
 }
 
-static int sleep_wait(unsigned *try, int err)
+static int sleep_wait(unsigned *tries, int err)
 {
 	const struct timespec req = { 0, 100000000 }; /* 100ms */
 	switch (err) {
 	case ENOBUFS: case ENOMEM: case ETOOMANYREFS:
-		if (++*try < 50) {
+		if (++*tries < 50) {
 			fprintf(stderr, "sleeping on sendmsg: %s (#%u)\n",
-				strerror(err), *try);
+				strerror(err), *tries);
 			nanosleep(&req, NULL);
 			return 1;
 		}
@@ -199,7 +199,7 @@ SV *send_cmd4(PerlIO *s, SV *svfds, SV *data, int flags)
 	AV *fds = (AV *)SvRV(svfds);
 	I32 i, nfds = av_len(fds) + 1;
 	int *fdp;
-	unsigned try = 0;
+	unsigned tries = 0;
 
 	if (SvOK(data)) {
 		iov.iov_base = SvPV(data, dlen);
@@ -229,7 +229,7 @@ SV *send_cmd4(PerlIO *s, SV *svfds, SV *data, int flags)
 	}
 	do {
 		sent = sendmsg(PerlIO_fileno(s), &msg, flags);
-	} while (sent < 0 && sleep_wait(&try, errno));
+	} while (sent < 0 && sleep_wait(&tries, errno));
 	return sent >= 0 ? newSViv(sent) : &PL_sv_undef;
 }
 
