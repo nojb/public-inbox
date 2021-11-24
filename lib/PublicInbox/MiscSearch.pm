@@ -81,41 +81,6 @@ sub mset {
 	retry_reopen($self, \&misc_enquire_once, $qr, $opt);
 }
 
-sub ibx_matches_once { # retry_reopen callback
-	my ($self, $qr, $by_newsgroup) = @_;
-	# double in case no newsgroups are configured:
-	my $limit = scalar(keys %$by_newsgroup) * 2;
-	my $opt = { limit => $limit, offset => 0, relevance => -1 };
-	my $ret = {}; # newsgroup => $ibx of matches
-	while (1) {
-		my $mset = misc_enquire_once($self, $qr, $opt);
-		for my $mi ($mset->items) {
-			my ($eidx_key) = xap_terms('Q', $mi->get_document);
-			if (defined($eidx_key)) {
-				if (my $ibx = $by_newsgroup->{$eidx_key}) {
-					$ret->{$eidx_key} = $ibx;
-				}
-			} else {
-				warn <<EOF;
-W: docid=${\$mi->get_docid} has no `Q' (eidx_key) term
-EOF
-			}
-		}
-		my $nr = $mset->size;
-		return $ret if $nr < $limit;
-		$opt->{offset} += $nr;
-	}
-}
-
-# returns a newsgroup => PublicInbox::Inbox mapping
-sub newsgroup_matches {
-	my ($self, $qs, $pi_cfg) = @_;
-	my $qp = $self->{qp} //= mi_qp_new($self);
-	$qs .= ' type:inbox';
-	my $qr = $qp->parse_query($qs, $PublicInbox::Search::QP_FLAGS);
-	retry_reopen($self, \&ibx_matches_once, $qr, $pi_cfg->{-by_newsgroup});
-}
-
 sub ibx_data_once {
 	my ($self, $ibx) = @_;
 	my $xdb = $self->{xdb};
