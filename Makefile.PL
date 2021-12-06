@@ -92,7 +92,6 @@ for my $i (@sections) {
 	push @{$v->{manuals}}, @$manuals;
 	push @{$v->{mantxt}}, map { "Documentation/$_.txt" } @$ary;
 }
-push @dtxt;
 $v->{docs} = [ @dtxt, 'NEWS' ];
 $v->{docs_html} = [ map {;
 		my $x = $_;
