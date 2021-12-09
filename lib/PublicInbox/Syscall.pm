@@ -15,7 +15,7 @@ package PublicInbox::Syscall;
 use strict;
 use v5.10.1;
 use parent qw(Exporter);
-use POSIX qw(ENOENT EEXIST ENOSYS O_NONBLOCK);
+use POSIX qw(ENOENT EEXIST ENOSYS EINVAL O_NONBLOCK);
 use Config;
 
 # $VERSION = '0.25'; # Sys::Syscall version
@@ -324,7 +324,7 @@ sub rename_noreplace ($$) {
 		my $ret = syscall($SYS_renameat2, -100, $old, -100, $new, 1);
 		if ($ret == 0) {
 			1; # like rename() perlop
-		} elsif ($! == ENOSYS) {
+		} elsif ($! == ENOSYS || $! == EINVAL) {
 			undef $SYS_renameat2;
 			_rename_noreplace_racy($old, $new);
 		} else {
