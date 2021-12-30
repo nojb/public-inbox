@@ -417,13 +417,14 @@ Content-Type: text/x-patch; name="=?utf-8?q?vtpm-fakefile.patch?="
 Content-Disposition: attachment; filename="=?utf-8?q?vtpm-makefile.patch?="
 
 EOF
-	is($cls->new($s)->filename, 'vtpm-makefile.patch', 'filename decoded');
+	is($cls->new($s)->filename, 'vtpm-makefile.patch',
+		"filename decoded ($cls)") if $cls ne 'PublicInbox::MIME';
 	$s =~ s/^Content-Disposition:.*$//sm;
 	is($cls->new($s)->filename, 'vtpm-fakefile.patch',
 		"filename fallback ($cls)") if $cls ne 'PublicInbox::MIME';
 	is($cls->new($s)->content_type,
 		'text/x-patch; name="vtpm-fakefile.patch"',
-		'matches Email::MIME output, "correct" or not');
+		qq[matches Email::MIME output, "correct" or not ($cls)]);
 
 	$s = <<'EOF';
 Content-Type: multipart/foo; boundary=b
