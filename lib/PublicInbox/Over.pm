@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # for XOVER, OVER in NNTP, and feeds/homepage/threads in PSGI
@@ -18,11 +18,10 @@ sub dbh_new {
 	my $f = delete $self->{filename};
 	if (!-s $f) { # SQLite defaults mode to 0644, we want 0666
 		if ($rw) {
-			require PublicInbox::Spawn;
+			require PublicInbox::Syscall;
 			my ($dir) = ($f =~ m!(.+)/[^/]+\z!);
-			PublicInbox::Spawn::nodatacow_dir($dir);
+			PublicInbox::Syscall::nodatacow_dir($dir);
 			open my $fh, '+>>', $f or die "failed to open $f: $!";
-			PublicInbox::Spawn::nodatacow_fd(fileno($fh));
 		} else {
 			$self->{filename} = $f; # die on stat() below:
 		}

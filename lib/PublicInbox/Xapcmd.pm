@@ -1,8 +1,9 @@
-# Copyright (C) 2018-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 package PublicInbox::Xapcmd;
 use strict;
-use PublicInbox::Spawn qw(which popen_rd nodatacow_dir);
+use PublicInbox::Spawn qw(which popen_rd);
+use PublicInbox::Syscall;
 use PublicInbox::Admin qw(setup_signals);
 use PublicInbox::Over;
 use PublicInbox::SearchIdx;
@@ -211,7 +212,7 @@ sub prepare_run {
 		my $v = PublicInbox::Search::SCHEMA_VERSION();
 		my $wip = File::Temp->newdir("xapian$v-XXXX", DIR => $dir);
 		$tmp->{$old} = $wip;
-		nodatacow_dir($wip->dirname);
+		PublicInbox::Syscall::nodatacow_dir($wip->dirname);
 		push @queue, [ $old, $wip ];
 	} elsif (defined $old) {
 		opendir my $dh, $old or die "Failed to opendir $old: $!\n";
@@ -242,7 +243,7 @@ sub prepare_run {
 			same_fs_or_die($old, $wip->dirname);
 			my $cur = "$old/$dn";
 			push @queue, [ $src // $cur , $wip ];
-			nodatacow_dir($wip->dirname);
+			PublicInbox::Syscall::nodatacow_dir($wip->dirname);
 			$tmp->{$cur} = $wip;
 		}
 		# mark old shards to be unlinked
@@ -443,7 +444,7 @@ sub cpdb ($$) { # cb_spawn callback
 		$ft = File::Temp->newdir("$new.compact-XXXX", DIR => $dir);
 		setup_signals();
 		$tmp = $ft->dirname;
-		nodatacow_dir($tmp);
+		PublicInbox::Syscall::nodatacow_dir($tmp);
 	} else {
 		$tmp = $new;
 	}

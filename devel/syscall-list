@@ -26,8 +26,10 @@ system($cc, '-o', $x, $f, @cflags) == 0 or die "cc failed \$?=$?";
 exec($x);
 __DATA__
 #define _GNU_SOURCE
-#include <unistd.h>
 #include <sys/syscall.h>
+#include <sys/ioctl.h>
+#include <linux/fs.h>
+#include <unistd.h>
 #include <stdio.h>
 
 #define D(x) printf("$" #x " = %ld;\n", (long)x)
@@ -46,6 +48,12 @@ int main(void)
 	D(SYS_inotify_add_watch);
 	D(SYS_inotify_rm_watch);
 	D(SYS_prctl);
+	D(SYS_fstatfs);
+#ifdef FS_IOC_GETFLAGS
+	printf("FS_IOC_GETFLAGS=%#lx\nFS_IOC_SETFLAGS=%#lx\n",
+		(unsigned long)FS_IOC_GETFLAGS, (unsigned long)FS_IOC_SETFLAGS);
+#endif
+
 #ifdef SYS_renameat2
 	D(SYS_renameat2);
 #endif

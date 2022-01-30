@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # This allows vfork to be used for spawning subprocesses if
@@ -21,7 +21,7 @@ use Symbol qw(gensym);
 use Fcntl qw(LOCK_EX SEEK_SET);
 use IO::Handle ();
 use PublicInbox::ProcessPipe;
-our @EXPORT_OK = qw(which spawn popen_rd run_die nodatacow_dir);
+our @EXPORT_OK = qw(which spawn popen_rd run_die);
 our @RLIMITS = qw(RLIMIT_CPU RLIMIT_CORE RLIMIT_DATA);
 
 BEGIN {
@@ -268,62 +268,12 @@ void recv_cmd4(PerlIO *s, SV *buf, STRLEN n)
 #endif /* defined(CMSG_SPACE) && defined(CMSG_LEN) */
 ALL_LIBC
 
-# btrfs on Linux is copy-on-write (COW) by default.  As of Linux 5.7,
-# this still leads to fragmentation for SQLite and Xapian files where
-# random I/O happens, so we disable COW just for SQLite files and Xapian
-# directories.  Disabling COW disables checksumming, so we only do this
-# for regeneratable files, and not canonical git storage (git doesn't
-# checksum refs, only data under $GIT_DIR/objects).
-	my $set_nodatacow = $^O eq 'linux' ? <<'SET_NODATACOW' : '';
-#include <sys/ioctl.h>
-#include <sys/vfs.h>
-#include <linux/magic.h>
-#include <linux/fs.h>
-#include <dirent.h>
-
-void nodatacow_fd(int fd)
-{
-	struct statfs buf;
-	int val = 0;
-
-	if (fstatfs(fd, &buf) < 0) {
-		fprintf(stderr, "fstatfs: %s\\n", strerror(errno));
-		return;
-	}
-
-	/* only btrfs is known to have this problem, so skip for non-btrfs */
-	if (buf.f_type != BTRFS_SUPER_MAGIC)
-		return;
-
-	if (ioctl(fd, FS_IOC_GETFLAGS, &val) < 0) {
-		fprintf(stderr, "FS_IOC_GET_FLAGS: %s\\n", strerror(errno));
-		return;
-	}
-	val |= FS_NOCOW_FL;
-	if (ioctl(fd, FS_IOC_SETFLAGS, &val) < 0)
-		fprintf(stderr, "FS_IOC_SET_FLAGS: %s\\n", strerror(errno));
-}
-
-void nodatacow_dir(const char *dir)
-{
-	DIR *dh = opendir(dir);
-	int fd;
-
-	if (!dh) croak("opendir(%s): %s", dir, strerror(errno));
-	fd = dirfd(dh);
-	if (fd >= 0)
-		nodatacow_fd(fd);
-	/* ENOTSUP probably won't happen under Linux... */
-	closedir(dh);
-}
-SET_NODATACOW
-
 	my $inline_dir = $ENV{PERL_INLINE_DIRECTORY} //= (
 			$ENV{XDG_CACHE_HOME} //
 			( ($ENV{HOME} // '/nonexistent').'/.cache' )
 		).'/public-inbox/inline-c';
 	warn "$inline_dir exists, not writable\n" if -e $inline_dir && !-w _;
-	$set_nodatacow = $all_libc = undef unless -d _ && -w _;
+	$all_libc = undef unless -d _ && -w _;
 	if (defined $all_libc) {
 		my $f = "$inline_dir/.public-inbox.lock";
 		open my $oldout, '>&', \*STDOUT or die "dup(1): $!";
@@ -337,17 +287,10 @@ SET_NODATACOW
 		# CentOS 7.x ships Inline 0.53, 0.64+ has built-in locking
 		flock($fh, LOCK_EX) or die "LOCK_EX($f): $!";
 		eval <<'EOM';
-use Inline C => $all_libc.$set_nodatacow, BUILD_NOISY => 1;
+use Inline C => $all_libc, BUILD_NOISY => 1;
 EOM
 		my $err = $@;
 		my $ndc_err = '';
-		if ($err && $set_nodatacow) { # missing Linux kernel headers
-			$ndc_err = "with set_nodatacow: <\n$err\n>\n";
-			undef $set_nodatacow;
-			eval <<'EOM';
-use Inline C => $all_libc, BUILD_NOISY => 1;
-EOM
-		};
 		$err = $@;
 		open(STDERR, '>&', $olderr) or warn "restore stderr: $!";
 		open(STDOUT, '>&', $oldout) or warn "restore stdout: $!";
@@ -356,21 +299,12 @@ EOM
 			my @msg = <$fh>;
 			warn "Inline::C build failed:\n",
 				$ndc_err, $err, "\n", @msg;
-			$set_nodatacow = $all_libc = undef;
-		} elsif ($ndc_err) {
-			warn "Inline::C build succeeded w/o set_nodatacow\n",
-				"error $ndc_err";
+			$all_libc = undef;
 		}
 	}
 	unless ($all_libc) {
 		require PublicInbox::SpawnPP;
 		*pi_fork_exec = \&PublicInbox::SpawnPP::pi_fork_exec
-	}
-	unless ($set_nodatacow) {
-		require PublicInbox::NDC_PP;
-		no warnings 'once';
-		*nodatacow_fd = \&PublicInbox::NDC_PP::nodatacow_fd;
-		*nodatacow_dir = \&PublicInbox::NDC_PP::nodatacow_dir;
 	}
 } # /BEGIN
 

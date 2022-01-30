@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # bidirectional Message-ID <-> Article Number mapping for the NNTP
@@ -13,7 +13,6 @@ use v5.10.1;
 use DBI;
 use DBD::SQLite;
 use PublicInbox::Over;
-use PublicInbox::Spawn;
 use Scalar::Util qw(blessed);
 
 sub new_file {
@@ -53,7 +52,8 @@ sub tmp_clone {
 	require File::Temp;
 	my $tmp = "mm_tmp-$$-XXXX";
 	my ($fh, $fn) = File::Temp::tempfile($tmp, EXLOCK => 0, DIR => $dir);
-	PublicInbox::Spawn::nodatacow_fd(fileno($fh));
+	require PublicInbox::Syscall;
+	PublicInbox::Syscall::nodatacow_fh($fh);
 	$self->{dbh}->sqlite_backup_to_file($fn);
 	$tmp = ref($self)->new_file($fn, 2);
 	$tmp->{dbh}->do('PRAGMA journal_mode = MEMORY');

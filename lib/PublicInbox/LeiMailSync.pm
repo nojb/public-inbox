@@ -1,4 +1,4 @@
-# Copyright (C) 2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # for maintaining synchronization between lei/store <=> Maildir|MH|IMAP|JMAP
@@ -15,9 +15,9 @@ sub dbh_new {
 	my $f = $self->{filename};
 	my $creat = $rw && !-s $f;
 	if ($creat) {
-		require PublicInbox::Spawn;
+		require PublicInbox::Syscall;
 		open my $fh, '+>>', $f or Carp::croak "open($f): $!";
-		PublicInbox::Spawn::nodatacow_fd(fileno($fh));
+		PublicInbox::Syscall::nodatacow_fh($fh);
 	}
 	my $dbh = DBI->connect("dbi:SQLite:dbname=$f",'','', {
 		AutoCommit => 1,

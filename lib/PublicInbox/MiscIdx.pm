@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # like PublicInbox::SearchIdx, but for searching for non-mail messages.
@@ -16,11 +16,11 @@ use v5.10.1;
 use PublicInbox::InboxWritable;
 use PublicInbox::Search; # for SWIG Xapian and Search::Xapian compat
 use PublicInbox::SearchIdx qw(index_text term_generator add_val);
-use PublicInbox::Spawn qw(nodatacow_dir);
 use Carp qw(croak);
 use File::Path ();
 use PublicInbox::MiscSearch;
 use PublicInbox::Config;
+use PublicInbox::Syscall;
 my $json;
 
 sub new {
@@ -28,7 +28,7 @@ sub new {
 	PublicInbox::SearchIdx::load_xapian_writable();
 	my $mi_dir = "$eidx->{xpfx}/misc";
 	File::Path::mkpath($mi_dir);
-	nodatacow_dir($mi_dir);
+	PublicInbox::Syscall::nodatacow_dir($mi_dir);
 	my $flags = $PublicInbox::SearchIdx::DB_CREATE_OR_OPEN;
 	$flags |= $PublicInbox::SearchIdx::DB_NO_SYNC if $eidx->{-no_fsync};
 	$json //= PublicInbox::Config::json();

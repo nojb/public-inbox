@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 package PublicInbox::IMAPTracker;
 use strict;
@@ -75,11 +75,11 @@ sub new {
 	}
 	if (!-f $dbname) {
 		require File::Path;
-		require PublicInbox::Spawn;
+		require PublicInbox::Syscall;
 		my ($dir) = ($dbname =~ m!(.*?/)[^/]+\z!);
 		File::Path::mkpath($dir);
+		PublicInbox::Syscall::nodatacow_dir($dir);
 		open my $fh, '+>>', $dbname or die "failed to open $dbname: $!";
-		PublicInbox::Spawn::nodatacow_fd(fileno($fh));
 	}
 	my $self = bless { lock_path => "$dbname.lock", url => $url }, $class;
 	$self->lock_acquire;

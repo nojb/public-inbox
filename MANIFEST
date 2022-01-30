@@ -289,7 +289,6 @@ lib/PublicInbox/MsgIter.pm
 lib/PublicInbox/MsgTime.pm
 lib/PublicInbox/Msgmap.pm
 lib/PublicInbox/MultiGit.pm
-lib/PublicInbox/NDC_PP.pm
 lib/PublicInbox/NNTP.pm
 lib/PublicInbox/NNTPD.pm
 lib/PublicInbox/NNTPdeflate.pm

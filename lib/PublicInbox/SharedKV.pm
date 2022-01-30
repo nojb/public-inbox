@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # fork()-friendly key-value store.  Will be used for making
@@ -49,9 +49,9 @@ sub new {
 	my $f = $self->{filename} = "$dir/$base.sqlite3";
 	$self->{lock_path} = $opt->{lock_path} // "$dir/$base.flock";
 	unless (-s $f) {
-		PublicInbox::Spawn::nodatacow_dir($dir); # for journal/shm/wal
+		require PublicInbox::Syscall;
+		PublicInbox::Syscall::nodatacow_dir($dir); # for journal/shm/wal
 		open my $fh, '+>>', $f or die "failed to open $f: $!";
-		PublicInbox::Spawn::nodatacow_fd(fileno($fh));
 	}
 	$self;
 }

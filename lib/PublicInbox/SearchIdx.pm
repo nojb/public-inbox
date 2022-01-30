@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 # based on notmuch, but with no concept of folders, files
 #
@@ -20,7 +20,7 @@ use Carp qw(croak carp);
 use POSIX qw(strftime);
 use Time::Local qw(timegm);
 use PublicInbox::OverIdx;
-use PublicInbox::Spawn qw(spawn nodatacow_dir);
+use PublicInbox::Spawn qw(spawn);
 use PublicInbox::Git qw(git_unquote);
 use PublicInbox::MsgTime qw(msg_timestamp msg_datestamp);
 use PublicInbox::Address;
@@ -139,7 +139,8 @@ sub idx_acquire {
 		if (!-d $dir && (!$is_shard ||
 				($is_shard && need_xapian($self)))) {
 			File::Path::mkpath($dir);
-			nodatacow_dir($dir);
+			require PublicInbox::Syscall;
+			PublicInbox::Syscall::nodatacow_dir($dir);
 			$self->{-set_has_threadid_once} = 1;
 		}
 	}
