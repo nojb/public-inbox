@@ -185,6 +185,7 @@ sub response_header_write {
 	my $alive;
 	if (!$term && $prot_persist) { # auto-chunk
 		$chunked = $alive = 2;
+		$alive = 3 if $env->{REQUEST_METHOD} eq 'HEAD';
 		$h .= "Transfer-Encoding: chunked\r\n";
 		# no need for "Connection: keep-alive" with HTTP/1.1
 	} elsif ($term && ($prot_persist || ($conn =~ /\bkeep-alive\b/i))) {
@@ -224,6 +225,7 @@ sub identity_write ($$) {
 sub response_done {
 	my ($self, $alive) = @_;
 	delete $self->{env}; # we're no longer busy
+	# HEAD requests set $alive = 3 so we don't send "0\r\n\r\n";
 	$self->write(\"0\r\n\r\n") if $alive == 2;
 	$self->write($alive ? $self->can('requeue') : \&close);
 }
@@ -288,7 +290,7 @@ sub response_write {
 			getline_pull($self); # kick-off!
 		}
 	# these are returned to the calling application:
-	} elsif ($alive == 2) {
+	} elsif ($alive >= 2) {
 		bless [ $self, $alive ], 'PublicInbox::HTTP::Chunked';
 	} else {
 		bless [ $self, $alive ], 'PublicInbox::HTTP::Identity';
