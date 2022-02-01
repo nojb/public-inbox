@@ -69,6 +69,7 @@ our (
      );
 
 my $SYS_fstatfs; # don't need fstatfs64, just statfs.f_type
+my ($FS_IOC_GETFLAGS, $FS_IOC_SETFLAGS);
 my $SFD_CLOEXEC = 02000000; # Perl does not expose O_CLOEXEC
 our $no_deprecated = 0;
 
@@ -98,6 +99,8 @@ if ($^O eq "linux") {
         $SYS_signalfd4 = 327;
         $SYS_renameat2 //= 353;
 	$SYS_fstatfs = 100;
+	$FS_IOC_GETFLAGS = 0x80046601;
+	$FS_IOC_SETFLAGS = 0x40046602;
     } elsif ($machine eq "x86_64") {
         $SYS_epoll_create = 213;
         $SYS_epoll_ctl    = 233;
@@ -105,6 +108,8 @@ if ($^O eq "linux") {
         $SYS_signalfd4 = 289;
 	$SYS_renameat2 //= 316;
 	$SYS_fstatfs = 138;
+	$FS_IOC_GETFLAGS = 0x80086601;
+	$FS_IOC_SETFLAGS = 0x40086602;
     } elsif ($machine eq 'x32') {
         $SYS_epoll_create = 1073742037;
         $SYS_epoll_ctl = 1073742057;
@@ -112,6 +117,8 @@ if ($^O eq "linux") {
         $SYS_signalfd4 = 1073742113;
 	$SYS_renameat2 //= 0x40000000 + 316;
 	$SYS_fstatfs = 138;
+	$FS_IOC_GETFLAGS = 0x80046601;
+	$FS_IOC_SETFLAGS = 0x40046602;
     } elsif ($machine eq 'sparc64') {
 	$SYS_epoll_create = 193;
 	$SYS_epoll_ctl = 194;
@@ -121,6 +128,8 @@ if ($^O eq "linux") {
 	$SYS_renameat2 //= 345;
 	$SFD_CLOEXEC = 020000000;
 	$SYS_fstatfs = 158;
+	$FS_IOC_GETFLAGS = 0x40086601;
+	$FS_IOC_SETFLAGS = 0x80086602;
     } elsif ($machine =~ m/^parisc/) {
         $SYS_epoll_create = 224;
         $SYS_epoll_ctl    = 225;
@@ -135,6 +144,8 @@ if ($^O eq "linux") {
         $SYS_signalfd4 = 313;
 	$SYS_renameat2 //= 357;
 	$SYS_fstatfs = 100;
+	$FS_IOC_GETFLAGS = 0x40086601;
+	$FS_IOC_SETFLAGS = 0x80086602;
     } elsif ($machine eq "ppc") {
         $SYS_epoll_create = 236;
         $SYS_epoll_ctl    = 237;
@@ -143,6 +154,8 @@ if ($^O eq "linux") {
         $SYS_signalfd4 = 313;
 	$SYS_renameat2 //= 357;
 	$SYS_fstatfs = 100;
+	$FS_IOC_GETFLAGS = 0x40086601;
+	$FS_IOC_SETFLAGS = 0x80086602;
     } elsif ($machine =~ m/^s390/) {
         $SYS_epoll_create = 249;
         $SYS_epoll_ctl    = 250;
@@ -174,6 +187,8 @@ if ($^O eq "linux") {
         $SYS_signalfd4 = 74;
 	$SYS_renameat2 //= 276;
 	$SYS_fstatfs = 44;
+	$FS_IOC_GETFLAGS = 0x80086601;
+	$FS_IOC_SETFLAGS = 0x40086602;
     } elsif ($machine =~ m/arm(v\d+)?.*l/) {
         # ARM OABI
         $SYS_epoll_create = 250;
@@ -191,6 +206,8 @@ if ($^O eq "linux") {
         $SYS_signalfd4 = 5283;
 	$SYS_renameat2 //= 5311;
 	$SYS_fstatfs = 5135;
+	$FS_IOC_GETFLAGS = 0x40046601;
+	$FS_IOC_SETFLAGS = 0x80046602;
     } elsif ($machine =~ m/^mips/) {
         $SYS_epoll_create = 4248;
         $SYS_epoll_ctl    = 4249;
@@ -199,6 +216,8 @@ if ($^O eq "linux") {
         $SYS_signalfd4 = 4324;
 	$SYS_renameat2 //= 4351;
 	$SYS_fstatfs = 4100;
+	$FS_IOC_GETFLAGS = 0x40046601;
+	$FS_IOC_SETFLAGS = 0x80046602;
     } else {
         # as a last resort, try using the *.ph files which may not
         # exist or may be wrong
@@ -345,22 +364,14 @@ sub nodatacow_fh {
 	my $f_type = unpack('l!', $buf); # statfs.f_type is a signed word
 	return if $f_type != 0x9123683E; # BTRFS_SUPER_MAGIC
 
-	state ($FS_IOC_GETFLAGS, $FS_IOC_SETFLAGS);
-	unless (defined $FS_IOC_GETFLAGS) {
-		if (substr($Config{byteorder}, 0, 4) eq '1234') {
-			$FS_IOC_GETFLAGS = 0x80086601;
-			$FS_IOC_SETFLAGS = 0x40086602;
-		} else { # Big endian
-			$FS_IOC_GETFLAGS = 0x40086601;
-			$FS_IOC_SETFLAGS = 0x80086602;
-		}
-	}
+	$FS_IOC_GETFLAGS //
+		return warn('FS_IOC_GETFLAGS undefined for platform');
 	ioctl($fh, $FS_IOC_GETFLAGS, $buf) //
-		return warn("FS_IOC_GET_FLAGS: $!\n");
+		return warn("FS_IOC_GETFLAGS: $!\n");
 	my $attr = unpack('l!', $buf);
 	return if ($attr & 0x00800000); # FS_NOCOW_FL;
 	ioctl($fh, $FS_IOC_SETFLAGS, pack('l', $attr | 0x00800000)) //
-		warn("FS_IOC_SET_FLAGS: $!\n");
+		warn("FS_IOC_SETFLAGS: $!\n");
 }
 
 sub nodatacow_dir {
