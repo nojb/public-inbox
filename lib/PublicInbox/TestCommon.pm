@@ -568,6 +568,7 @@ SKIP: {
 	delete $ENV{XDG_CACHE_HOME};
 	$ENV{GIT_COMMITTER_EMAIL} = 'lei@example.com';
 	$ENV{GIT_COMMITTER_NAME} = 'lei user';
+	$ENV{LANG} = $ENV{LC_ALL} = 'C';
 	my (undef, $fn, $lineno) = caller(0);
 	my $t = "$fn:$lineno";
 	state $lei_daemon = PublicInbox::Spawn->can('send_cmd4') ||
