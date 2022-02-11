@@ -586,7 +586,7 @@ sub add_text_body { # callback for each_part
 
 	# makes no difference to browsers, and don't screw up filename
 	# link generation in diffs with the extra '%0D'
-	$s =~ s/\r\n/\n/sg;
+	$s =~ s/\r+\n/\n/sg;
 
 	# will be escaped to `&#8226;' in HTML
 	obfuscate_addrs($ibx, $s, "\x{2022}") if $ibx->{obfuscate};
