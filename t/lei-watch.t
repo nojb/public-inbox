@@ -3,6 +3,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 use File::Path qw(make_path remove_tree);
+plan skip_all => "TEST_FLAKY not enabled for $0" if !$ENV{TEST_FLAKY};
 require_mods('lei');
 my $have_fast_inotify = eval { require Linux::Inotify2 } ||
 	eval { require IO::KQueue };
