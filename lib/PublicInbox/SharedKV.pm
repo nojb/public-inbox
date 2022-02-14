@@ -9,7 +9,7 @@ use strict;
 use v5.10.1;
 use parent qw(PublicInbox::Lock);
 use File::Temp qw(tempdir);
-use DBI ();
+use DBI qw(:sql_types); # SQL_BLOB
 use PublicInbox::Spawn;
 use File::Path qw(rmtree make_path);
 
@@ -59,9 +59,12 @@ sub new {
 sub set_maybe {
 	my ($self, $key, $val, $lock) = @_;
 	$lock //= $self->lock_for_scope_fast;
-	my $e = $self->{dbh}->prepare_cached(<<'')->execute($key, $val);
+	my $sth = $self->{dbh}->prepare_cached(<<'');
 INSERT OR IGNORE INTO kv (k,v) VALUES (?, ?)
 
+	$sth->bind_param(1, $key, SQL_BLOB);
+	$sth->bind_param(2, $val, SQL_BLOB);
+	my $e = $sth->execute;
 	$e == 0 ? undef : $e;
 }
 
@@ -88,20 +91,30 @@ sub keys {
 	} else {
 		@pfx = (); # [0] may've been undef
 	}
-	map { $_->[0] } @{$self->dbh->selectall_arrayref($sql, undef, @pfx)};
+	my $sth = $self->dbh->prepare($sql);
+	if (@pfx) {
+		$sth->bind_param(1, $pfx[0], SQL_BLOB);
+		$sth->bind_param(2, $pfx[1]);
+	}
+	$sth->execute;
+	map { $_->[0] } @{$sth->fetchall_arrayref};
 }
 
 sub set {
 	my ($self, $key, $val) = @_;
 	if (defined $val) {
-		my $e = $self->{dbh}->prepare_cached(<<'')->execute($key, $val);
+		my $sth = $self->{dbh}->prepare_cached(<<'');
 INSERT OR REPLACE INTO kv (k,v) VALUES (?,?)
 
+		$sth->bind_param(1, $key, SQL_BLOB);
+		$sth->bind_param(2, $val, SQL_BLOB);
+		my $e = $sth->execute;
 		$e == 0 ? undef : $e;
 	} else {
-		$self->{dbh}->prepare_cached(<<'')->execute($key);
+		my $sth = $self->{dbh}->prepare_cached(<<'');
 DELETE FROM kv WHERE k = ?
 
+		$sth->bind_param(1, $key, SQL_BLOB);
 	}
 }
 
@@ -110,7 +123,8 @@ sub get {
 	my $sth = $self->{dbh}->prepare_cached(<<'', undef, 1);
 SELECT v FROM kv WHERE k = ?
 
-	$sth->execute($key);
+	$sth->bind_param(1, $key, SQL_BLOB);
+	$sth->execute;
 	$sth->fetchrow_array;
 }
 
@@ -121,9 +135,11 @@ sub xchg {
 	if (defined $newval) {
 		set($self, $key, $newval);
 	} else {
-		$self->{dbh}->prepare_cached(<<'')->execute($key);
+		my $sth = $self->{dbh}->prepare_cached(<<'');
 DELETE FROM kv WHERE k = ?
 
+		$sth->bind_param(1, $key, SQL_BLOB);
+		$sth->execute;
 	}
 	$oldval;
 }

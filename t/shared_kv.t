@@ -42,5 +42,8 @@ undef $skv;
 ok(!-d $skv_tmpdir, 'temporary dir gone');
 $skv = PublicInbox::SharedKV->new("$tmpdir/dir", 'base');
 ok(-e "$tmpdir/dir/base.sqlite3", 'file created');
+$skv->dbh;
+ok($skv->set_maybe('02', '2'), "`02' set");
+ok($skv->set_maybe('2', '2'), "`2' set (no match on `02')");
 
 done_testing;
