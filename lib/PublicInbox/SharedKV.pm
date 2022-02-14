@@ -56,12 +56,6 @@ sub new {
 	$self;
 }
 
-sub index_values {
-	my ($self) = @_;
-	my $lock = $self->lock_for_scope_fast;
-	$self->dbh($lock)->do('CREATE INDEX IF NOT EXISTS idx_v ON kv (v)');
-}
-
 sub set_maybe {
 	my ($self, $key, $val, $lock) = @_;
 	$lock //= $self->lock_for_scope_fast;
@@ -95,22 +89,6 @@ sub keys {
 		@pfx = (); # [0] may've been undef
 	}
 	map { $_->[0] } @{$self->dbh->selectall_arrayref($sql, undef, @pfx)};
-}
-
-sub delete_by_val {
-	my ($self, $val, $lock) = @_;
-	$lock //= $self->lock_for_scope_fast;
-	$self->{dbh}->prepare_cached(<<'')->execute($val) + 0;
-DELETE FROM kv WHERE v = ?
-
-}
-
-sub replace_values {
-	my ($self, $oldval, $newval, $lock) = @_;
-	$lock //= $self->lock_for_scope_fast;
-	$self->{dbh}->prepare_cached(<<'')->execute($newval, $oldval) + 0;
-UPDATE kv SET v = ? WHERE v = ?
-
 }
 
 sub set {

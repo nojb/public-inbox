@@ -1,5 +1,5 @@
 #!perl -w
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use v5.10.1;
@@ -26,10 +26,6 @@ is($skv->get($dead), $cafe, 'get after xchg');
 is($skv->xchg($dead, undef), $cafe, 'xchg to undef');
 is($skv->get($dead), undef, 'get after xchg to undef');
 is($skv->get($cafe), $dead, 'get after set_maybe');
-ok($skv->index_values, 'index_values works');
-is($skv->replace_values($dead, $cafe), 1, 'replaced one by value');
-is($skv->get($cafe), $cafe, 'value updated');
-is($skv->replace_values($dead, $cafe), 0, 'replaced none by value');
 is($skv->xchg($dead, $cafe), undef, 'xchg from undef');
 is($skv->count, 2, 'count works');
 
@@ -39,13 +35,8 @@ while (my ($k, $v) = $sth->fetchrow_array) {
 	$seen{$k} = $v;
 }
 is($seen{$dead}, $cafe, '$dead has expected value');
-is($seen{$cafe}, $cafe, '$cafe has expected value');
+is($seen{$cafe}, $dead, '$cafe has expected value');
 is(scalar keys %seen, 2, 'iterated through all');
-
-is($skv->replace_values($cafe, $dead), 2, 'replaced 2 by value');
-is($skv->delete_by_val('bogus'), 0, 'delete_by_val misses');
-is($skv->delete_by_val($dead), 2, 'delete_by_val hits');
-is($skv->delete_by_val($dead), 0, 'delete_by_val misses again');
 
 undef $skv;
 ok(!-d $skv_tmpdir, 'temporary dir gone');
