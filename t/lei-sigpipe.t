@@ -27,11 +27,17 @@ EOM
 		}
 
 		lei_ok(qw(import), $f) if $imported++ == 0;
-		open my $errfh, '+>', "$ENV{HOME}/stderr.log" or xbail $!;
+		open my $errfh, '+>>', "$ENV{HOME}/stderr.log" or xbail $!;
 		my $opt = { run_mode => 0, 2 => $errfh, 1 => $w };
 		my $cmd = [qw(lei q -q -t), @$out, 'z:1..'];
 		my $tp = start_script($cmd, undef, $opt);
 		close $w;
+		vec(my $rvec = '', fileno($r), 1) = 1;
+		if (!select($rvec, undef, undef, 30)) {
+			seek($errfh, 0, 0) or xbail $!;
+			my $s = do { local $/; <$errfh> };
+			xbail "lei q had no output after 30s, stderr=$s";
+		}
 		is(sysread($r, my $buf, 1), 1, 'read one byte');
 		close $r; # trigger SIGPIPE
 		$tp->join;
