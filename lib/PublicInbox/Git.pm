@@ -1,4 +1,4 @@
-# Copyright (C) 2014-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: GPLv2 or later <https://www.gnu.org/licenses/gpl-2.0.txt>
 #
 # Used to read files from a git repository without excessive forking.
@@ -349,7 +349,7 @@ sub async_abort ($) {
 	while (scalar(@{$self->{inflight_c} // []}) ||
 			scalar(@{$self->{inflight} // []})) {
 		for my $c ('', '_c') {
-			my $q = $self->{"inflight$c"};
+			my $q = $self->{"inflight$c"} or next;
 			while (@$q) {
 				my ($req, $cb, $arg) = splice(@$q, 0, 3);
 				$req = $$req if ref($req);
