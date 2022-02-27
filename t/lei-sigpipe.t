@@ -1,10 +1,25 @@
 #!perl -w
-# Copyright (C) 2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use v5.10.1;
 use PublicInbox::TestCommon;
-use POSIX qw(WTERMSIG WIFSIGNALED SIGPIPE);
+use POSIX qw(WTERMSIG WIFSIGNALED SIGPIPE SIG_UNBLOCK SIG_SETMASK sigprocmask);
+use PublicInbox::OnDestroy;
+
+# undo systemd (and similar) blocking SIGPIPE, since lei expects to be run
+# from an interactive terminal:
+# https://public-inbox.org/meta/20220227080422.gyqowrxomzu6gyin@sourcephile.fr/
+my $set = POSIX::SigSet->new;
+my $old = POSIX::SigSet->new;
+$set->emptyset or xbail "sigemptyset $!";
+$old->emptyset or xbail "sigemptyset $!";
+$set->addset(SIGPIPE);
+sigprocmask(SIG_UNBLOCK, $set, $old) or xbail "SIG_UNBLOCK: $!";
+my $cleanup = PublicInbox::OnDestroy->new($$, sub {
+	sigprocmask(SIG_SETMASK, $old);
+});
+
 test_lei(sub {
 	my $f = "$ENV{HOME}/big.eml";
 	my $imported;
