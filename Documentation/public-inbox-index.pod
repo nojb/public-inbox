@@ -150,6 +150,13 @@ data to accumulate, resulting on latency spikes from writeback.
 
 Available in public-inbox 1.6.0+.
 
+=item --dangerous
+
+Speed up initial index by using in-place updates and denying support for
+concurrent readers.  This is only effective with Xapian 1.4+.
+
+Available in public-inbox 1.8.0+
+
 =item --sequential-shard
 
 Sets or overrides L</publicinbox.indexSequentialShard> on a
@@ -324,7 +331,7 @@ L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/>
 
 =head1 COPYRIGHT
 
-Copyright 2016-2021 all contributors L<mailto:meta@public-inbox.org>
+Copyright all contributors L<mailto:meta@public-inbox.org>
 
 License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
 

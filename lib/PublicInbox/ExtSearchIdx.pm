@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # Detached/external index cross inbox search indexing support
@@ -59,6 +59,7 @@ sub new {
 		nproc_shards({ nproc => $opt->{jobs} });
 	my $oidx = PublicInbox::OverIdx->new("$self->{xpfx}/over.sqlite3");
 	$self->{-no_fsync} = $oidx->{-no_fsync} = 1 if !$opt->{fsync};
+	$self->{-dangerous} = 1 if $opt->{dangerous};
 	$self->{oidx} = $oidx;
 	$self
 }

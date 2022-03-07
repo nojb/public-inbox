@@ -1,5 +1,5 @@
 #!perl -w
-# Copyright (C) 2019-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use v5.10.1;
@@ -34,7 +34,7 @@ my $import_index_incremental = sub {
 	local $ENV{PI_CONFIG} = "$tmpdir/config";
 
 	# index master (required for v1)
-	my @cmd = (qw(-index -j0), $ibx->{inboxdir}, "-L$level");
+	my @cmd = (qw(-index -j0 --dangerous), $ibx->{inboxdir}, "-L$level");
 	push @cmd, '-c' if have_xapian_compact;
 	ok(run_script(\@cmd, undef, { 2 => \$err }), 'index master');
 	my $ro_master = PublicInbox::Inbox->new({

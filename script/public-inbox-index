@@ -39,7 +39,7 @@ my $opt = {
 	'update-extindex' => [], # ":s@" optional arg sets '' if no arg given
 };
 GetOptions($opt, qw(verbose|v+ reindex rethread compact|c+ jobs|j=i prune
-		fsync|sync! xapian_only|xapian-only
+		fsync|sync! xapian_only|xapian-only dangerous
 		indexlevel|index-level|L=s max_size|max-size=s
 		batch_size|batch-size=s
 		since|after=s until|before=s
@@ -126,6 +126,7 @@ for my $ibx (@ibxs) {
 		PublicInbox::Xapcmd::run($ibx, 'compact', $opt->{compact_opt});
 	}
 	$ibx->{-no_fsync} = 1 if !$opt->{fsync};
+	$ibx->{-dangerous} = 1 if $opt->{dangerous};
 	$ibx->{-skip_docdata} //= $opt->{'skip-docdata'};
 
 	my $ibx_opt = $opt;

@@ -30,6 +30,7 @@ our @EXPORT_OK = qw(log2stack is_ancestor check_size prepare_stack
 my $X = \%PublicInbox::Search::X;
 our ($DB_CREATE_OR_OPEN, $DB_OPEN);
 our $DB_NO_SYNC = 0;
+our $DB_DANGEROUS = 0;
 our $BATCH_BYTES = $ENV{XAPIAN_FLUSH_THRESHOLD} ? 0x7fffffff :
 	# assume a typical 64-bit system has 8x more RAM than a
 	# typical 32-bit system:
@@ -115,7 +116,10 @@ sub load_xapian_writable () {
 	my $ver = (eval($xap.'::major_version()') << 16) |
 		(eval($xap.'::minor_version()') << 8) |
 		eval($xap.'::revision()');
-	$DB_NO_SYNC = 0x4 if $ver >= 0x10400;
+	if ($ver >= 0x10400) {
+		$DB_NO_SYNC = 0x4;
+		$DB_DANGEROUS = 0x10;
+	}
 	# Xapian v1.2.21..v1.2.24 were missing close-on-exec on OFD locks
 	$X->{CLOEXEC_UNSET} = 1 if $ver >= 0x010215 && $ver <= 0x010218;
 	1;
@@ -142,6 +146,9 @@ sub idx_acquire {
 			require PublicInbox::Syscall;
 			PublicInbox::Syscall::nodatacow_dir($dir);
 			$self->{-set_has_threadid_once} = 1;
+			if (($self->{ibx} // $self->{eidx})->{-dangerous}) {
+				$flag |= $DB_DANGEROUS;
+			}
 		}
 	}
 	return unless defined $flag;

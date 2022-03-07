@@ -31,6 +31,7 @@ sub new {
 	PublicInbox::Syscall::nodatacow_dir($mi_dir);
 	my $flags = $PublicInbox::SearchIdx::DB_CREATE_OR_OPEN;
 	$flags |= $PublicInbox::SearchIdx::DB_NO_SYNC if $eidx->{-no_fsync};
+	$flags |= $PublicInbox::SearchIdx::DB_DANGEROUS if $eidx->{-dangerous};
 	$json //= PublicInbox::Config::json();
 	bless {
 		mi_dir => $mi_dir,

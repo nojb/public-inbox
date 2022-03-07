@@ -1,5 +1,5 @@
 #!perl -w
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use Test::More;
@@ -54,7 +54,8 @@ run_script(['-mda', '--no-precheck'], $env, { 0 => $fh }) or BAIL_OUT '-mda';
 
 run_script([qw(-index -Lbasic), "$home/v1test"]) or BAIL_OUT "index $?";
 
-ok(run_script([qw(-extindex --all), "$home/extindex"]), 'extindex init');
+ok(run_script([qw(-extindex --dangerous --all), "$home/extindex"]),
+	'extindex init');
 {
 	my $es = PublicInbox::ExtSearch->new("$home/extindex");
 	ok($es->has_threadid, '->has_threadid');
