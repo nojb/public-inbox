@@ -1,0 +1,36 @@
+To: meta@public-inbox.org
+Subject: [WIP] public-inbox 1.8.0
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Disposition: inline
+
+A minor release focused on bugfixes and minor improvements.
+
+lei users may experience duplicate messages in Maildirs if attempting to
+downgrade from 1.8.0 to 1.7.x.  public-inbox-* tools are unaffected and
+may downgrade freely.
+
+Bugfixes:
+
+  Numerous test fixes thanks to NixOS developers.
+
+  Long-running daemons are more robust in case of corrupt blobs
+  or crashes of git-cat-file processes
+
+  PublicInbox::WWW: all CR are removed before LF, fixing display of
+  CR-CR-LF messages.
+
+Internal updates:
+
+  Reduced dependencies on Inline::C for Linux users.
+
+New features:
+
+  The --dangerous flag is now supported in public-inbox-index and
+  public-inbox-extindex to use the Xapian::DB_DANGEROUS flag for initial
+  indexes.  This may reduce SSD/HDD wear at the expense of
+
+Please report bugs via plain-text mail to: meta@public-inbox.org
+
+See archives at https://public-inbox.org/meta/ for all history.
+See https://public-inbox.org/TODO for what the future holds.
