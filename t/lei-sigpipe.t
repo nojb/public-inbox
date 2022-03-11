@@ -4,20 +4,16 @@
 use strict;
 use v5.10.1;
 use PublicInbox::TestCommon;
-use POSIX qw(WTERMSIG WIFSIGNALED SIGPIPE SIG_UNBLOCK SIG_SETMASK sigprocmask);
+use POSIX qw(WTERMSIG WIFSIGNALED SIGPIPE);
 use PublicInbox::OnDestroy;
 
-# undo systemd (and similar) blocking SIGPIPE, since lei expects to be run
+# undo systemd (and similar) ignoring SIGPIPE, since lei expects to be run
 # from an interactive terminal:
 # https://public-inbox.org/meta/20220227080422.gyqowrxomzu6gyin@sourcephile.fr/
-my $set = POSIX::SigSet->new;
-my $old = POSIX::SigSet->new;
-$set->emptyset or xbail "sigemptyset $!";
-$old->emptyset or xbail "sigemptyset $!";
-$set->addset(SIGPIPE);
-sigprocmask(SIG_UNBLOCK, $set, $old) or xbail "SIG_UNBLOCK: $!";
+my $oldSIGPIPE = $SIG{PIPE};
+$SIG{PIPE} = 'DEFAULT';
 my $cleanup = PublicInbox::OnDestroy->new($$, sub {
-	sigprocmask(SIG_SETMASK, $old);
+	$SIG{PIPE} = $oldSIGPIPE;
 });
 
 test_lei(sub {
