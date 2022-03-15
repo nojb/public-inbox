@@ -1,4 +1,4 @@
-# Copyright (C) 2014-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Main web interface for mailing list archives
@@ -64,6 +64,10 @@ sub call {
 				serve_git($ctx, $epoch, $path);
 		} elsif ($path_info =~ m!$INBOX_RE/(\w+)\.sql\.gz\z!o) {
 			return get_altid_dump($ctx, $1, $2);
+		} elsif ($path_info =~ m!$INBOX_RE/$MID_RE/$ATTACH_RE\z!o) {
+			my ($idx, $fn) = ($3, $4);
+			return invalid_inbox_mid($ctx, $1, $2) ||
+				get_attach($ctx, $idx, $fn);
 		} elsif ($path_info =~ m!$INBOX_RE/!o) {
 			return invalid_inbox($ctx, $1) || mbox_results($ctx);
 		}

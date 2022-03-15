@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # For retrieving attachments from messages in the WWW interface
@@ -11,16 +11,17 @@ use PublicInbox::Eml;
 sub referer_match ($) {
 	my ($ctx) = @_;
 	my $env = $ctx->{env};
-	my $referer = $env->{HTTP_REFERER} // '';
+	return 1 if $env->{REQUEST_METHOD} eq 'POST';
+	my $referer = lc($env->{HTTP_REFERER} // '');
 	return 1 if $referer eq ''; # no referer is always OK for wget/curl
 
 	# prevent deep-linking from other domains on some browsers (Firefox)
 	# n.b.: $ctx->{ibx}->base_url($env) with INBOX_URL won't work
 	# with dillo, we can only match "$url_scheme://$HTTP_HOST/" without
 	# path components
-	my $base_url = $env->{'psgi.url_scheme'} . '://' .
+	my $base_url = lc($env->{'psgi.url_scheme'} . '://' .
 			($env->{HTTP_HOST} //
-			 "$env->{SERVER_NAME}:$env->{SERVER_PORT}") . '/';
+			 "$env->{SERVER_NAME}:$env->{SERVER_PORT}") . '/');
 	index($referer, $base_url) == 0;
 }
 
@@ -46,8 +47,13 @@ sub get_attach_i { # ->each_part callback
 			$part = $part->body;
 		} else {
 			$res->[0] = 403;
-			$res->[1]->[1] = 'text/plain';
-			$part = "Deep-linking prevented\n";
+			$res->[1]->[1] = 'text/html';
+			$part = <<"";
+<html><head><title>download
+attachment</title><body><pre>Deep-linking prevented</pre><form
+method=post\naction=""><input type=submit value="Download attachment"
+/></form></body></html>
+
 		}
 	}
 	push @{$res->[1]}, 'Content-Length', length($part);
