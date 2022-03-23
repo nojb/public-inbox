@@ -1,5 +1,5 @@
 #!perl -w
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use v5.10.1;
@@ -9,6 +9,10 @@ my $narg = 5;
 my $sock;
 my $recv_cmd = PublicInbox::CmdIPC4->can('recv_cmd4');
 my $send_cmd = PublicInbox::CmdIPC4->can('send_cmd4') // do {
+	require PublicInbox::Syscall;
+	$recv_cmd = PublicInbox::Syscall->can('recv_cmd4');
+	PublicInbox::Syscall->can('send_cmd4');
+} // do {
 	my $inline_dir = $ENV{PERL_INLINE_DIRECTORY} //= (
 			$ENV{XDG_CACHE_HOME} //
 			( ($ENV{HOME} // '/nonexistent').'/.cache' )

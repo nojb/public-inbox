@@ -2,6 +2,9 @@
 # specifically the Debian libsys-syscall-perl 0.25-6 version to
 # fix upstream regressions in 0.25.
 #
+# See devel/syscall-list in the public-inbox source tree for maintenance
+# <https://80x24.org/public-inbox.git>
+#
 # This license differs from the rest of public-inbox
 #
 # This module is Copyright (c) 2005 Six Apart, Ltd.
@@ -16,6 +19,7 @@ use strict;
 use v5.10.1;
 use parent qw(Exporter);
 use POSIX qw(ENOENT ENOSYS EINVAL O_NONBLOCK);
+use Socket qw(SOL_SOCKET SCM_RIGHTS);
 use Config;
 
 # $VERSION = '0.25'; # Sys::Syscall version
@@ -42,8 +46,19 @@ use constant {
 	EPOLL_CTL_ADD => 1,
 	EPOLL_CTL_DEL => 2,
 	EPOLL_CTL_MOD => 3,
+	SIZEOF_int => $Config{intsize},
+	SIZEOF_size_t => $Config{sizesize},
+	NUL => "\0",
 };
 
+use constant {
+	TMPL_size_t => SIZEOF_size_t == 8 ? 'Q' : 'L',
+	BYTES_4_hole => SIZEOF_size_t == 8 ? 'L' : '',
+	# cmsg_len, cmsg_level, cmsg_type
+	SIZEOF_cmsghdr => SIZEOF_int * 2 + SIZEOF_size_t,
+};
+
+my @BYTES_4_hole = BYTES_4_hole ? (0) : ();
 our $loaded_syscall = 0;
 
 sub _load_syscall {
@@ -68,6 +83,7 @@ our (
      $SYS_renameat2,
      );
 
+my ($SYS_sendmsg, $SYS_recvmsg);
 my $SYS_fstatfs; # don't need fstatfs64, just statfs.f_type
 my ($FS_IOC_GETFLAGS, $FS_IOC_SETFLAGS);
 my $SFD_CLOEXEC = 02000000; # Perl does not expose O_CLOEXEC
@@ -99,6 +115,8 @@ if ($^O eq "linux") {
         $SYS_signalfd4 = 327;
         $SYS_renameat2 //= 353;
 	$SYS_fstatfs = 100;
+	$SYS_sendmsg = 370;
+	$SYS_recvmsg = 372;
 	$FS_IOC_GETFLAGS = 0x80046601;
 	$FS_IOC_SETFLAGS = 0x40046602;
     } elsif ($machine eq "x86_64") {
@@ -108,6 +126,8 @@ if ($^O eq "linux") {
         $SYS_signalfd4 = 289;
 	$SYS_renameat2 //= 316;
 	$SYS_fstatfs = 138;
+	$SYS_sendmsg = 46;
+	$SYS_recvmsg = 47;
 	$FS_IOC_GETFLAGS = 0x80086601;
 	$FS_IOC_SETFLAGS = 0x40086602;
     } elsif ($machine eq 'x32') {
@@ -117,6 +137,8 @@ if ($^O eq "linux") {
         $SYS_signalfd4 = 1073742113;
 	$SYS_renameat2 //= 0x40000000 + 316;
 	$SYS_fstatfs = 138;
+	$SYS_sendmsg = 0x40000206;
+	$SYS_recvmsg = 0x40000207;
 	$FS_IOC_GETFLAGS = 0x80046601;
 	$FS_IOC_SETFLAGS = 0x40046602;
     } elsif ($machine eq 'sparc64') {
@@ -376,6 +398,79 @@ sub nodatacow_fh {
 
 sub nodatacow_dir {
 	if (open my $fh, '<', $_[0]) { nodatacow_fh($fh) }
+}
+
+sub CMSG_ALIGN ($) { ($_[0] + SIZEOF_size_t - 1) & ~(SIZEOF_size_t - 1) }
+use constant CMSG_ALIGN_SIZEOF_cmsghdr => CMSG_ALIGN(SIZEOF_cmsghdr);
+sub CMSG_SPACE ($) { CMSG_ALIGN($_[0]) + CMSG_ALIGN_SIZEOF_cmsghdr }
+sub CMSG_LEN ($) { CMSG_ALIGN_SIZEOF_cmsghdr + $_[0] }
+
+if (defined($SYS_sendmsg) && defined($SYS_recvmsg)) {
+no warnings 'once';
+*send_cmd4 = sub ($$$$) {
+	my ($sock, $fds, undef, $flags) = @_;
+	my $iov = pack('P'.TMPL_size_t,
+			$_[2] // NUL, length($_[2] // NUL) || 1);
+	my $cmsghdr = pack(TMPL_size_t . # cmsg_len
+			'LL' .  # cmsg_level, cmsg_type,
+			('i' x scalar(@$fds)),
+			CMSG_LEN(scalar(@$fds) * SIZEOF_int), # cmsg_len
+			SOL_SOCKET, SCM_RIGHTS, # cmsg_{level,type}
+			@$fds); # CMSG_DATA
+	my $mh = pack('PL' . # msg_name, msg_namelen (socklen_t (U32))
+			BYTES_4_hole . # 4-byte padding on 64-bit
+			'P'.TMPL_size_t . # msg_iov, msg_iovlen,
+			'P'.TMPL_size_t . # msg_control, msg_controllen,
+			'i', # msg_flags
+			NUL, 0, # msg_name, msg_namelen (unused)
+			@BYTES_4_hole,
+			$iov, 1, # msg_iov, msg_iovlen
+			$cmsghdr, # msg_control
+			CMSG_SPACE(scalar(@$fds) * SIZEOF_int), # msg_controllen
+			0); # msg_flags
+	my $sent;
+	my $try = 0;
+	do {
+		$sent = syscall($SYS_sendmsg, fileno($sock), $mh, $flags);
+	} while ($sent < 0 &&
+			($!{ENOBUFS} || $!{ENOMEM} || $!{ETOOMANYREFS}) &&
+			(++$try < 50) &&
+			warn "sleeping on sendmsg: $! (#$try)\n" &&
+			select(undef, undef, undef, 0.1) == 0);
+	$sent >= 0 ? $sent : undef;
+};
+
+*recv_cmd4 = sub ($$$) {
+	my ($sock, undef, $len) = @_;
+	vec($_[1], ($len + 1) * 8, 1) = 0;
+	vec(my $cmsghdr = '', 256 * 8 - 1, 1) = 1;
+	my $iov = pack('P'.TMPL_size_t, $_[1], $len);
+	my $mh = pack('PL' . # msg_name, msg_namelen (socklen_t (U32))
+			BYTES_4_hole . # 4-byte padding on 64-bit
+			'P'.TMPL_size_t . # msg_iov, msg_iovlen,
+			'P'.TMPL_size_t . # msg_control, msg_controllen,
+			'i', # msg_flags
+			NUL, 0, # msg_name, msg_namelen (unused)
+			@BYTES_4_hole,
+			$iov, 1, # msg_iov, msg_iovlen
+			$cmsghdr, # msg_control
+			256, # msg_controllen
+			0); # msg_flags
+	my $r = syscall($SYS_recvmsg, fileno($sock), $mh, 0);
+	return (undef) if $r < 0; # $! set
+	substr($_[1], $r, length($_[1]), '');
+	my @ret;
+	if ($r > 0) {
+		my ($len, $lvl, $type, @fds) = unpack(TMPL_size_t . # cmsg_len
+					'LLi*', # cmsg_level, cmsg_type, @fds
+					$cmsghdr);
+		if ($lvl == SOL_SOCKET && $type == SCM_RIGHTS) {
+			$len -= CMSG_ALIGN_SIZEOF_cmsghdr;
+			@ret = @fds[0..(($len / SIZEOF_int) - 1)];
+		}
+	}
+	@ret;
+};
 }
 
 1;

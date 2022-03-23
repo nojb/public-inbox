@@ -49,6 +49,8 @@ int main(void)
 	D(SYS_inotify_rm_watch);
 	D(SYS_prctl);
 	D(SYS_fstatfs);
+	D(SYS_sendmsg);
+	D(SYS_recvmsg);
 #ifdef FS_IOC_GETFLAGS
 	printf("FS_IOC_GETFLAGS=%#lx\nFS_IOC_SETFLAGS=%#lx\n",
 		(unsigned long)FS_IOC_GETFLAGS, (unsigned long)FS_IOC_SETFLAGS);

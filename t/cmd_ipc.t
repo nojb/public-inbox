@@ -1,5 +1,5 @@
 #!perl -w
-# Copyright (C) 2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use v5.10.1;
@@ -140,6 +140,17 @@ SKIP: {
 		$do_test->(SOCK_STREAM, 0, 'Inline::C -> MsgHdr stream');
 		$do_test->($SOCK_SEQPACKET, 0, 'Inline::C -> MsgHdr seqpacket');
 	}
+}
+
+SKIP: {
+	skip 'not Linux', 1 if $^O ne 'linux';
+	require_ok 'PublicInbox::Syscall';
+	$send = PublicInbox::Syscall->can('send_cmd4') or
+		skip 'send_cmd4 not defined for arch';
+	$recv = PublicInbox::Syscall->can('recv_cmd4') or
+		skip 'recv_cmd4 not defined for arch';
+	$do_test->(SOCK_STREAM, 0, 'PP Linux stream');
+	$do_test->($SOCK_SEQPACKET, MSG_EOR, 'PP Linux seqpacket');
 }
 
 done_testing;
