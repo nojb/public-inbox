@@ -3,7 +3,8 @@
 # fix upstream regressions in 0.25.
 #
 # See devel/syscall-list in the public-inbox source tree for maintenance
-# <https://80x24.org/public-inbox.git>
+# <https://80x24.org/public-inbox.git>, and machines from the GCC Farm:
+# <https://cfarm.tetaneutral.net/>
 #
 # This license differs from the rest of public-inbox
 #
@@ -150,6 +151,8 @@ if ($^O eq "linux") {
 	$SYS_renameat2 //= 345;
 	$SFD_CLOEXEC = 020000000;
 	$SYS_fstatfs = 158;
+	$SYS_sendmsg = 114;
+	$SYS_recvmsg = 113;
 	$FS_IOC_GETFLAGS = 0x40086601;
 	$FS_IOC_SETFLAGS = 0x80086602;
     } elsif ($machine =~ m/^parisc/) {
@@ -166,6 +169,8 @@ if ($^O eq "linux") {
         $SYS_signalfd4 = 313;
 	$SYS_renameat2 //= 357;
 	$SYS_fstatfs = 100;
+	$SYS_sendmsg = 341;
+	$SYS_recvmsg = 342;
 	$FS_IOC_GETFLAGS = 0x40086601;
 	$FS_IOC_SETFLAGS = 0x80086602;
     } elsif ($machine eq "ppc") {
@@ -178,7 +183,7 @@ if ($^O eq "linux") {
 	$SYS_fstatfs = 100;
 	$FS_IOC_GETFLAGS = 0x40086601;
 	$FS_IOC_SETFLAGS = 0x80086602;
-    } elsif ($machine =~ m/^s390/) {
+    } elsif ($machine =~ m/^s390/) { # untested, no machine on cfarm
         $SYS_epoll_create = 249;
         $SYS_epoll_ctl    = 250;
         $SYS_epoll_wait   = 251;
@@ -186,13 +191,15 @@ if ($^O eq "linux") {
         $SYS_signalfd4 = 322;
 	$SYS_renameat2 //= 347;
 	$SYS_fstatfs = 100;
-    } elsif ($machine eq "ia64") {
+	$SYS_sendmsg = 370;
+	$SYS_recvmsg = 372;
+    } elsif ($machine eq 'ia64') { # untested, no machine on cfarm
         $SYS_epoll_create = 1243;
         $SYS_epoll_ctl    = 1244;
         $SYS_epoll_wait   = 1245;
         $u64_mod_8        = 1;
         $SYS_signalfd4 = 289;
-    } elsif ($machine eq "alpha") {
+    } elsif ($machine eq "alpha") { # untested, no machine on cfarm
         # natural alignment, ints are 32-bits
         $SYS_epoll_create = 407;
         $SYS_epoll_ctl    = 408;
@@ -200,7 +207,7 @@ if ($^O eq "linux") {
         $u64_mod_8        = 1;
         $SYS_signalfd4 = 484;
 	$SFD_CLOEXEC = 010000000;
-    } elsif ($machine eq "aarch64") {
+    } elsif ($machine eq 'aarch64' || $machine eq 'loongarch64') {
         $SYS_epoll_create = 20;  # (sys_epoll_create1)
         $SYS_epoll_ctl    = 21;
         $SYS_epoll_wait   = 22;  # (sys_epoll_pwait)
@@ -209,10 +216,11 @@ if ($^O eq "linux") {
         $SYS_signalfd4 = 74;
 	$SYS_renameat2 //= 276;
 	$SYS_fstatfs = 44;
+	$SYS_sendmsg = 211;
+	$SYS_recvmsg = 212;
 	$FS_IOC_GETFLAGS = 0x80086601;
 	$FS_IOC_SETFLAGS = 0x40086602;
-    } elsif ($machine =~ m/arm(v\d+)?.*l/) {
-        # ARM OABI
+    } elsif ($machine =~ m/arm(v\d+)?.*l/) { # ARM OABI (untested on cfarm)
         $SYS_epoll_create = 250;
         $SYS_epoll_ctl    = 251;
         $SYS_epoll_wait   = 252;
@@ -220,7 +228,9 @@ if ($^O eq "linux") {
         $SYS_signalfd4 = 355;
 	$SYS_renameat2 //= 382;
 	$SYS_fstatfs = 100;
-    } elsif ($machine =~ m/^mips64/) {
+	$SYS_sendmsg = 296;
+	$SYS_recvmsg = 297;
+    } elsif ($machine =~ m/^mips64/) { # cfarm only has 32-bit userspace
         $SYS_epoll_create = 5207;
         $SYS_epoll_ctl    = 5208;
         $SYS_epoll_wait   = 5209;
@@ -228,9 +238,11 @@ if ($^O eq "linux") {
         $SYS_signalfd4 = 5283;
 	$SYS_renameat2 //= 5311;
 	$SYS_fstatfs = 5135;
+	$SYS_sendmsg = 5045;
+	$SYS_recvmsg = 5046;
 	$FS_IOC_GETFLAGS = 0x40046601;
 	$FS_IOC_SETFLAGS = 0x80046602;
-    } elsif ($machine =~ m/^mips/) {
+    } elsif ($machine =~ m/^mips/) { # 32-bit, tested on mips64 cfarm machine
         $SYS_epoll_create = 4248;
         $SYS_epoll_ctl    = 4249;
         $SYS_epoll_wait   = 4250;
@@ -238,6 +250,8 @@ if ($^O eq "linux") {
         $SYS_signalfd4 = 4324;
 	$SYS_renameat2 //= 4351;
 	$SYS_fstatfs = 4100;
+	$SYS_sendmsg = 4179;
+	$SYS_recvmsg = 4177;
 	$FS_IOC_GETFLAGS = 0x40046601;
 	$FS_IOC_SETFLAGS = 0x80046602;
     } else {
