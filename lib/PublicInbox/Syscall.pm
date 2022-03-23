@@ -15,7 +15,7 @@ package PublicInbox::Syscall;
 use strict;
 use v5.10.1;
 use parent qw(Exporter);
-use POSIX qw(ENOENT EEXIST ENOSYS EINVAL O_NONBLOCK);
+use POSIX qw(ENOENT ENOSYS EINVAL O_NONBLOCK);
 use Config;
 
 # $VERSION = '0.25'; # Sys::Syscall version
