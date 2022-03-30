@@ -83,7 +83,7 @@ sub anchor0 ($$$$) {
 	# long filenames will require us to check in anchor1()
 	push(@{$ctx->{-long_path}}, $fn) if $fn =~ s!\A\.\.\./?!!;
 
-	if (my $attr = to_attr($ctx->{-apfx}.$fn)) {
+	if (defined(my $attr = to_attr($ctx->{-apfx}.$fn))) {
 		$ctx->{-anchors}->{$attr} = 1;
 		my $spaces = ($orig =~ s/( +)\z//) ? $1 : '';
 		$$dst .= " <a\nid=i$attr\nhref=#$attr>" .
@@ -97,7 +97,7 @@ sub anchor0 ($$$$) {
 # returns "diff --git" anchor destination, undef otherwise
 sub anchor1 ($$) {
 	my ($ctx, $pb) = @_;
-	my $attr = to_attr($ctx->{-apfx}.$pb) or return;
+	my $attr = to_attr($ctx->{-apfx}.$pb) // return;
 
 	my $ok = delete $ctx->{-anchors}->{$attr};
 
@@ -105,10 +105,10 @@ sub anchor1 ($$) {
 	# assume diffstat and diff output follow the same order,
 	# and ignore different ordering (could be malicious input)
 	unless ($ok) {
-		my $fn = shift(@{$ctx->{-long_path}}) or return;
+		my $fn = shift(@{$ctx->{-long_path}}) // return;
 		$pb =~ /\Q$fn\E\z/s or return;
-		$attr = to_attr($ctx->{-apfx}.$fn) or return;
-		$ok = delete $ctx->{-anchors}->{$attr} or return;
+		$attr = to_attr($ctx->{-apfx}.$fn) // return;
+		$ok = delete $ctx->{-anchors}->{$attr} // return;
 	}
 	$ok ? "<a\nhref=#i$attr\nid=$attr>diff</a> --git" : undef
 }
