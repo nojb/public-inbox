@@ -159,3 +159,5 @@ all need to be considered for everything we introduce)
 * decode (skip indexing of) base-85 binary patches to avoid false-positives
 
 * support pipelining as an IMAP/NNTP client for -watch + lei
+
+* auto-detect and reload on TLS cert+key changes in daemons
