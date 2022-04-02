@@ -127,7 +127,7 @@ my $fds = $ENV{LISTEN_FDS};
 if ($fds && (($ENV{LISTEN_PID} || 0) == $$)) {
 	die "$0 can only listen on one FD\n" if $fds != 1;
 	my $start_fd = 3;
-	open(my $s, '<&=', $start_fd) or
+	my $s = IO::Socket->new_from_fd($start_fd, 'r') or
 		die "inherited bad FD from LISTEN_FDS: $!\n";
 	$milter->set_socket($s);
 } else {
