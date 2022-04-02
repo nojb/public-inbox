@@ -6,7 +6,7 @@ package PublicInbox::LeiMailSync;
 use strict;
 use v5.10.1;
 use parent qw(PublicInbox::Lock);
-use DBI;
+use DBI qw(:sql_types); # SQL_BLOB
 use PublicInbox::ContentHash qw(git_sha);
 use Carp ();
 
@@ -90,29 +90,55 @@ CREATE INDEX IF NOT EXISTS idx_fid_name ON blob2name(fid,name)
 
 }
 
+# used to fixup pre-1.7.0 folders
+sub update_fid ($$$) {
+	my ($dbh, $fid, $loc) = @_;
+	my $sth = $dbh->prepare(<<'');
+UPDATE folders SET loc = ? WHERE fid = ?
+
+	$sth->bind_param(1, $loc, SQL_BLOB);
+	$sth->bind_param(2, $fid);
+	$sth->execute;
+}
+
+sub get_fid ($$$) {
+	my ($sth, $folder, $dbh) = @_; # $dbh is set iff RW
+	$sth->bind_param(1, $folder, SQL_BLOB);
+	$sth->execute;
+	my ($fid) = $sth->fetchrow_array;
+	if (defined $fid) { # for downgrade+upgrade (1.8 -> 1.7 -> 1.8)
+		$dbh->do('DELETE FROM folders WHERE loc = ? AND fid != ?',
+			undef, $folder, $fid) if defined($dbh);
+	} else {
+		$sth->execute($folder); # fixup old stuff
+		($fid) = $sth->fetchrow_array;
+		update_fid($dbh, $fid, $folder) if defined($fid) && $dbh;
+	}
+	$fid;
+}
+
 sub fid_for {
 	my ($self, $folder, $rw) = @_;
 	my $dbh = $self->{dbh} //= dbh_new($self, $rw);
-	my $sel = 'SELECT fid FROM folders WHERE loc = ? LIMIT 1';
-	my ($fid) = $dbh->selectrow_array($sel, undef, $folder);
-	return $fid if defined $fid;
+	my $sth = $dbh->prepare_cached(<<'', undef, 1);
+SELECT fid FROM folders WHERE loc = ? LIMIT 1
+
+	my $rw_dbh = $rw ? $dbh : undef;
+	my $fid = get_fid($sth, $folder, $rw_dbh);
+	return $fid if defined($fid);
 
 	# caller had trailing slash (LeiToMail)
 	if ($folder =~ s!\A((?:maildir|mh):.*?)/+\z!$1!i) {
-		($fid) = $dbh->selectrow_array($sel, undef, $folder);
+		$fid = get_fid($sth, $folder, $rw_dbh);
 		if (defined $fid) {
-			$dbh->do(<<EOM, undef, $folder, $fid) if $rw;
-UPDATE folders SET loc = ? WHERE fid = ?
-EOM
+			update_fid($dbh, $fid, $folder) if $rw;
 			return $fid;
 		}
 	# sometimes we stored trailing slash..
 	} elsif ($folder =~ m!\A(?:maildir|mh):!i) {
-		($fid) = $dbh->selectrow_array($sel, undef, "$folder/");
+		$fid = get_fid($sth, $folder, $rw_dbh);
 		if (defined $fid) {
-			$dbh->do(<<EOM, undef, $folder, $fid) if $rw;
-UPDATE folders SET loc = ? WHERE fid = ?
-EOM
+			update_fid($dbh, $fid, $folder) if $rw;
 			return $fid;
 		}
 	} elsif ($rw && $folder =~ m!\Aimaps?://!i) {
@@ -129,8 +155,10 @@ EOM
 	$dbh->do('DELETE FROM blob2name WHERE fid = ?', undef, $fid);
 	$dbh->do('DELETE FROM blob2num WHERE fid = ?', undef, $fid);
 
-	my $sth = $dbh->prepare('INSERT INTO folders (fid, loc) VALUES (?, ?)');
-	$sth->execute($fid, $folder);
+	$sth = $dbh->prepare('INSERT INTO folders (fid, loc) VALUES (?, ?)');
+	$sth->bind_param(1, $fid);
+	$sth->bind_param(2, $folder, SQL_BLOB);
+	$sth->execute;
 
 	$fid;
 }
@@ -306,18 +334,17 @@ sub locations_for {
 sub folders {
 	my ($self, @pfx) = @_;
 	my $sql = 'SELECT loc FROM folders';
+	my $re;
 	if (defined($pfx[0])) {
-		$sql .= ' WHERE loc LIKE ? ESCAPE ?';
-		my $anywhere = !!$pfx[1];
-		$pfx[1] = '\\';
-		$pfx[0] =~ s/([%_\\])/\\$1/g; # glob chars
-		$pfx[0] .= '%';
-		substr($pfx[0], 0, 0, '%') if $anywhere;
-	} else {
-		@pfx = (); # [0] may've been undef
+		$sql .= ' WHERE loc REGEXP ?'; # DBD::SQLite uses perlre
+		$re = !!$pfx[1] ? '.*' : '';
+		$re .= quotemeta($pfx[0]);
+		$re .= '.*';
 	}
-	my $dbh = $self->{dbh} //= dbh_new($self);
-	map { $_->[0] } @{$dbh->selectall_arrayref($sql, undef, @pfx)};
+	my $sth = ($self->{dbh} //= dbh_new($self))->prepare($sql);
+	$sth->bind_param(1, $re) if defined($re);
+	$sth->execute;
+	map { $_->[0] } @{$sth->fetchall_arrayref};
 }
 
 sub local_blob {

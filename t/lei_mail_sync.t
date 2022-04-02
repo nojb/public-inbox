@@ -1,5 +1,5 @@
 #!perl -w
-# Copyright (C) 2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use v5.10.1;
@@ -19,6 +19,8 @@ my $deadbeef = "\xde\xad\xbe\xef";
 is($lms->set_src($deadbeef, $imap, 1), 1, 'set IMAP once');
 ok($lms->set_src($deadbeef, $imap, 1) == 0, 'set IMAP idempotently');
 is_deeply([$ro->folders], [$imap], 'IMAP folder added');
+note explain([$ro->folders($imap)]);
+note explain([$imap, [$ro->folders]]);
 is_deeply([$ro->folders($imap)], [$imap], 'IMAP folder with full GLOB');
 is_deeply([$ro->folders('imaps://bob@[::1]/INBOX')], [$imap],
 		'IMAP folder with partial GLOB');
@@ -37,6 +39,7 @@ is_deeply($ro->locations_for($deadbeef),
 
 if ('mess things up pretend old bug') {
 	$lms->lms_write_prepare;
+	diag "messing things up";
 	$lms->{dbh}->do('UPDATE folders SET loc = ? WHERE loc = ?', undef,
 			"$maildir/", $maildir);
 	ok(delete $lms->{fmap}, 'clear folder map');
