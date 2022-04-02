@@ -260,7 +260,6 @@ sub eml_entry {
 	} elsif ($mapping) {
 		my $nested = 'nested';
 		my $flat = 'flat';
-		my $end = '';
 		if ($ctx->{flat}) {
 			$hr = 1;
 			$flat = "<b>$flat</b>";
