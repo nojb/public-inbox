@@ -123,7 +123,7 @@ sub fid_for {
 	my $sth = $dbh->prepare_cached(<<'', undef, 1);
 SELECT fid FROM folders WHERE loc = ? LIMIT 1
 
-	my $rw_dbh = $rw ? $dbh : undef;
+	my $rw_dbh = $dbh->{ReadOnly} ? undef : $dbh;
 	my $fid = get_fid($sth, $folder, $rw_dbh);
 	return $fid if defined($fid);
 
@@ -173,36 +173,60 @@ sub set_src {
 	my ($self, $oidbin, $folder, $id) = @_;
 	my $lk = $self->lock_for_scope;
 	my $fid = $self->{fmap}->{$folder} //= fid_for($self, $folder, 1);
-	my $sth;
+	my $dbh = $self->{dbh};
+	my ($sth, @param3, $del_old);
 	if (ref($id)) { # scalar name
-		$id = $$id;
-		$sth = $self->{dbh}->prepare_cached(<<'');
+		@param3 = ($$id, SQL_BLOB);
+		$sth = $dbh->prepare_cached(<<'');
 INSERT OR IGNORE INTO blob2name (oidbin, fid, name) VALUES (?, ?, ?)
 
+		$del_old = $dbh->prepare_cached(<<'');
+DELETE FROM blob2name WHERE oidbin = ? AND fid = ? AND name = ?
+
 	} else { # numeric ID (IMAP UID, MH number)
-		$sth = $self->{dbh}->prepare_cached(<<'');
+		@param3 = ($id);
+		$sth = $dbh->prepare_cached(<<'');
 INSERT OR IGNORE INTO blob2num (oidbin, fid, uid) VALUES (?, ?, ?)
 
+		$del_old = $dbh->prepare_cached(<<'');
+DELETE FROM blob2num WHERE oidbin = ? AND fid = ? AND uid = ?
+
 	}
-	$sth->execute($oidbin, $fid, $id);
+	$sth->bind_param(1, $oidbin, SQL_BLOB);
+	$sth->bind_param(2, $fid);
+	$sth->bind_param(3, @param3);
+	my $ret = $sth->execute;
+	$del_old->execute($oidbin, $fid, $param3[0]);
+	$ret;
 }
 
 sub clear_src {
 	my ($self, $folder, $id) = @_;
 	my $lk = $self->lock_for_scope;
 	my $fid = $self->{fmap}->{$folder} //= fid_for($self, $folder, 1);
-	my $sth;
+	my ($sth, @param3);
 	if (ref($id)) { # scalar name
-		$id = $$id;
+		@param3 = ($$id, SQL_BLOB);
 		$sth = $self->{dbh}->prepare_cached(<<'');
 DELETE FROM blob2name WHERE fid = ? AND name = ?
 
 	} else {
+		@param3 = ($id);
 		$sth = $self->{dbh}->prepare_cached(<<'');
 DELETE FROM blob2num WHERE fid = ? AND uid = ?
 
 	}
-	$sth->execute($fid, $id);
+	$sth->bind_param(1, $fid);
+	$sth->bind_param(2, @param3);
+	my $ret = $sth->execute;
+
+	# older versions may not have used SQL_BLOB:
+	if (defined($ret) && $ret == 0 && scalar(@param3) == 2) {
+		$sth->bind_param(1, $fid);
+		$sth->bind_param(2, $param3[0]);
+		$ret = $sth->execute;
+	}
+	$ret;
 }
 
 # Maildir-only
@@ -215,13 +239,27 @@ sub mv_src {
 UPDATE blob2name SET name = ? WHERE fid = ? AND oidbin = ? AND name = ?
 
 	# eval since unique constraint may fail due to race
-	my $nr = eval { $sth->execute($newbn, $fid, $oidbin, $$id) };
+	$sth->bind_param(1, $newbn, SQL_BLOB);
+	$sth->bind_param(2, $fid);
+	$sth->bind_param(3, $oidbin, SQL_BLOB);
+	$sth->bind_param(4, $$id, SQL_BLOB);
+	my $nr = eval { $sth->execute };
 	if (!defined($nr) || $nr == 0) { # $nr may be `0E0'
+		# delete from old, pre-SQL_BLOB rows:
+		my $del_old = $self->{dbh}->prepare_cached(<<'');
+DELETE FROM blob2name WHERE fid = ? AND oidbin = ? AND name = ?
+
+		$del_old->execute($fid, $oidbin, $$id); # missing-OK
+		$del_old->execute($fid, $oidbin, $newbn); # ditto
+
 		# may race with a clear_src, ensure new value exists
 		$sth = $self->{dbh}->prepare_cached(<<'');
 INSERT OR IGNORE INTO blob2name (oidbin, fid, name) VALUES (?, ?, ?)
 
-		$sth->execute($oidbin, $fid, $newbn);
+		$sth->bind_param(1, $oidbin, SQL_BLOB);
+		$sth->bind_param(2, $fid);
+		$sth->bind_param(3, $newbn, SQL_BLOB);
+		$sth->execute;
 	}
 	$self->{dbh}->commit;
 }
@@ -301,18 +339,39 @@ SELECT $op(uid) FROM blob2num WHERE fid = ?
 # returns a { location => [ list-of-ids-or-names ] } mapping
 sub locations_for {
 	my ($self, $oidbin) = @_;
-	my ($fid, $sth, $id, %fid2id);
+	my ($fid, $sth, $id, %fid2id, %seen);
 	my $dbh = $self->{dbh} //= dbh_new($self);
 	$sth = $dbh->prepare('SELECT fid,uid FROM blob2num WHERE oidbin = ?');
-	$sth->execute($oidbin);
+	$sth->bind_param(1, $oidbin, SQL_BLOB);
+	$sth->execute;
 	while (my ($fid, $uid) = $sth->fetchrow_array) {
 		push @{$fid2id{$fid}}, $uid;
+		$seen{"$uid.$fid"} = 1;
 	}
-	$sth = $dbh->prepare('SELECT fid,name FROM blob2name WHERE oidbin = ?');
+
+	# deal with 1.7.0 DBs :<
 	$sth->execute($oidbin);
+	while (my ($fid, $uid) = $sth->fetchrow_array) {
+		next if $seen{"$uid.$fid"};
+		push @{$fid2id{$fid}}, $uid;
+	}
+
+	%seen = ();
+	$sth = $dbh->prepare('SELECT fid,name FROM blob2name WHERE oidbin = ?');
+	$sth->bind_param(1, $oidbin, SQL_BLOB);
+	$sth->execute;
 	while (my ($fid, $name) = $sth->fetchrow_array) {
 		push @{$fid2id{$fid}}, $name;
+		$seen{"$fid.$name"} = 1;
 	}
+
+	# deal with 1.7.0 DBs :<
+	$sth->execute($oidbin);
+	while (my ($fid, $name) = $sth->fetchrow_array) {
+		next if $seen{"$fid.$name"};
+		push @{$fid2id{$fid}}, $name;
+	}
+
 	$sth = $dbh->prepare('SELECT loc FROM folders WHERE fid = ? LIMIT 1');
 	my $ret = {};
 	while (my ($fid, $ids) = each %fid2id) {
@@ -355,7 +414,8 @@ SELECT f.loc,b.name FROM blob2name b
 LEFT JOIN folders f ON b.fid = f.fid
 WHERE b.oidbin = ?
 
-	$b2n->execute(pack('H*', $oidhex));
+	$b2n->bind_param(1, pack('H*', $oidhex), SQL_BLOB);
+	$b2n->execute;
 	while (my ($d, $n) = $b2n->fetchrow_array) {
 		substr($d, 0, length('maildir:')) = '';
 		# n.b. both mbsync and offlineimap use ":2," as a suffix
@@ -572,7 +632,8 @@ sub num_oidbin ($$$) {
 SELECT oidbin FROM blob2num WHERE fid = ? AND uid = ? ORDER BY _rowid_
 EOM
 	$sth->execute($fid, $uid);
-	map { $_->[0] } @{$sth->fetchall_arrayref};
+	my %uniq; # for public-inbox <= 1.7.0
+	grep { !$uniq{$_}++ } map { $_->[0] } @{$sth->fetchall_arrayref};
 }
 
 sub name_oidbin ($$$) {
@@ -581,8 +642,14 @@ sub name_oidbin ($$$) {
 	my $sth = $self->{dbh}->prepare_cached(<<EOM, undef, 1);
 SELECT oidbin FROM blob2name WHERE fid = ? AND name = ?
 EOM
+	$sth->bind_param(1, $fid);
+	$sth->bind_param(2, $nm, SQL_BLOB);
+	$sth->execute;
+	my @bin = map { $_->[0] } @{$sth->fetchall_arrayref};
 	$sth->execute($fid, $nm);
-	map { $_->[0] } @{$sth->fetchall_arrayref};
+	my @old = map { $_->[0] } @{$sth->fetchall_arrayref};
+	my %uniq; # for public-inbox <= 1.7.0
+	grep { !$uniq{$_}++ } (@bin, @old);
 }
 
 sub imap_oidhex {
