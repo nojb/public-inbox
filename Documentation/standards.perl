@@ -62,6 +62,10 @@ my $rfcs = [
 	# 8621 => JSON Meta Application Protocol (JMAP) for Mail
 	# ...
 
+	# examples/unsubscribe.milter and PublicInbox::Unsubscribe
+	2369 => 'URLs as Meta-Syntax for Core Mail List Commands',
+	8058 => 'Signaling One-Click Functionality for List Email Headers',
+
 	# TODO: flesh this out
 
 ];

@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# Copyright (C) 2016-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use Sendmail::PMilter qw(:all);
@@ -96,6 +96,7 @@ $cbs{eom} = sub {
 
 		my $unsub = $priv->{header}->{'list-unsubscribe'} || [];
 		my $n = 0;
+		my $added;
 		foreach my $u (@$unsub) {
 			# Milter indices are 1-based,
 			# not 0-based like Perl arrays
@@ -114,7 +115,11 @@ $cbs{eom} = sub {
 			$v .= ",\n <https://$domain/u/$u/$list>";
 
 			$ctx->chgheader($k, $index, $v);
+			$added = 1;
 		}
+		# RFC 8058
+		$added and $ctx->addheader('List-Unsubscribe-Post',
+					'List-Unsubscribe=One-Click');
 	};
 	warn $@ if $@;
 	SMFIS_CONTINUE;
