@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # Backend for `lei' (local email interface).  Unlike the C10K-oriented
@@ -1502,11 +1502,11 @@ sub git_oid {
 }
 
 sub lms {
-	my ($lei, $rw) = @_;
+	my ($lei, $creat) = @_;
 	my $sto = $lei->{sto} // _lei_store($lei) // return;
 	require PublicInbox::LeiMailSync;
 	my $f = "$sto->{priv_eidx}->{topdir}/mail_sync.sqlite3";
-	(-f $f || $rw) ? PublicInbox::LeiMailSync->new($f) : undef;
+	(-f $f || $creat) ? PublicInbox::LeiMailSync->new($f) : undef;
 }
 
 sub sto_done_request {

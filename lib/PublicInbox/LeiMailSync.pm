@@ -11,9 +11,9 @@ use PublicInbox::ContentHash qw(git_sha);
 use Carp ();
 
 sub dbh_new {
-	my ($self, $rw) = @_;
+	my ($self) = @_;
 	my $f = $self->{filename};
-	my $creat = $rw && !-s $f;
+	my $creat = !-s $f;
 	if ($creat) {
 		require PublicInbox::Syscall;
 		open my $fh, '+>>', $f or Carp::croak "open($f): $!";
@@ -23,11 +23,10 @@ sub dbh_new {
 		AutoCommit => 1,
 		RaiseError => 1,
 		PrintError => 0,
-		ReadOnly => !$rw,
 		sqlite_use_immediate_transaction => 1,
 	});
 	# no sqlite_unicode, here, all strings are binary
-	create_tables($self, $dbh) if $rw;
+	create_tables($self, $dbh);
 	$dbh->do('PRAGMA journal_mode = WAL') if $creat;
 	$dbh->do('PRAGMA case_sensitive_like = ON');
 	$dbh;
@@ -42,7 +41,7 @@ sub new {
 	}, $cls;
 }
 
-sub lms_write_prepare { ($_[0]->{dbh} //= dbh_new($_[0], 1)); $_[0] }
+sub lms_write_prepare { ($_[0]->{dbh} //= dbh_new($_[0])); $_[0] }
 
 sub lms_pause {
 	my ($self) = @_;
@@ -102,7 +101,7 @@ UPDATE folders SET loc = ? WHERE fid = ?
 }
 
 sub get_fid ($$$) {
-	my ($sth, $folder, $dbh) = @_; # $dbh is set iff RW
+	my ($sth, $folder, $dbh) = @_;
 	$sth->bind_param(1, $folder, SQL_BLOB);
 	$sth->execute;
 	my ($fid) = $sth->fetchrow_array;
@@ -118,36 +117,37 @@ sub get_fid ($$$) {
 }
 
 sub fid_for {
-	my ($self, $folder, $rw) = @_;
-	my $dbh = $self->{dbh} //= dbh_new($self, $rw);
+	my ($self, $folder, $creat) = @_;
+	my $dbh = $self->{dbh} //= dbh_new($self);
 	my $sth = $dbh->prepare_cached(<<'', undef, 1);
 SELECT fid FROM folders WHERE loc = ? LIMIT 1
 
-	my $rw_dbh = $dbh->{ReadOnly} ? undef : $dbh;
-	my $fid = get_fid($sth, $folder, $rw_dbh);
+	my $fid = get_fid($sth, $folder, $dbh);
 	return $fid if defined($fid);
 
 	# caller had trailing slash (LeiToMail)
 	if ($folder =~ s!\A((?:maildir|mh):.*?)/+\z!$1!i) {
-		$fid = get_fid($sth, $folder, $rw_dbh);
+		$fid = get_fid($sth, $folder, $dbh);
 		if (defined $fid) {
-			update_fid($dbh, $fid, $folder) if $rw;
+			update_fid($dbh, $fid, $folder);
 			return $fid;
 		}
 	# sometimes we stored trailing slash..
 	} elsif ($folder =~ m!\A(?:maildir|mh):!i) {
-		$fid = get_fid($sth, $folder, $rw_dbh);
+		$fid = get_fid($sth, $folder, $dbh);
 		if (defined $fid) {
-			update_fid($dbh, $fid, $folder) if $rw;
+			update_fid($dbh, $fid, $folder);
 			return $fid;
 		}
-	} elsif ($rw && $folder =~ m!\Aimaps?://!i) {
+	} elsif ($creat && $folder =~ m!\Aimaps?://!i) {
 		require PublicInbox::URIimap;
-		PublicInbox::URIimap->new($folder)->uidvalidity //
+		my $uri = PublicInbox::URIimap->new($folder);
+		$uri->uidvalidity //
 			Carp::croak("BUG: $folder has no UIDVALIDITY");
+		defined($uri->uid) and Carp::confess("BUG: $folder has UID");
 	}
-	return unless $rw;
 
+	return unless $creat;
 	($fid) = $dbh->selectrow_array('SELECT MAX(fid) FROM folders');
 
 	$fid += 1;

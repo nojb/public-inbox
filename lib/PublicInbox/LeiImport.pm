@@ -1,4 +1,4 @@
-# Copyright (C) 2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # front-end for the "lei import" sub-command
@@ -36,7 +36,7 @@ sub pmdir_cb { # called via wq_io_do from LeiPmdir->each_mdir_fn
 	my $kw = PublicInbox::MdirReader::flags2kw($fl);
 	substr($folder, 0, 0) = 'maildir:'; # add prefix
 	my $lse = $self->{lse} //= $self->{lei}->{sto}->search;
-	my $lms = $self->{-lms_ro} //= $self->{lei}->lms; # may be 0 or undef
+	my $lms = $self->{-lms_rw} //= $self->{lei}->lms; # may be 0 or undef
 	my @oidbin = $lms ? $lms->name_oidbin($folder, $bn) : ();
 	@oidbin > 1 and warn("W: $folder/*/$$bn not unique:\n",
 				map { "\t".unpack('H*', $_)."\n" } @oidbin);
@@ -87,8 +87,8 @@ sub do_import_index ($$@) {
 		# $j = $net->net_concurrency($j); TODO
 		if ($lei->{opt}->{incremental} // 1) {
 			$net->{incremental} = 1;
-			$net->{-lms_ro} = $lei->lms // 0;
-			if ($self->{-import_kw} && $net->{-lms_ro} &&
+			$net->{-lms_rw} = $lei->lms // 0;
+			if ($self->{-import_kw} && $net->{-lms_rw} &&
 					!$lei->{opt}->{'new-only'} &&
 					$net->{imap_order}) {
 				require PublicInbox::LeiImportKw;

@@ -1,4 +1,4 @@
-# Copyright (C) 2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # common reader code for IMAP and NNTP (and maybe JMAP)
@@ -481,7 +481,7 @@ sub itrk_last ($$;$$) {
 	my ($self, $uri, $r_uidval, $mic) = @_;
 	return (undef, undef, $r_uidval) unless $self->{incremental};
 	my ($itrk, $l_uid, $l_uidval);
-	if (defined(my $lms = $self->{-lms_ro})) { # LeiMailSync or 0
+	if (defined(my $lms = $self->{-lms_rw})) { # LeiMailSync or 0
 		$uri->uidvalidity($r_uidval) if defined $r_uidval;
 		if ($mic) {
 			my $auth = $mic->Authmechanism // '';

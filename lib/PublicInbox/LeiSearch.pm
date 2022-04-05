@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # read-only counterpart for PublicInbox::LeiStore
@@ -101,7 +101,7 @@ sub xoids_for {
 	my $git = $self->git;
 	my $xoids = {};
 	# no lms when used via {ale}:
-	my $lms = $self->{-lms_ro} //= lms($self) if defined($self->{topdir});
+	my $lms = $self->{-lms_rw} //= lms($self) if defined($self->{topdir});
 	for my $mid (@$mids) {
 		for my $o (@overs) {
 			my ($id, $prev);

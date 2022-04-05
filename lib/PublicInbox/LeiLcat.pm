@@ -1,4 +1,4 @@
-# Copyright (C) 2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # lcat: local cat, display a local message by Message-ID or blob,
@@ -13,7 +13,7 @@ use PublicInbox::MID qw($MID_EXTRACT);
 
 sub lcat_folder ($$;$$) {
 	my ($lei, $folder, $beg, $end) = @_;
-	my $lms = $lei->{-lms_ro} //= $lei->lms // return;
+	my $lms = $lei->{-lms_rw} //= $lei->lms // return;
 	my $folders = [ $folder ];
 	eval { $lms->arg2folder($lei, $folders) };
 	return $lei->child_error(0, "# unknown folder: $folder") if $@;
@@ -31,7 +31,7 @@ sub lcat_folder ($$;$$) {
 sub lcat_imap_uri ($$) {
 	my ($lei, $uri) = @_;
 	# cf. LeiXSearch->lcat_dump
-	my $lms = $lei->{-lms_ro} //= $lei->lms // return;
+	my $lms = $lei->{-lms_rw} //= $lei->lms // return;
 	if (defined $uri->uid) {
 		push @{$lei->{lcat_todo}}, $lms->imap_oidhex($lei, $uri);
 	} elsif (defined(my $fid = $lms->fid_for($$uri))) {
@@ -45,7 +45,7 @@ sub lcat_nntp_uri ($$) {
 	my ($lei, $uri) = @_;
 	my $mid = $uri->message; # already unescaped by URI::news
 	return "mid:$mid" if defined($mid);
-	my $lms = $lei->{-lms_ro} //= $lei->lms // return;
+	my $lms = $lei->{-lms_rw} //= $lei->lms // return;
 	my ($ng, $beg, $end) = $uri->group;
 	$uri->group($ng);
 	lcat_folder($lei, $$uri, $beg, $end);
@@ -118,7 +118,7 @@ could not extract Message-ID from $x
 
 		}
 	}
-	delete $lei->{-lms_ro};
+	delete $lei->{-lms_rw};
 	@q ? join(' OR ', @q) : $lei->fail("no Message-ID in: @argv");
 }
 

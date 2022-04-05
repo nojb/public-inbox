@@ -1,4 +1,4 @@
-# Copyright (C) 2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # WQ worker for dealing with LeiImport IMAP flags on already-imported messages
@@ -28,13 +28,13 @@ sub ipc_atfork_child {
 	$self->{verbose} = $lei->{opt}->{verbose};
 	$self->{lse} = $self->{sto}->search;
 	$self->{over} = $self->{lse}->over;
-	$self->{-lms_ro} = $net->{-lms_ro} || die 'BUG: net->{-lms_ro} FALSE';
+	$self->{-lms_rw} = $net->{-lms_rw} || die 'BUG: net->{-lms_rw} FALSE';
 	$self->SUPER::ipc_atfork_child;
 }
 
 sub ck_update_kw { # via wq_io_do
 	my ($self, $url, $uid, $kw) = @_;
-	my @oidbin = $self->{-lms_ro}->num_oidbin($url, $uid);
+	my @oidbin = $self->{-lms_rw}->num_oidbin($url, $uid);
 	my $uid_url = "$url/;UID=$uid";
 	@oidbin > 1 and warn("W: $uid_url not unique:\n",
 				map { "\t".unpack('H*', $_)."\n" } @oidbin);
