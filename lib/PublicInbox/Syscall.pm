@@ -418,6 +418,7 @@ sub CMSG_ALIGN ($) { ($_[0] + SIZEOF_size_t - 1) & ~(SIZEOF_size_t - 1) }
 use constant CMSG_ALIGN_SIZEOF_cmsghdr => CMSG_ALIGN(SIZEOF_cmsghdr);
 sub CMSG_SPACE ($) { CMSG_ALIGN($_[0]) + CMSG_ALIGN_SIZEOF_cmsghdr }
 sub CMSG_LEN ($) { CMSG_ALIGN_SIZEOF_cmsghdr + $_[0] }
+use constant msg_controllen => CMSG_SPACE(10 * SIZEOF_int) + 16; # 10 FDs
 
 if (defined($SYS_sendmsg) && defined($SYS_recvmsg)) {
 no warnings 'once';
@@ -457,7 +458,7 @@ no warnings 'once';
 *recv_cmd4 = sub ($$$) {
 	my ($sock, undef, $len) = @_;
 	vec($_[1], ($len + 1) * 8, 1) = 0;
-	vec(my $cmsghdr = '', 256 * 8 - 1, 1) = 1;
+	my $cmsghdr = "\0" x msg_controllen; # 10 * sizeof(int)
 	my $iov = pack('P'.TMPL_size_t, $_[1], $len);
 	my $mh = pack('PL' . # msg_name, msg_namelen (socklen_t (U32))
 			BYTES_4_hole . # 4-byte padding on 64-bit
@@ -468,7 +469,7 @@ no warnings 'once';
 			@BYTES_4_hole,
 			$iov, 1, # msg_iov, msg_iovlen
 			$cmsghdr, # msg_control
-			256, # msg_controllen
+			msg_controllen,
 			0); # msg_flags
 	my $r = syscall($SYS_recvmsg, fileno($sock), $mh, 0);
 	return (undef) if $r < 0; # $! set
