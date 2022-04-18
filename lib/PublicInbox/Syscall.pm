@@ -390,12 +390,10 @@ sub rename_noreplace ($$) {
 	}
 }
 
-sub nodatacow_fh {
-	return if !defined($SYS_fstatfs);
-	my $buf = '';
-	vec($buf, 120 * 8 - 1, 1) = 0;
+sub nodatacow_fh ($) {
 	my ($fh) = @_;
-	syscall($SYS_fstatfs, fileno($fh), $buf) == 0 or
+	my $buf = "\0" x 120;
+	syscall($SYS_fstatfs // return, fileno($fh), $buf) == 0 or
 		return warn("fstatfs: $!\n");
 	my $f_type = unpack('l!', $buf); # statfs.f_type is a signed word
 	return if $f_type != 0x9123683E; # BTRFS_SUPER_MAGIC
