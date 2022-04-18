@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # internal APIs used only for tests
@@ -19,7 +19,8 @@ BEGIN {
 		run_script start_script key2sub xsys xsys_e xqx eml_load tick
 		have_xapian_compact json_utf8 setup_public_inboxes create_inbox
 		tcp_host_port test_lei lei lei_ok $lei_out $lei_err $lei_opt
-		test_httpd xbail require_cmd is_xdeeply tail_f);
+		test_httpd xbail require_cmd is_xdeeply tail_f
+		ignore_inline_c_missing);
 	require Test::More;
 	my @methods = grep(!/\W/, @Test::More::EXPORT);
 	eval(join('', map { "*$_=\\&Test::More::$_;" } @methods));
@@ -547,6 +548,11 @@ sub is_xdeeply ($$$) {
 	$ok;
 }
 
+sub ignore_inline_c_missing {
+	$_[0] = join('', grep(/\S/, grep(!/compilation aborted/,
+		grep(!/\bInline\b/, split(/^/m, $_[0])))));
+}
+
 sub test_lei {
 SKIP: {
 	my ($cb) = pop @_;
@@ -571,8 +577,10 @@ SKIP: {
 	$ENV{LANG} = $ENV{LC_ALL} = 'C';
 	my (undef, $fn, $lineno) = caller(0);
 	my $t = "$fn:$lineno";
-	state $lei_daemon = PublicInbox::Spawn->can('send_cmd4') ||
-				eval { require Socket::MsgHdr; 1 };
+	state $lei_daemon = PublicInbox::Spawn->can('send_cmd4') || do {
+			require PublicInbox::Syscall;
+			PublicInbox::Syscall->can('send_cmd4');
+		} || eval { require Socket::MsgHdr; 1 };
 	unless ($lei_daemon) {
 		skip('Inline::C unconfigured/missing '.
 '(mkdir -p ~/.cache/public-inbox/inline-c) OR Socket::MsgHdr missing',

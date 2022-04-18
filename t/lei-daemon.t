@@ -1,5 +1,5 @@
 #!perl -w
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 use Socket qw(AF_UNIX SOCK_SEQPACKET MSG_EOR pack_sockaddr_un);
@@ -8,12 +8,16 @@ test_lei({ daemon_only => 1 }, sub {
 	my $send_cmd = PublicInbox::Spawn->can('send_cmd4') // do {
 		require PublicInbox::CmdIPC4;
 		PublicInbox::CmdIPC4->can('send_cmd4');
+	} // do {
+		require PublicInbox::Syscall;
+		PublicInbox::Syscall->can('send_cmd4');
 	};
 	$send_cmd or BAIL_OUT 'started testing lei-daemon w/o send_cmd4!';
 
 	my $sock = "$ENV{XDG_RUNTIME_DIR}/lei/5.seq.sock";
 	my $err_log = "$ENV{XDG_RUNTIME_DIR}/lei/errors.log";
 	lei_ok('daemon-pid');
+	ignore_inline_c_missing($lei_err);
 	is($lei_err, '', 'no error from daemon-pid');
 	like($lei_out, qr/\A[0-9]+\n\z/s, 'pid returned') or BAIL_OUT;
 	chomp(my $pid = $lei_out);

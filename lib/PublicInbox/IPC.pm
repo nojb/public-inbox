@@ -47,6 +47,10 @@ my $send_cmd = PublicInbox::Spawn->can('send_cmd4') // do {
 	require PublicInbox::CmdIPC4;
 	$recv_cmd //= PublicInbox::CmdIPC4->can('recv_cmd4');
 	PublicInbox::CmdIPC4->can('send_cmd4');
+} // do {
+	require PublicInbox::Syscall;
+	$recv_cmd //= PublicInbox::Syscall->can('recv_cmd4');
+	PublicInbox::Syscall->can('send_cmd4');
 };
 
 sub _get_rec ($) {

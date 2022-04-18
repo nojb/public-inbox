@@ -76,6 +76,7 @@ test_lei(sub {
 	my $config_file = "$home/.config/lei/config";
 	my $store_dir = "$home/.local/share/lei";
 	lei_ok 'ls-external', \'ls-external on fresh install';
+	ignore_inline_c_missing($lei_err);
 	is($lei_out.$lei_err, '', 'ls-external no output, yet');
 	ok(!-e $config_file && !-e $store_dir,
 		'nothing created by ls-external');

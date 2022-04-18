@@ -1277,6 +1277,9 @@ sub lazy_start {
 			require PublicInbox::CmdIPC4;
 			$send_cmd = PublicInbox::CmdIPC4->can('send_cmd4');
 			PublicInbox::CmdIPC4->can('recv_cmd4');
+		} // do {
+			$send_cmd = PublicInbox::Syscall->can('send_cmd4');
+			PublicInbox::Syscall->can('recv_cmd4');
 		};
 	}
 	$recv_cmd or die <<"";
