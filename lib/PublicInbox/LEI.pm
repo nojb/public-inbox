@@ -1149,6 +1149,7 @@ sub event_step {
 		if (scalar(@fds) == 1 && !defined($fds[0])) {
 			return if $! == EAGAIN;
 			die "recvmsg: $!" if $! != ECONNRESET;
+			$buf = '';
 			@fds = (); # for open loop below:
 		}
 		for (@fds) { open my $rfh, '+<&=', $_ }
