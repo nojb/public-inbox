@@ -106,12 +106,15 @@ sub get_fid ($$$) {
 	$sth->execute;
 	my ($fid) = $sth->fetchrow_array;
 	if (defined $fid) { # for downgrade+upgrade (1.8 -> 1.7 -> 1.8)
-		$dbh->do('DELETE FROM folders WHERE loc = ? AND fid != ?',
-			undef, $folder, $fid) if defined($dbh);
+		my $del = $dbh->prepare_cached(<<'');
+DELETE FROM folders WHERE loc = ? AND fid != ?
+
+		$del->execute($folder, $fid);
 	} else {
-		$sth->execute($folder); # fixup old stuff
+		$sth->bind_param(1, $folder, SQL_VARCHAR);
+		$sth->execute; # fixup old stuff
 		($fid) = $sth->fetchrow_array;
-		update_fid($dbh, $fid, $folder) if defined($fid) && $dbh;
+		update_fid($dbh, $fid, $folder) if defined($fid);
 	}
 	$fid;
 }
@@ -350,7 +353,8 @@ sub locations_for {
 	}
 
 	# deal with 1.7.0 DBs :<
-	$sth->execute($oidbin);
+	$sth->bind_param(1, $oidbin, SQL_VARCHAR);
+	$sth->execute;
 	while (my ($fid, $uid) = $sth->fetchrow_array) {
 		next if $seen{"$uid.$fid"};
 		push @{$fid2id{$fid}}, $uid;
@@ -366,7 +370,8 @@ sub locations_for {
 	}
 
 	# deal with 1.7.0 DBs :<
-	$sth->execute($oidbin);
+	$sth->bind_param(1, $oidbin, SQL_VARCHAR);
+	$sth->execute;
 	while (my ($fid, $name) = $sth->fetchrow_array) {
 		next if $seen{"$fid.$name"};
 		push @{$fid2id{$fid}}, $name;
@@ -646,7 +651,9 @@ EOM
 	$sth->bind_param(2, $nm, SQL_BLOB);
 	$sth->execute;
 	my @bin = map { $_->[0] } @{$sth->fetchall_arrayref};
-	$sth->execute($fid, $nm);
+	$sth->bind_param(1, $fid);
+	$sth->bind_param(2, $nm, SQL_VARCHAR);
+	$sth->execute;
 	my @old = map { $_->[0] } @{$sth->fetchall_arrayref};
 	my %uniq; # for public-inbox <= 1.7.0
 	grep { !$uniq{$_}++ } (@bin, @old);
