@@ -1,4 +1,4 @@
-# Copyright (C) 2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # WQ worker for dealing with parallel Maildir reads;
@@ -48,9 +48,7 @@ sub mdir_iter { # via wq_io_do
 }
 
 sub _lei_wq_eof { # EOF callback for main lei daemon
-	my ($lei) = @_;
-	my $pmd = delete $lei->{pmd} or return $lei->fail;
-	$lei->sto_done_request($pmd->{lei_sock});
+	$_[0]->wq_eof('pmd');
 }
 
 1;

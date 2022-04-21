@@ -660,6 +660,7 @@ sub wait_wq_events {
 	for my $wq (grep(defined, @$lei{qw(ikw pmd)})) { # auxiliary WQs
 		$wq->wq_close;
 	}
+	$wq1->{lei_sock} = $lei->{sock} if $wq1;
 	$op_c->{ops} = $ops;
 }
 
@@ -1405,9 +1406,11 @@ sub fchdir {
 }
 
 sub wq_eof { # EOF callback for main daemon
-	my ($lei) = @_;
+	my ($lei, $wq_fld) = @_;
 	local $current_lei = $lei;
-	delete $lei->{wq1} // return $lei->fail; # already failed
+	my $wq = delete $lei->{$wq_fld // 'wq1'};
+	$lei->sto_done_request($wq);
+	$wq // $lei->fail; # already failed
 }
 
 sub watch_state_ok ($) {
@@ -1514,8 +1517,10 @@ sub lms {
 }
 
 sub sto_done_request {
-	my ($lei, $sock) = @_;
+	my ($lei, $wq) = @_;
+	return unless $lei->{sto};
 	local $current_lei = $lei;
+	my $sock = $wq ? $wq->{lei_sock} : undef;
 	eval {
 		if ($sock //= $lei->{sock}) { # issue, async wait
 			$lei->{sto}->wq_io_do('done', [ $sock ]);

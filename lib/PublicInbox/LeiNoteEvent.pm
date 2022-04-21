@@ -114,9 +114,7 @@ sub ipc_atfork_child {
 }
 
 sub _lei_wq_eof { # EOF callback for main lei daemon
-	my ($lei) = @_;
-	my $lne = delete $lei->{lne} or return $lei->fail;
-	$lei->sto_done_request($lne->{lei_sock});
+	$_[0]->wq_eof('lne');
 }
 
 1;

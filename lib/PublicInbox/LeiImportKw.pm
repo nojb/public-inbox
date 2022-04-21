@@ -47,9 +47,7 @@ sub ck_update_kw { # via wq_io_do
 }
 
 sub _lei_wq_eof { # EOF callback for main lei daemon
-	my ($lei) = @_;
-	my $ikw = delete $lei->{ikw} or return $lei->fail;
-	$lei->sto_done_request($ikw->{lei_sock});
+	$_[0]->wq_eof('ikw');
 }
 
 1;
