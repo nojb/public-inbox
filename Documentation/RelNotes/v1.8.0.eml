@@ -1,12 +1,16 @@
+From: Eric Wong <e@80x24.org>
 To: meta@public-inbox.org
-Subject: [WIP] public-inbox 1.8.0
+Subject: [ANNOUNCE] public-inbox 1.8.0
+Date: Sat, 23 Apr 2022 08:22:59 +0000
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 Content-Disposition: inline
+Message-ID: <2022-04-23-public-inbox-1.8.0-released@finally>
 
 A minor release focused on bugfixes and minor improvements.
 Upgrades should happen transparently, but downgrading back to
-1.7.0 will likely cause problems for lei users.
+1.7.0 will likely cause problems for lei users (and only lei
+users).
 
 lei users may experience duplicate messages in Maildirs if attempting to
 downgrade from 1.8.0 to 1.7.x.  public-inbox-* tools are unaffected and
