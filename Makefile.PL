@@ -131,11 +131,16 @@ WriteMakefile(
 	NAME => 'PublicInbox', # n.b. camel-case is not our choice
 
 	# XXX drop "PENDING" in .pod before updating this!
-	VERSION => '1.8.0',
+	VERSION => '1.9.0.PENDING',
 
-	AUTHOR => 'Eric Wong <e@80x24.org>',
-	ABSTRACT => 'public-inbox server infrastructure',
+	AUTHOR => 'public-inbox hackers <meta@public-inbox.org>',
+	ABSTRACT => 'an "archives first" approach to mailing lists',
 	EXE_FILES => \@EXE_FILES,
+
+	# DO NOT blindly put "use v5.12" in *.pm files, unicode_strings
+	# causes known breakages.  "use v5.10.1" is safe, though
+	MIN_PERL_VERSION => '5.12.0',
+	LICENSE => 'agpl_3', # AGPL-3.0+, CPAN::Meta::Spec doesn't have '+'
 	PREREQ_PM => {
 		# note: we use spamc(1), NOT the Perl modules
 		# We also depend on git.
