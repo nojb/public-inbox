@@ -16,8 +16,7 @@
 # You may distribute under the terms of either the GNU General Public
 # License or the Artistic License, as specified in the Perl README file.
 package PublicInbox::Syscall;
-use strict;
-use v5.10.1;
+use v5.12;
 use parent qw(Exporter);
 use POSIX qw(ENOENT ENOSYS EINVAL O_NONBLOCK);
 use Socket qw(SOL_SOCKET SCM_RIGHTS);

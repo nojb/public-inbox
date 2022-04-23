@@ -5,8 +5,7 @@
 # first choice for script/lei front-end and 2nd choice for lei backend
 # libsocket-msghdr-perl is in Debian but not many other distros as of 2021.
 package PublicInbox::CmdIPC4;
-use strict;
-use v5.10.1;
+use v5.12;
 use Socket qw(SOL_SOCKET SCM_RIGHTS);
 BEGIN { eval {
 require Socket::MsgHdr; # XS

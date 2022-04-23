@@ -15,7 +15,7 @@
 # We don't want too many DSOs: https://udrepper.livejournal.com/8790.html
 
 package PublicInbox::Spawn;
-use strict;
+use v5.12;
 use parent qw(Exporter);
 use Symbol qw(gensym);
 use Fcntl qw(LOCK_EX SEEK_SET);

@@ -6,8 +6,7 @@
 # local clients with read/write access to the FS and use as many
 # system resources as the local user has access to.
 package PublicInbox::LEI;
-use strict;
-use v5.10.1;
+use v5.12;
 use parent qw(PublicInbox::DS PublicInbox::LeiExternal
 	PublicInbox::LeiQuery);
 use Getopt::Long ();
