@@ -1394,7 +1394,7 @@ sub wq_done_wait { # dwaitpid callback
 	local $current_lei = $lei;
 	my $err_type = $lei->{-err_type};
 	$? and $lei->child_error($?,
-			$err_type ? "$err_type errors during $lei->{cmd}" : ());
+		$err_type ? "$err_type errors during $lei->{cmd} \$?=$?" : ());
 	$lei->dclose;
 }
 
