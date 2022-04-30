@@ -73,6 +73,8 @@ lei mail_sync.sqlite3 uninitialized, see lei-import(1)
 EOM
 	if (defined(my $all = $lei->{opt}->{all})) {
 		$lms->group2folders($lei, $all, \@folders) or return;
+		# TODO: handle NNTP servers which delete messages
+		@folders = grep(!m!\Anntps?://!, @folders);
 	} else {
 		$lms->arg2folder($lei, \@folders); # may die
 	}
