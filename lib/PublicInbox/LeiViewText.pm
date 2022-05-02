@@ -1,4 +1,4 @@
-# Copyright (C) 2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # PublicInbox::Eml to (optionally colorized) text coverter for terminals
@@ -243,7 +243,7 @@ sub add_text_buf { # callback for Eml->each_part
 	my ($s, $err) = msg_part_text($part, $ct);
 	return attach_note($self, $ct, $p, $fn) unless defined $s;
 	hdr_buf($self, $part) if $part->{is_submsg};
-	$s =~ s/\r\n/\n/sg;
+	$s =~ s/\r+\n/\n/sg;
 	_xs($s);
 	my $diff = ($s =~ /^--- [^\n]+\n\+{3} [^\n]+\n@@ /ms);
 	my @sections = PublicInbox::MsgIter::split_quotes($s);
