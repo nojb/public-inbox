@@ -117,6 +117,8 @@ sub _complete_import {
 	my ($lei, @argv) = @_;
 	my ($re, $cur, $match_cb) = $lei->complete_url_prepare(\@argv);
 	my @k = $lei->url_folder_cache->keys($argv[-1] // undef, 1);
+	my @L = eval { $lei->_lei_store->search->all_terms('L') };
+	push(@k, map { "+L:$_" } @L);
 	my @m = map { $match_cb->($_) } @k;
 	my %f = map { $_ => 1 } (@m ? @m : @k);
 	if (my $lms = $lei->lms) {
