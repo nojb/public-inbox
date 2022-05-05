@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Contains common daemon code for the httpd, imapd, and nntpd servers
@@ -75,18 +75,34 @@ sub accept_tls_opt ($) {
 	{ SSL_server => 1, SSL_startHandshake => 0, SSL_reuse_ctx => $ctx };
 }
 
-sub daemon_prepare ($) {
-	my ($default_listen) = @_;
+sub load_mod ($) {
+	my ($scheme) = @_;
+	my $modc = "PublicInbox::\U$1";
+	my $mod = $modc.'D';
+	eval "require $mod"; # IMAPD|HTTPD|NNTPD|POP3D
+	die $@ if $@;
+	my %xn = map { $_ => $mod->can($_) } qw(refresh post_accept);
+	$xn{tlsd} = $mod->new if $mod->can('refresh_groups'); #!HTTPD
+	my $tlsd = $xn{tlsd};
+	$xn{refresh} //= sub { $tlsd->refresh_groups(@_) };
+	$xn{post_accept} //= sub { $modc->new($_[0], $tlsd) };
+	$xn{af_default} = 'httpready' if $modc eq 'PublicInbox::HTTP';
+	\%xn;
+}
+
+sub daemon_prepare ($$) {
+	my ($default_listen, $xnetd) = @_;
 	my $listener_names = {}; # sockname => IO::Handle
 	$oldset = PublicInbox::DS::block_signals();
 	@CMD = ($0, @ARGV);
 	my ($prog) = ($CMD[0] =~ m!([^/]+)\z!g);
+	my $dh = defined($default_listen) ? " (default: $default_listen)" : '';
 	my $help = <<EOF;
 usage: $prog [-l ADDRESS] [--cert=FILE] [--key=FILE]
 
 options:
 
-  -l ADDRESS    address to listen on (default: $default_listen)
+  -l ADDRESS    address to listen on$dh
   --cert=FILE   default SSL/TLS certificate
   --key=FILE    default SSL/TLS certificate
   -W WORKERS    number of worker processes to spawn (default: 1)
@@ -121,7 +137,10 @@ EOF
 	# ignore daemonize when inheriting
 	$daemonize = undef if scalar @listeners;
 
-	push @cfg_listen, $default_listen unless (@listeners || @cfg_listen);
+	unless (@listeners || @cfg_listen) {
+		$default_listen // die "no listeners specified\n";
+		push @cfg_listen, $default_listen
+	}
 
 	foreach my $l (@cfg_listen) {
 		my $orig = $l;
@@ -139,7 +158,8 @@ EOF
 		} elsif ($scheme =~ /\A(?:https|imaps|imaps)\z/) {
 			die "$orig specified w/o cert=\n";
 		}
-		# TODO: use scheme to load either NNTP.pm or HTTP.pm
+		$scheme =~ /\A(http|imap|nntp|pop3)/ and
+			$xnetd->{$l} = load_mod($1);
 
 		next if $listener_names->{$l}; # already inherited
 		my (%o, $sock_pkg);
@@ -585,14 +605,25 @@ sub defer_accept ($$) {
 	}
 }
 
-sub daemon_loop ($$$$) {
-	my ($refresh, $post_accept, $tlsd, $af_default) = @_;
+sub daemon_loop ($) {
+	my ($xnetd) = @_;
+	my $refresh = sub {
+		my ($sig) = @_;
+		for my $xn (values %$xnetd) {
+			eval { $xn->{refresh}->($sig) };
+			warn "refresh $@\n" if $@;
+		}
+	};
 	my %post_accept;
 	while (my ($k, $v) = each %tls_opt) {
-		if ($k =~ s!\A(?:https|imaps|nntps)://!!) {
-			$post_accept{$k} = tls_start_cb($v, $post_accept);
-		} elsif ($tlsd) { # STARTTLS, $k eq '' is OK
-			$tlsd->{accept_tls} = $v;
+		my $l = $k;
+		$l =~ s!\A([^:]+)://!!;
+		my $scheme = $1;
+		my $xn = $xnetd->{$l} // $xnetd->{''};
+		if ($scheme =~ s!\A(?:https|imaps|nntps)!!) {
+			$post_accept{$l} = tls_start_cb($v, $xn->{post_accept});
+		} elsif ($xn->{tlsd}) { # STARTTLS, $k eq '' is OK
+			$xn->{tlsd}->{accept_tls} = $v;
 		}
 	}
 	my $sig = {
@@ -620,22 +651,29 @@ sub daemon_loop ($$$$) {
 	$uid = $gid = undef;
 	reopen_logs();
 	@listeners = map {;
-		my $tls_cb = $post_accept{sockname($_)};
+		my $l = sockname($_);
+		my $tls_cb = $post_accept{$l};
+		my $xn = $xnetd->{$l} // $xnetd->{''};
 
 		# NNTPS, HTTPS, HTTP, IMAPS and POP3S are client-first traffic
 		# IMAP, NNTP and POP3 are server-first
-		defer_accept($_, $tls_cb ? 'dataready' : $af_default);
+		defer_accept($_, $tls_cb ? 'dataready' : $xn->{af_default});
 
 		# this calls epoll_create:
-		PublicInbox::Listener->new($_, $tls_cb || $post_accept)
+		PublicInbox::Listener->new($_, $tls_cb || $xn->{post_accept})
 	} @listeners;
 	PublicInbox::DS::event_loop($sig, $oldset);
 }
 
-sub run ($$$;$) {
-	my ($default, $refresh, $post_accept, $tlsd) = @_;
-	daemon_prepare($default);
-	my $af_default = $default =~ /:8080\z/ ? 'httpready' : undef;
+sub run {
+	my ($default_listen) = @_;
+	my $xnetd = {};
+	if ($default_listen) {
+		$default_listen =~ /\A(http|imap|nntp|pop3)/ or
+			die "BUG: $default_listen";
+		$xnetd->{''} = load_mod($1);
+	}
+	daemon_prepare($default_listen, $xnetd);
 	my $for_destroy = daemonize();
 
 	# localize GCF2C for tests:
@@ -643,7 +681,7 @@ sub run ($$$;$) {
 	local $PublicInbox::Git::async_warn = 1;
 	local $SIG{__WARN__} = PublicInbox::Eml::warn_ignore_cb();
 
-	daemon_loop($refresh, $post_accept, $tlsd, $af_default);
+	daemon_loop($xnetd);
 	PublicInbox::DS->Reset;
 	# ->DESTROY runs when $for_destroy goes out-of-scope
 }

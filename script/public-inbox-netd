@@ -1,8 +1,6 @@
-#!perl -w
+#!/usr/bin/perl -w
 # Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-#
-# Standalone read-only IMAP server for public-inbox.
 use v5.12;
 use PublicInbox::Daemon;
-PublicInbox::Daemon::run('imap://0.0.0.0:143');
+PublicInbox::Daemon::run();

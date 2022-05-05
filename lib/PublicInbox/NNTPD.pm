@@ -1,14 +1,15 @@
-# Copyright (C) 2016-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # represents an NNTPD (currently a singleton),
 # see script/public-inbox-nntpd for how it is used
 package PublicInbox::NNTPD;
 use strict;
-use warnings;
+use v5.10.1;
 use Sys::Hostname;
 use PublicInbox::Config;
 use PublicInbox::InboxIdle;
+use PublicInbox::NNTPdeflate; # loads PublicInbox::NNTP
 
 sub new {
 	my ($class) = @_;

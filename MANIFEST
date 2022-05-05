@@ -80,6 +80,7 @@ Documentation/public-inbox-index.pod
 Documentation/public-inbox-init.pod
 Documentation/public-inbox-learn.pod
 Documentation/public-inbox-mda.pod
+Documentation/public-inbox-netd.pod
 Documentation/public-inbox-nntpd.pod
 Documentation/public-inbox-overview.pod
 Documentation/public-inbox-purge.pod
@@ -363,6 +364,7 @@ script/public-inbox-index
 script/public-inbox-init
 script/public-inbox-learn
 script/public-inbox-mda
+script/public-inbox-netd
 script/public-inbox-nntpd
 script/public-inbox-purge
 script/public-inbox-watch
@@ -502,6 +504,7 @@ t/msgmap.t
 t/msgtime.t
 t/multi-mid.t
 t/net_reader-imap.t
+t/netd.t
 t/nntp.t
 t/nntpd-tls.t
 t/nntpd-v2.t

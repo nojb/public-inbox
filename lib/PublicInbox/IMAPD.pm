@@ -1,14 +1,15 @@
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # represents an IMAPD (currently a singleton),
 # see script/public-inbox-imapd for how it is used
 package PublicInbox::IMAPD;
 use strict;
+use v5.10.1;
 use PublicInbox::Config;
 use PublicInbox::ConfigIter;
 use PublicInbox::InboxIdle;
-use PublicInbox::IMAP;
+use PublicInbox::IMAPdeflate; # loads PublicInbox::IMAP
 use PublicInbox::DummyInbox;
 my $dummy = bless { uidvalidity => 0 }, 'PublicInbox::DummyInbox';
 

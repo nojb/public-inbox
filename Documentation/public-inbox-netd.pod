@@ -1,0 +1,81 @@
+=head1 NAME
+
+public-inbox-netd - read-only network daemon for sharing public-inboxes
+
+=head1 SYNOPSIS
+
+  public-inbox-netd [OPTIONS]
+
+=head1 DESCRIPTION
+
+public-inbox-netd provides a read-only HTTP/IMAP/NNTP/POP3 daemon for
+public-inbox.  It uses options and environment variables common
+to all L<public-inbox-daemon(8)> implementations.
+
+The default configuration will never require write access
+to the directory where the public-inbox is stored, so it
+may be run as a different user than the user running
+L<public-inbox-watch(1)>, L<public-inbox-mda(1)>, or
+L<git-fetch(1)>.
+
+=head1 OPTIONS
+
+See common options in L<public-inbox-daemon(8)/OPTIONS>.
+
+=over
+
+=item -l PROTO://ADDRESS/?cert=/path/to/cert,key=/path/to/key
+
+=item --listen PROTO://ADDRESS/?cert=/path/to/cert,key=/path/to/key
+
+In addition to the normal C<-l>/C<--listen> switch described in
+L<public-inbox-daemon(8)>, the protocol prefix (e.g. C<nntp://> or
+C<nntps://>) may be specified to force a given protocol.
+
+=item --cert /path/to/cert
+
+The default TLS certificate for optional TLS support
+if the C<cert> option is not given with C<--listen>.
+
+=item --key /path/to/key
+
+The default private TLS certificate key for optional TLS support
+if the C<key> option is not given with C<--listen>.  The private
+key may concatenated into the path used by C<--cert>, in which case this
+option is not needed.
+
+=back
+
+=head1 CONFIGURATION
+
+These configuration knobs should be used in the
+L<public-inbox-config(5)>.
+
+=over 8
+
+=item publicinbox.<name>.newsgroup
+
+=item publicinbox.nntpserver
+
+=back
+
+See L<public-inbox-config(5)> for documentation on them.
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>, and
+L<nntp://news.public-inbox.org/inbox.comp.mail.public-inbox.meta>,
+L<nntp://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/inbox.comp.mail.public-inbox.meta>
+
+=head1 COPYRIGHT
+
+Copyright all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<git(1)>, L<git-config(1)>, L<public-inbox-daemon(8)>,
+L<public-inbox-config(5)>
