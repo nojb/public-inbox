@@ -54,7 +54,7 @@ automatically gets STARTTLS support.
 
 The default private TLS certificate key for optional STARTTLS and IMAPS
 support if the C<key> option is not given with C<--listen>.  The private
-key may concatenated into the path used by C<--cert>, in which case this
+key may be concatenated into the path used by C<--cert>, in which case this
 option is not needed.
 
 =back

@@ -41,7 +41,7 @@ if the C<cert> option is not given with C<--listen>.
 
 The default private TLS certificate key for optional TLS support
 if the C<key> option is not given with C<--listen>.  The private
-key may concatenated into the path used by C<--cert>, in which case this
+key may be concatenated into the path used by C<--cert>, in which case this
 option is not needed.
 
 =back
