@@ -618,9 +618,9 @@ sub daemon_loop ($) {
 	while (my ($k, $v) = each %tls_opt) {
 		my $l = $k;
 		$l =~ s!\A([^:]+)://!!;
-		my $scheme = $1;
+		my $scheme = $1 // '';
 		my $xn = $xnetd->{$l} // $xnetd->{''};
-		if ($scheme =~ s!\A(?:https|imaps|nntps)!!) {
+		if ($scheme =~ m!\A(?:https|imaps|nntps)!) {
 			$post_accept{$l} = tls_start_cb($v, $xn->{post_accept});
 		} elsif ($xn->{tlsd}) { # STARTTLS, $k eq '' is OK
 			$xn->{tlsd}->{accept_tls} = $v;
