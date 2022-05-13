@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Each instance of this represents an IMAP client connected to
@@ -1151,15 +1151,6 @@ sub cmd_uid_search ($$$) {
 sub cmd_search ($$$;) {
 	my ($self, $tag, $query) = @_;
 	search_common($self, $tag, $query, 1);
-}
-
-sub args_ok ($$) { # duplicated from PublicInbox::NNTP
-	my ($cb, $argc) = @_;
-	my $tot = prototype $cb;
-	my ($nreq, undef) = split(';', $tot);
-	$nreq = ($nreq =~ tr/$//) - 1;
-	$tot = ($tot =~ tr/$//) - 1;
-	($argc <= $tot && $argc >= $nreq);
 }
 
 # returns 1 if we can continue, 0 if not due to buffered writes or disconnect
