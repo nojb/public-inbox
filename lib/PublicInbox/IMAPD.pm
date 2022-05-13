@@ -94,7 +94,7 @@ sub imapd_refresh_finalize {
 	}
 }
 
-sub imapd_refresh_step { # pi_cfg->iterate_start cb
+sub imapd_refresh_step { # PublicInbox::ConfigIter cb
 	my ($pi_cfg, $section, $imapd) = @_;
 	if (defined($section)) {
 		return if $section !~ m!\Apublicinbox\.([^/]+)\z!;
