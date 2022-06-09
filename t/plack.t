@@ -85,6 +85,7 @@ test_psgi($app, sub {
 	my ($cb) = @_;
 	my $res = $cb->(GET('http://example.com/test/crlf@example.com/'));
 	is($res->code, 200, 'retrieved CRLF as HTML');
+	like($res->content, qr/mailto:me\@example/, 'no %40, per RFC 6068');
 	unlike($res->content, qr/\r/, 'no CR in HTML');
 	$res = $cb->(GET('http://example.com/test/crlf@example.com/raw'));
 	is($res->code, 200, 'retrieved CRLF raw');

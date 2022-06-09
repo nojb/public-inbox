@@ -1,10 +1,10 @@
-# Copyright (C) 2014-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # For reply instructions and address generation in WWW UI
 package PublicInbox::Reply;
 use strict;
-use warnings;
+use v5.10.1;
 use URI::Escape qw/uri_escape_utf8/;
 use PublicInbox::Hval qw(ascii_html obfuscate_addrs mid_href);
 use PublicInbox::Address;
@@ -81,7 +81,6 @@ sub mailto_arg_link {
 		# no $subj for $href below
 	} else {
 		push @arg, "--to=$to";
-		$to = uri_escape_utf8($to);
 		$subj = uri_escape_utf8($subj);
 	}
 	my @cc = sort values %$cc;
@@ -105,6 +104,10 @@ sub mailto_arg_link {
 	# be made compatible; and address obfuscation is misguided,
 	# anyways.
 	return (\@arg, '', $reply_to_all) if $obfs;
+
+	# keep `@' instead of using `%40' for RFC 6068
+	utf8::encode($to);
+	$to =~ s!([^A-Za-z0-9\-\._~\@])!$URI::Escape::escapes{$1}!ge;
 
 	# order matters, Subject is the least important header,
 	# so it is last in case it's lost/truncated in a copy+paste
