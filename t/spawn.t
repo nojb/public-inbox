@@ -24,7 +24,18 @@ SKIP: {
 	is(waitpid($pid, 0), $pid, 'waitpid succeeds on spawned process');
 	is($?, 0, 'true exited successfully');
 	pipe(my ($r, $w)) or BAIL_OUT;
-	$pid = eval { spawn(['true'], undef, { pgid => 1, 2 => $w }) };
+
+	# Find invalid PID to try to join its process group.
+	my $wrong_pgid = 1;
+	for (my $i=0x7fffffff; $i >= 2; $i--) {
+		if (kill(0, $i) == 0) {
+			$wrong_pgid = $i;
+			last;
+		}
+	}
+
+	# Test spawn behavior when it can't join the requested process group.
+	$pid = eval { spawn(['true'], undef, { pgid => $wrong_pgid, 2 => $w }) };
 	close $w;
 	my $err = do { local $/; <$r> };
 	# diag "$err ($@)";
