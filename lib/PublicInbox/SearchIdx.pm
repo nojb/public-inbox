@@ -36,9 +36,8 @@ our $BATCH_BYTES = $ENV{XAPIAN_FLUSH_THRESHOLD} ? 0x7fffffff :
 	# assume a typical 64-bit system has 8x more RAM than a
 	# typical 32-bit system:
 	(($Config{ptrsize} >= 8 ? 8192 : 1024) * 1024);
-
 use constant DEBUG => !!$ENV{DEBUG};
-
+my $BASE85 = qr/\A[a-zA-Z0-9\!\#\$\%\&\(\)\*\+\-;<=>\?\@\^_`\{\|\}\~]+\z/;
 my $xapianlevels = qr/\A(?:full|medium)\z/;
 my $hex = '[a-f0-9]';
 my $OID = $hex .'{40,}';
@@ -258,21 +257,42 @@ sub index_diff ($$$) {
 	my ($self, $txt, $doc) = @_;
 	my %seen;
 	my $in_diff;
-	my @xnq;
-	my $xnq = \@xnq;
-	foreach (split(/\n/, $txt)) {
-		if ($in_diff && s/^ //) { # diff context
+	my $xnq = [];
+	my @l = split(/\n/, $$txt);
+	undef $$txt;
+	while (defined($_ = shift @l)) {
+		if ($in_diff && /^GIT binary patch/) {
+			push @$xnq, $_;
+			while (@l && $l[0] =~ /^literal /) {
+				# TODO allow searching by size range?
+				# allows searching by exact size via:
+				# "literal $SIZE"
+				push @$xnq, shift(@l);
+
+				# skip base85 and empty lines
+				while (@l && ($l[0] =~ /$BASE85/o ||
+						$l[0] !~ /\S/)) {
+					shift @l;
+				}
+				# loop hits trailing "literal 0\nHcmV?d00001\n"
+			}
+		} elsif ($in_diff && s/^ //) { # diff context
 			index_diff_inc($self, $_, 'XDFCTX', $xnq);
 		} elsif (/^-- $/) { # email signature begins
 			$in_diff = undef;
-		} elsif (m!^diff --git "?[^/]+/.+ "?[^/]+/.+\z!) {
-			# wait until "---" and "+++" to capture filenames
+		} elsif (m!^diff --git ("?[^/]+/.+) ("?[^/]+/.+)\z!) {
+			# capture filenames here for binary diffs:
+			my ($fa, $fb) = ($1, $2);
+			push @$xnq, $_;
 			$in_diff = 1;
-			push @xnq, $_;
+			$fa = (split(m'/', git_unquote($fa), 2))[1];
+			$fb = (split(m'/', git_unquote($fb), 2))[1];
+			$seen{$fa}++ or index_diff_inc($self, $fa, 'XDFN', $xnq);
+			$seen{$fb}++ or index_diff_inc($self, $fb, 'XDFN', $xnq);
 		# traditional diff:
 		} elsif (m/^diff -(.+) (\S+) (\S+)$/) {
 			my ($opt, $fa, $fb) = ($1, $2, $3);
-			push @xnq, $_;
+			push @$xnq, $_;
 			# only support unified:
 			next unless $opt =~ /[uU]/;
 			$in_diff = index_old_diff_fn($self, \%seen, $fa, $fb,
@@ -288,8 +308,8 @@ sub index_diff ($$$) {
 			$seen{$fn}++ or index_diff_inc($self, $fn, 'XDFN', $xnq);
 			$in_diff = 1;
 		} elsif (/^--- (\S+)/) {
-			$in_diff = $1;
-			push @xnq, $_;
+			$in_diff = $1; # old diff filename
+			push @$xnq, $_;
 		} elsif (defined $in_diff && /^\+\+\+ (\S+)/) {
 			$in_diff = index_old_diff_fn($self, \%seen, $in_diff,
 							$1, $xnq);
@@ -315,19 +335,19 @@ sub index_diff ($$$) {
 				/^(?:dis)?similarity index / ||
 				/^\\ No newline at end of file/ ||
 				/^Binary files .* differ/) {
-			push @xnq, $_;
+			push @$xnq, $_;
 		} elsif ($_ eq '') {
 			# possible to be in diff context, some mail may be
 			# stripped by MUA or even GNU diff(1).  "git apply"
 			# treats a bare "\n" as diff context, too
 		} else {
-			push @xnq, $_;
+			push @$xnq, $_;
 			warn "non-diff line: $_\n" if DEBUG && $_ ne '';
 			$in_diff = undef;
 		}
 	}
 
-	index_text($self, join("\n", @xnq), 1, 'XNQ');
+	index_text($self, join("\n", @$xnq), 1, 'XNQ');
 }
 
 sub index_xapian { # msg_iter callback
@@ -373,7 +393,7 @@ sub index_xapian { # msg_iter callback
 		} else {
 			# does it look like a diff?
 			if ($txt =~ /^(?:diff|---|\+\+\+) /ms) {
-				index_diff($self, $txt, $doc);
+				index_diff($self, \$txt, $doc);
 			} else {
 				index_text($self, $txt, 1, 'XNQ');
 			}

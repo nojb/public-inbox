@@ -533,6 +533,21 @@ $ibx->with_umask(sub {
 	is($query->('s:"mail header experiments"')->[0]->{mid},
 		'20200418222508.GA13918@dcvr',
 		'Subject search reaches inside message/rfc822');
+
+	$doc_id = $rw->add_message(eml_load('t/data/binary.patch'));
+	$rw->commit_txn_lazy;
+	$ibx->search->reopen;
+	my $res = $query->('HcmV');
+	is_deeply($res, [], 'no results against trailer');
+	$res = $query->('IcmZPo000310RR91');
+	is_deeply($res, [], 'no results against 1-byte binary patch');
+	$res = $query->('"GIT binary patch"');
+	is(scalar(@$res), 1, 'got binary result from "GIT binary patch"');
+	is($res->[0]->{mid}, 'binary-patch-test@example', 'msgid for binary');
+	my $s = $query->('"literal 1"');
+	is_deeply($s, $res, 'got binary result from exact literal size');
+	$s = $query->('"literal 2"');
+	is_deeply($s, [], 'no results for wrong size');
 });
 
 SKIP: {

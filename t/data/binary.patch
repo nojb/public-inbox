@@ -1,0 +1,20 @@
+From 7a1921ba7bd99c63ad6dc6ec0791691ee80e279a Mon Sep 17 00:00:00 2001
+From: BOFH <bofh@example.com>
+Date: Fri, 13 May 2022 23:04:14 +0000
+Subject: [PATCH] binary patch test
+Message-ID: <binary-patch-test@example>
+
+---
+ zero | Bin 0 -> 1 bytes
+ 1 file changed, 0 insertions(+), 0 deletions(-)
+ create mode 100644 zero
+
+diff --git a/zero b/zero
+new file mode 100644
+index 0000000000000000000000000000000000000000..f76dd238ade08917e6712764a16a22005a50573d
+GIT binary patch
+literal 1
+IcmZPo000310RR91
+
+literal 0
+HcmV?d00001
