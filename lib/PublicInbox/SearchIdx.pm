@@ -236,8 +236,8 @@ sub index_old_diff_fn {
 
 	# no renames or space support for traditional diffs,
 	# find the number of leading common paths to strip:
-	my @fa = split('/', $fa);
-	my @fb = split('/', $fb);
+	my @fa = split(m'/', $fa);
+	my @fb = split(m'/', $fb);
 	while (scalar(@fa) && scalar(@fb)) {
 		$fa = join('/', @fa);
 		$fb = join('/', @fb);
@@ -278,12 +278,12 @@ sub index_diff ($$$) {
 							$xnq);
 		} elsif (m!^--- ("?[^/]+/.+)!) {
 			my $fn = $1;
-			$fn = (split('/', git_unquote($fn), 2))[1];
+			$fn = (split(m'/', git_unquote($fn), 2))[1];
 			$seen{$fn}++ or index_diff_inc($self, $fn, 'XDFN', $xnq);
 			$in_diff = 1;
 		} elsif (m!^\+\+\+ ("?[^/]+/.+)!)  {
 			my $fn = $1;
-			$fn = (split('/', git_unquote($fn), 2))[1];
+			$fn = (split(m'/', git_unquote($fn), 2))[1];
 			$seen{$fn}++ or index_diff_inc($self, $fn, 'XDFN', $xnq);
 			$in_diff = 1;
 		} elsif (/^--- (\S+)/) {
