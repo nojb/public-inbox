@@ -1,7 +1,8 @@
-# Copyright (C) 2018-2021 all contributors <meta@public-inbox.org>
+#!perl -w
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
+use v5.10.1;
 use strict;
-use warnings;
 use Test::More;
 use Fcntl qw(SEEK_SET);
 use Cwd;
@@ -88,6 +89,11 @@ is($eml->as_string, $mime->as_string, 'injected message');
 	$pre = $ibx->search->mset_to_smsg($ibx, $pre);
 	$post = $ibx->search->mset_to_smsg($ibx, $post);
 	is($post->[0]->{blob}, $pre->[0]->{blob}, 'same message in both cases');
+
+	# git patch-id --stable <t/data/0001.patch | awk '{print $1}'
+	my $patchid = '91ee6b761fc7f47cad9f2b09b10489f313eb5b71';
+	my $mset = $ibx->search->mset("patchid:$patchid");
+	is($mset->size, 1, 'patchid search works');
 }
 
 done_testing();

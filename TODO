@@ -137,9 +137,6 @@ all need to be considered for everything we introduce)
 * make "git cat-file --batch" detect unlinked packfiles so we don't
   have to restart processes (very long-term)
 
-* support searching based on `git-patch-id --stable` to improve
-  bidirectional mapping of commits <=> emails
-
 * linter to check validity of config file
 
 * linter option and WWW endpoint to graph relationships and flows

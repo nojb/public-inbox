@@ -18,6 +18,7 @@ use PublicInbox::MsgIter;
 use PublicInbox::IdxStack;
 use Carp qw(croak carp);
 use POSIX qw(strftime);
+use Fcntl qw(SEEK_SET);
 use Time::Local qw(timegm);
 use PublicInbox::OverIdx;
 use PublicInbox::Spawn qw(spawn);
@@ -348,6 +349,20 @@ sub index_xapian { # msg_iter callback
 	my ($s, undef) = msg_part_text($part, $ct);
 	defined $s or return;
 	$_[0]->[0] = $part = undef; # free memory
+
+	if ($s =~ /^(?:diff|---|\+\+\+) /ms) {
+		open(my $fh, '+>:utf8', undef) or die "open: $!";
+		open(my $eh, '+>', undef) or die "open: $!";
+		$fh->autoflush(1);
+		print $fh $s or die "print: $!";
+		sysseek($fh, 0, SEEK_SET) or die "sysseek: $!";
+		my $id = ($self->{ibx} // $self->{eidx})->git->qx(
+						[qw(patch-id --stable)],
+						{}, { 0 => $fh, 2 => $eh });
+		$id =~ /\A([a-f0-9]{40,})/ and $doc->add_term('XDFID'.$1);
+		seek($eh, 0, SEEK_SET) or die "seek: $!";
+		while (<$eh>) { warn $_ }
+	}
 
 	# split off quoted and unquoted blocks:
 	my @sections = PublicInbox::MsgIter::split_quotes($s);

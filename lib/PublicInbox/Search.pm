@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 # based on notmuch, but with no concept of folders, files or flags
 #
@@ -118,9 +118,10 @@ my %bool_pfx_external = (
 	dfpre => 'XDFPRE',
 	dfpost => 'XDFPOST',
 	dfblob => 'XDFPRE XDFPOST',
+	patchid => 'XDFID',
 );
 
-my $non_quoted_body = 'XNQ XDFN XDFA XDFB XDFHH XDFCTX XDFPRE XDFPOST';
+my $non_quoted_body = 'XNQ XDFN XDFA XDFB XDFHH XDFCTX XDFPRE XDFPOST XDFID';
 my %prob_prefix = (
 	# for mairix compatibility
 	s => 'S',

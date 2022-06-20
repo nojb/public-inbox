@@ -314,7 +314,12 @@ if ('reindex catches missed messages') {
 	is($new->{subject}, $eml->header('Subject'), 'new message added');
 
 	$es->{xdb}->reopen;
-	my $mset = $es->mset("mid:$new->{mid}");
+	# git patch-id --stable <t/data/0001.patch | awk '{print $1}'
+	my $patchid = '91ee6b761fc7f47cad9f2b09b10489f313eb5b71';
+	my $mset = $es->search->mset("patchid:$patchid");
+	is($mset->size, 1, 'patchid search works');
+
+	$mset = $es->mset("mid:$new->{mid}");
 	is($mset->size, 1, 'previously unseen, now indexed in Xapian');
 
 	ok($im->remove($eml), 'remove new message from v2 inbox');
