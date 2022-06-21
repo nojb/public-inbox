@@ -179,6 +179,7 @@ EOF
 	'dfpre:' => 'match pre-image git blob ID',
 	'dfpost:' => 'match post-image git blob ID',
 	'dfblob:' => 'match either pre or post-image git blob ID',
+	'patchid:' => "match `git patch-id --stable' output",
 	'rt:' => <<EOF,
 match received time, like `d:' if sender's clock was correct
 EOF
