@@ -167,7 +167,7 @@ sub order_children {
 	while (defined($cur = shift @q)) {
 		# the {children} hashref here...
 		my @c = grep { !$seen{$_}++ && visible($_, $ibx) }
-			values %{$cur->{children}};
+			values %{delete $cur->{children}};
 		$ordersub->(\@c) if scalar(@c) > 1;
 		$cur->{children} = \@c; # ...becomes an arrayref
 		push @q, @c;
