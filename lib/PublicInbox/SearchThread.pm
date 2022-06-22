@@ -38,13 +38,13 @@ sub thread {
 		# TODO: move this to a more appropriate place, breaks tests
 		# if we do it during psgi_cull
 		delete $_->{num};
-
-		PublicInbox::SearchThread::Msg::cast($_);
+		bless $_, 'PublicInbox::SearchThread::Msg';
 		if (exists $id_table{$_->{mid}}) {
 			$_->{children} = [];
 			push @imposters, $_; # we'll deal with them later
 			undef;
 		} else {
+			$_->{children} = {}; # will become arrayref later
 			$id_table{$_->{mid}} = $_;
 			defined($_->{references});
 		}
@@ -106,13 +106,6 @@ sub ghost {
 		mid => $_[0],
 		children => {}, # becomes an array when sorted by ->order(...)
 	}, __PACKAGE__;
-}
-
-# give a existing smsg the methods of this class
-sub cast {
-	my ($smsg) = @_;
-	$smsg->{children} = {};
-	bless $smsg, __PACKAGE__;
 }
 
 sub topmost {
