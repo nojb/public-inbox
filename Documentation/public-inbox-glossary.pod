@@ -41,7 +41,7 @@ RFC-(822|2822|5322) email message.
 =item IMAP EMAILID, JMAP Email Id
 
 To-be-decided.  This will likely be the git blob ID prefixed with C<g>
-rather than the numeric UID to accomodate the same blob showing
+rather than the numeric UID to accommodate the same blob showing
 up in both an extindex and inbox (or multiple extindices).
 
 =item newsgroup
@@ -50,7 +50,7 @@ The name of the NNTP newsgroup, see L<public-inbox-config(5)>.
 
 =item IMAP (folder|mailbox) slice
 
-A 50K slice of a newsgroup to accomodate the limitations of IMAP
+A 50K slice of a newsgroup to accommodate the limitations of IMAP
 clients with L<public-inbox-imapd(1)>.  This is the C<newsgroup>
 name with a C<.$INTEGER_SUFFIX>, e.g. a newsgroup named C<inbox.test>
 would have its first slice named C<inbox.test.0>, and second slice
