@@ -13,7 +13,7 @@ deterministically release memory back to the heap.
 
 We start with a simple data model with few circular
 references.  This both eases human understanding and reduces
-the likelyhood of bugs.
+the likelihood of bugs.
 
 Knowing the relative sizes and quantities of our data
 structures, we limit the scope of allocations as much as

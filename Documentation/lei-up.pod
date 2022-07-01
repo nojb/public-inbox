@@ -26,7 +26,7 @@ updates remote mailboxes (currently C<imap://> and C<imaps://>).
 
 Look for mail older than the time of the last successful query.
 Using a small interval will reduce bandwidth use.  A larger
-interval reduces the likelyhood of missing a result due to MTA
+interval reduces the likelihood of missing a result due to MTA
 delays or downtime.
 
 The time(s) of the last successful queries are the C<lastresult>

@@ -185,7 +185,7 @@ sub _complete_q {
 # FIXME: Getopt::Long doesn't easily let us support support options with
 # '.' in them (e.g. --http1.1)
 # TODO: should we depend on "-c http.*" options for things which have
-# analogues in git(1)? that would reduce likelyhood of conflicts with
+# analogues in git(1)? that would reduce likelihood of conflicts with
 # our other CLI options
 # Note: some names are renamed to avoid potential conflicts,
 # see %lei2curl in lib/PublicInbox/LeiCurl.pm
