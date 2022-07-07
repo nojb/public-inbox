@@ -285,7 +285,7 @@ sub each_remote_eml { # callback for MboxReader->mboxrd
 		my ($res, $kw) = $self->{import_sto}->wq_do('add_eml', $eml);
 		if (ref($res) eq ref($smsg)) { # totally new message
 			$smsg = $res;
-			$self->{-imported} = 1;
+			$self->{-sto_imported} = 1;
 		}
 		$smsg->{kw} = $kw; # short-circuit xsmsg_vmd
 	}
@@ -376,7 +376,7 @@ sub query_remote_mboxrd {
 		$fh = IO::Uncompress::Gunzip->new($fh, MultiStream => 1);
 		PublicInbox::MboxReader->mboxrd($fh, \&each_remote_eml, $self,
 						$lei, $each_smsg);
-		if ($self->{import_sto} && delete($self->{-imported})) {
+		if (delete($self->{-sto_imported})) {
 			my $wait = $self->{import_sto}->wq_do('done');
 		}
 		$reap_curl->join;
