@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # Writes PublicInbox::Eml objects atomically to a mbox variant or Maildir
@@ -197,6 +197,7 @@ sub _mbox_write_cb ($$) {
 	sub { # for git_to_mail
 		my ($buf, $smsg, $eml) = @_;
 		$eml //= PublicInbox::Eml->new($buf);
+		++$lei->{-nr_seen};
 		return if $dedupe->is_dup($eml, $smsg);
 		$lse->xsmsg_vmd($smsg) if $lse;
 		$smsg->{-recent} = 1 if $set_recent;
@@ -291,6 +292,8 @@ sub _maildir_write_cb ($$) {
 	sub { # for git_to_mail
 		my ($bref, $smsg, $eml) = @_;
 		$dst // return $lei->fail; # dst may be undef-ed in last run
+
+		++$lei->{-nr_seen};
 		return if $dedupe && $dedupe->is_dup($eml //
 						PublicInbox::Eml->new($$bref),
 						$smsg);
@@ -317,6 +320,8 @@ sub _imap_write_cb ($$) {
 	sub { # for git_to_mail
 		my ($bref, $smsg, $eml) = @_;
 		$mic // return $lei->fail; # mic may be undef-ed in last run
+
+		++$lei->{-nr_seen};
 		return if $dedupe && $dedupe->is_dup($eml //
 						PublicInbox::Eml->new($$bref),
 						$smsg);
@@ -360,6 +365,7 @@ sub _v2_write_cb ($$) {
 	sub { # for git_to_mail
 		my ($bref, $smsg, $eml) = @_;
 		$eml //= PublicInbox::Eml->new($bref);
+		++$lei->{-nr_seen};
 		return if $dedupe && $dedupe->is_dup($eml, $smsg);
 		$lei->{v2w}->wq_do('add', $eml); # V2Writable->add
 		++$lei->{-nr_write};
@@ -792,9 +798,10 @@ sub wq_atexit_child {
 	my $lei = $self->{lei};
 	delete $self->{wcb};
 	$lei->{ale}->git->async_wait_all;
-	my $nr = delete($lei->{-nr_write}) or return;
+	my ($nr_w, $nr_s) = delete(@$lei{qw(-nr_write -nr_seen)});
+	$nr_s or return;
 	return if $lei->{early_mua} || !$lei->{-progress} || !$lei->{pkt_op_p};
-	$lei->{pkt_op_p}->pkt_do('l2m_progress', $nr);
+	$lei->{pkt_op_p}->pkt_do('l2m_progress', $nr_w, $nr_s);
 }
 
 # runs on a 1s timer in lei-daemon

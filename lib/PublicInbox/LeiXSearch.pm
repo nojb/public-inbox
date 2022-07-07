@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # Combine any combination of PublicInbox::Search,
@@ -163,8 +163,9 @@ sub mset_progress {
 }
 
 sub l2m_progress {
-	my ($lei, $nr) = @_;
-	$lei->{-nr_write} += $nr;
+	my ($lei, $nr_write, $nr_seen) = @_;
+	$lei->{-nr_write} += $nr_write;
+	$lei->{-nr_seen} += $nr_seen;
 }
 
 sub query_one_mset { # for --threads and l2m w/o sort
@@ -447,13 +448,16 @@ Error closing $lei->{ovv}->{dst}: \$!=$! \$?=$?
 		}
 		if ($lei->{-progress}) {
 			my $tot = $lei->{-mset_total} // 0;
-			my $nr = $lei->{-nr_write} // 0;
+			my $nr_w = $lei->{-nr_write} // 0;
+			my $d = ($lei->{-nr_seen} // 0) - $nr_w;
+			my $x = "$tot matches";
+			$x .= ", $d duplicates" if $d;
 			if ($l2m) {
-				my $m = "# $nr written to " .
-					"$lei->{ovv}->{dst} ($tot matches)";
-				$nr ? $lei->qfin($m) : $lei->qerr($m);
+				my $m = "# $nr_w written to " .
+					"$lei->{ovv}->{dst} ($x)";
+				$nr_w ? $lei->qfin($m) : $lei->qerr($m);
 			} else {
-				$lei->qerr("# $tot matches");
+				$lei->qerr("# $x");
 			}
 		}
 		$lei->start_mua if $l2m && !$l2m->lock_free;

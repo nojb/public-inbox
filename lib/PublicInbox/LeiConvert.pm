@@ -1,4 +1,4 @@
-# Copyright (C) 2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # front-end for the "lei convert" sub-command
@@ -35,8 +35,10 @@ sub process_inputs { # via wq_do
 	my $lei = $self->{lei};
 	delete $lei->{1};
 	delete $self->{wcb}; # commit
-	my $nr = delete($lei->{-nr_write}) // 0;
-	$lei->qerr("# converted $nr messages");
+	my $nr_w = delete($lei->{-nr_write}) // 0;
+	my $d = (delete($lei->{-nr_seen}) // 0) - $nr_w;
+	$d = $d ? " ($d duplicates)" : '';
+	$lei->qerr("# converted $nr_w messages$d");
 }
 
 sub lei_convert { # the main "lei convert" method
