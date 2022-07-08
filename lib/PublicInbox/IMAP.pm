@@ -399,7 +399,8 @@ sub inbox_lookup ($$;$) {
 			$self->{ibx} = $ibx;
 			$self->{uo2m} = uo2m_ary_new($self, \$exists);
 		} else {
-			$exists = $over->imap_exists;
+			my $uid_end = $uid_base + UID_SLICE;
+			$exists = $over->imap_exists($uid_base, $uid_end);
 		}
 		ensure_slices_exist($self->{imapd}, $ibx, $over->max);
 	} else {

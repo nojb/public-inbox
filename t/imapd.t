@@ -1,5 +1,5 @@
 #!perl -w
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 # end-to-end IMAP tests, see unit tests in t/imap.t, too
 use strict;
@@ -99,7 +99,8 @@ ok($mic->examine($mailbox1), 'EXAMINE succeeds');
 my @raw = $mic->status($mailbox1, qw(Messages uidnext uidvalidity));
 is(scalar(@raw), 2, 'got status response');
 like($raw[0], qr/\A\*\x20STATUS\x20inbox\.i1\.$first_range\x20
-	\(MESSAGES\x20\d+\x20UIDNEXT\x20\d+\x20UIDVALIDITY\x20\d+\)\r\n/sx);
+	\(MESSAGES\x20[1-9][0-9]*\x20
+	UIDNEXT\x20\d+\x20UIDVALIDITY\x20\d+\)\r\n/sx);
 like($raw[1], qr/\A\S+ OK /, 'finished status response');
 
 my @orig_list = @raw = $mic->list;
