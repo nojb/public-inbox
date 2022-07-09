@@ -378,7 +378,7 @@ sub wait_for_tail {
 		my @ino;
 		do {
 			@ino = grep {
-				readlink($_) =~ /\binotify\b/
+				(readlink($_) // '') =~ /\binotify\b/
 			} glob("/proc/$tail_pid/fd/*");
 		} while (!@ino && time <= $end and tick);
 		return if !@ino;
