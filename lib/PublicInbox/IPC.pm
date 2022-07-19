@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # base class for remote IPC calls and workqueues, requires Storable or Sereal
@@ -43,7 +43,7 @@ if ($enc && $dec) { # should be custom ops
 }
 
 my $recv_cmd = PublicInbox::Spawn->can('recv_cmd4');
-my $send_cmd = PublicInbox::Spawn->can('send_cmd4') // do {
+our $send_cmd = PublicInbox::Spawn->can('send_cmd4') // do {
 	require PublicInbox::CmdIPC4;
 	$recv_cmd //= PublicInbox::CmdIPC4->can('recv_cmd4');
 	PublicInbox::CmdIPC4->can('send_cmd4');
@@ -348,6 +348,24 @@ sub wq_do {
 	}
 }
 
+sub prepare_nonblock {
+	($_[0]->{-wq_s1} // die 'BUG: no {-wq_s1}')->blocking(0);
+	$_[0]->{-reap_async} or die 'BUG: {-reap_async} needed for nonblock';
+	require PublicInbox::WQBlocked;
+}
+
+sub wq_nonblock_do { # always async
+	my ($self, $sub, @args) = @_;
+	my $buf = ipc_freeze([$sub, @args]);
+	if ($self->{wqb}) { # saturated once, assume saturated forever
+		$self->{wqb}->flush_send($buf);
+	} else {
+		$send_cmd->($self->{-wq_s1}, [], $buf, MSG_EOR) //
+			($!{EAGAIN} ? PublicInbox::WQBlocked->new($self, $buf)
+					: croak("sendmsg: $!"));
+	}
+}
+
 sub _wq_worker_start ($$$$) {
 	my ($self, $oldset, $fields, $one) = @_;
 	my ($bcast1, $bcast2);
@@ -405,6 +423,10 @@ sub wq_workers_start {
 
 sub wq_close {
 	my ($self) = @_;
+	if (my $wqb = delete $self->{wqb}) {
+		$self->{-reap_async} or die 'BUG: {-reap_async} unset';
+		$wqb->enq_close;
+	}
 	delete @$self{qw(-wq_s1 -wq_s2)} or return;
 	return if $self->{-reap_async};
 	my @pids = keys %{$self->{-wq_workers}};

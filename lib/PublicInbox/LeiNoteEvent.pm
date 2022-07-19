@@ -58,7 +58,7 @@ sub eml_event ($$$$) {
 	}
 }
 
-sub maildir_event { # via wq_io_do
+sub maildir_event { # via wq_nonblock_do
 	my ($self, $fn, $vmd, $state) = @_;
 	if (my $eml = PublicInbox::InboxWritable::eml_from_path($fn)) {
 		eml_event($self, $eml, $vmd, $state);
@@ -93,6 +93,7 @@ sub lei_note_event {
 		my ($op_c, $ops) = $lei->workers_start($wq, $jobs);
 		$lei->wait_wq_events($op_c, $ops);
 		note_event_arm_done($lei);
+		$wq->prepare_nonblock;
 		$lei->{lne} = $wq;
 	};
 	if ($folder =~ /\Amaildir:/i) {
@@ -101,7 +102,7 @@ sub lei_note_event {
 		return if index($fl, 'T') >= 0;
 		my $kw = PublicInbox::MdirReader::flags2kw($fl);
 		my $vmd = { kw => $kw, sync_info => [ $folder, \$bn ] };
-		$self->wq_do('maildir_event', $fn, $vmd, $state);
+		$self->wq_nonblock_do('maildir_event', $fn, $vmd, $state);
 	} # else: TODO: imap
 }
 

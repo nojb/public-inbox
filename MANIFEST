@@ -334,6 +334,7 @@ lib/PublicInbox/V2Writable.pm
 lib/PublicInbox/View.pm
 lib/PublicInbox/ViewDiff.pm
 lib/PublicInbox/ViewVCS.pm
+lib/PublicInbox/WQBlocked.pm
 lib/PublicInbox/WQWorker.pm
 lib/PublicInbox/WWW.pm
 lib/PublicInbox/WWW.pod
