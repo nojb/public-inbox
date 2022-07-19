@@ -27,13 +27,6 @@ sub flush_task { # PublicInbox::DS timer callback
 	for my $lei (values %$todo) { flush_lei($lei) }
 }
 
-# sets a timer to flush
-sub note_event_arm_done ($) {
-	my ($lei) = @_;
-	PublicInbox::DS::add_uniq_timer('flush_timer', 5, \&flush_task);
-	$to_flush->{$lei->{cfg}->{'-f'}} //= $lei;
-}
-
 sub eml_event ($$$$) {
 	my ($self, $eml, $vmd, $state) = @_;
 	my $sto = $self->{lei}->{sto};
@@ -92,7 +85,8 @@ sub lei_note_event {
 		$jobs = 4 if $jobs > 4; # same default as V2Writable
 		my ($op_c, $ops) = $lei->workers_start($wq, $jobs);
 		$lei->wait_wq_events($op_c, $ops);
-		note_event_arm_done($lei);
+		PublicInbox::DS::add_uniq_timer('flush_timer', 5, \&flush_task);
+		$to_flush->{$lei->{cfg}->{'-f'}} //= $lei;
 		$wq->prepare_nonblock;
 		$lei->{lne} = $wq;
 	};
