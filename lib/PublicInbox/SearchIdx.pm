@@ -263,10 +263,10 @@ sub index_diff ($$$) {
 	while (defined($_ = shift @l)) {
 		if ($in_diff && /^GIT binary patch/) {
 			push @$xnq, $_;
-			while (@l && $l[0] =~ /^literal /) {
+			while (@l && $l[0] =~ /^(?:literal|delta) /) {
 				# TODO allow searching by size range?
 				# allows searching by exact size via:
-				# "literal $SIZE"
+				# "literal $SIZE" or "delta $SIZE"
 				push @$xnq, shift(@l);
 
 				# skip base85 and empty lines
