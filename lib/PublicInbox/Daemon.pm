@@ -32,8 +32,8 @@ my %tls_opt; # scheme://sockname => args for IO::Socket::SSL->start_SSL
 my $reexec_pid;
 my ($uid, $gid);
 my ($default_cert, $default_key);
-my %KNOWN_TLS = ( 443 => 'https', 563 => 'nntps', 993 => 'imaps' );
-my %KNOWN_STARTTLS = ( 119 => 'nntp', 143 => 'imap' );
+my %KNOWN_TLS = (443 => 'https', 563 => 'nntps', 993 => 'imaps', 995 =>'pop3s');
+my %KNOWN_STARTTLS = (110 => 'pop3', 119 => 'nntp', 143 => 'imap');
 
 sub accept_tls_opt ($) {
 	my ($opt_str) = @_;
@@ -155,7 +155,7 @@ EOF
 			$tls_opt{"$scheme://$l"} = accept_tls_opt($1);
 		} elsif (defined($default_cert)) {
 			$tls_opt{"$scheme://$l"} = accept_tls_opt('');
-		} elsif ($scheme =~ /\A(?:https|imaps|imaps)\z/) {
+		} elsif ($scheme =~ /\A(?:https|imaps|nntps|pop3s)\z/) {
 			die "$orig specified w/o cert=\n";
 		}
 		$scheme =~ /\A(http|imap|nntp|pop3)/ and
@@ -622,7 +622,7 @@ sub daemon_loop ($) {
 		$l =~ s!\A([^:]+)://!!;
 		my $scheme = $1 // '';
 		my $xn = $xnetd->{$l} // $xnetd->{''};
-		if ($scheme =~ m!\A(?:https|imaps|nntps)!) {
+		if ($scheme =~ m!\A(?:https|imaps|nntps|pop3s)!) {
 			$post_accept{$l} = tls_start_cb($v, $xn->{post_accept});
 		} elsif ($xn->{tlsd}) { # STARTTLS, $k eq '' is OK
 			$xn->{tlsd}->{accept_tls} = $v;

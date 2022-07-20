@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Represents a public-inbox (which may have multiple mailing addresses)
@@ -230,8 +230,9 @@ sub base_url {
 	$url;
 }
 
+# imapserver, nntpserver, and pop3server configs are used here:
 sub _x_url ($$$) {
-	my ($self, $x, $ctx) = @_; # $x is "nntp" or "imap"
+	my ($self, $x, $ctx) = @_; # $x is "imap", "nntp", or "pop3"
 	# no checking for nntp_usable here, we can point entirely
 	# to non-local servers or users run by a different user
 	my $ns = $self->{"${x}server"} //
@@ -253,7 +254,7 @@ sub _x_url ($$$) {
 				if ($group) {
 					$u .= '/' if $u !~ m!/\z!;
 					$u .= $group;
-				} else { # n.b. IMAP uses "newsgroup"
+				} else { # n.b. IMAP and POP3 use "newsgroup"
 					warn <<EOM;
 publicinbox.$self->{name}.${x}mirror=$_ missing newsgroup name
 EOM
@@ -273,8 +274,9 @@ EOM
 }
 
 # my ($self, $ctx) = @_;
-sub nntp_url { $_[0]->{-nntp_url} //= _x_url($_[0], 'nntp', $_[1]) }
 sub imap_url { $_[0]->{-imap_url} //= _x_url($_[0], 'imap', $_[1]) }
+sub nntp_url { $_[0]->{-nntp_url} //= _x_url($_[0], 'nntp', $_[1]) }
+sub pop3_url { $_[0]->{-pop3_url} //= _x_url($_[0], 'pop3', $_[1]) }
 
 sub nntp_usable {
 	my ($self) = @_;

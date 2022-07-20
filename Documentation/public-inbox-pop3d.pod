@@ -1,0 +1,122 @@
+=head1 NAME
+
+public-inbox-pop3d - POP3 server for sharing public-inboxes
+
+=head1 SYNOPSIS
+
+  public-inbox-pop3d [OPTIONS]
+
+=head1 DESCRIPTION
+
+public-inbox-pop3d provides a POP3 daemon for public-inbox.
+It uses options and environment variables common to all
+read-only L<public-inbox-daemon(8)> implementations,
+but requires additional read-write storage to keep track
+of deleted messages on a per-user basis.
+
+Like L<public-inbox-imapd(1)>, C<public-inbox-pop3d> will never
+require write access to the directory where the public-inboxes
+are stored.
+
+It is designed for anonymous access, thus the password is
+always C<anonymous> (all lower-case).
+
+Usernames are of the format:
+
+	C<$UUID@$NEWSGROUP_NAME>
+
+Where C<$UUID> is the output of the L<uuidgen(1)> command.  Dash
+(C<->) characters in UUIDs are ignored, and C<[A-F]> hex
+characters are case-insensitive.  Users should keep their UUIDs
+private to prevent others from deleting unretrieved messages.
+Users may switch to a new UUID at any time to retrieve
+previously-retrieved messages.
+
+Historical slices of 50K messages are available
+by suffixing the integer L<$SLICE>, where C<0> is the oldest.
+
+	C<$UUID@$NEWSGROUP_NAME.$SLICE>
+
+It may be run as a different user than the user running
+L<public-inbox-watch(1)>, L<public-inbox-mda(1)>, or
+L<public-inbox-fetch(1)>.
+
+To save storage, L</publicinbox.pop3state> only stores
+the highest-numbered deleted message
+
+=head1 OPTIONS
+
+See common options in L<public-inbox-daemon(8)/OPTIONS>.
+
+=over
+
+=item -l PROTO://ADDRESS/?cert=/path/to/cert,key=/path/to/key
+
+=item --listen PROTO://ADDRESS/?cert=/path/to/cert,key=/path/to/key
+
+In addition to the normal C<-l>/C<--listen> switch described in
+L<public-inbox-daemon(8)>, the C<PROTO> prefix (e.g. C<pop3://> or
+C<pop3s://>) may be specified to force a given protocol.
+
+For STARTTLS and POP3S support, the C<cert> and C<key> may be specified
+on a per-listener basis after a C<?> character and separated by C<,>.
+These directives are per-directive, and it's possible to use a different
+cert for every listener.
+
+=item --cert /path/to/cert
+
+The default TLS certificate for optional STARTTLS and POP3S support
+if the C<cert> option is not given with C<--listen>.
+
+If using systemd-compatible socket activation and a TCP listener on port
+995 is inherited, it is automatically POP3S when this option is given.
+When a listener on port 110 is inherited and this option is given, it
+automatically gets STARTTLS support.
+
+=item --key /path/to/key
+
+The default private TLS certificate key for optional STARTTLS and POP3S
+support if the C<key> option is not given with C<--listen>.  The private
+key may be concatenated into the path used by C<--cert>, in which case this
+option is not needed.
+
+=back
+
+=head1 CONFIGURATION
+
+Aside from C<publicinbox.pop3state>, C<public-inbox-pop3d> uses the
+same configuration knobs as L<public-inbox-nntpd(1)>,
+see L<public-inbox-nntpd(1)> and L<public-inbox-config(5)>.
+
+=over 8
+
+=item publicInbox.pop3state
+
+A directory containing per-user/mailbox account information;
+must be writable to the C<public-inbox-pop3d> process.
+
+=item publicInbox.<name>.newsgroup
+
+The newsgroup name maps to a POP3 folder name.
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/>, and
+L<nntp://news.public-inbox.org/inbox.comp.mail.public-inbox.meta>,
+L<nntp://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/inbox.comp.mail.public-inbox.meta>
+
+=head1 COPYRIGHT
+
+Copyright all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<git(1)>, L<git-config(1)>, L<public-inbox-daemon(8)>,
+L<public-inbox-config(5)>, L<public-inbox-nntpd(1)>,
+L<uuidgen(1)>

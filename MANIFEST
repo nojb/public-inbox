@@ -84,6 +84,7 @@ Documentation/public-inbox-mda.pod
 Documentation/public-inbox-netd.pod
 Documentation/public-inbox-nntpd.pod
 Documentation/public-inbox-overview.pod
+Documentation/public-inbox-pop3d.pod
 Documentation/public-inbox-purge.pod
 Documentation/public-inbox-tuning.pod
 Documentation/public-inbox-v1-format.pod
@@ -302,6 +303,8 @@ lib/PublicInbox/NewsWWW.pm
 lib/PublicInbox/OnDestroy.pm
 lib/PublicInbox/Over.pm
 lib/PublicInbox/OverIdx.pm
+lib/PublicInbox/POP3.pm
+lib/PublicInbox/POP3D.pm
 lib/PublicInbox/PktOp.pm
 lib/PublicInbox/ProcessPipe.pm
 lib/PublicInbox/Qspawn.pm
@@ -368,6 +371,7 @@ script/public-inbox-learn
 script/public-inbox-mda
 script/public-inbox-netd
 script/public-inbox-nntpd
+script/public-inbox-pop3d
 script/public-inbox-purge
 script/public-inbox-watch
 script/public-inbox-xcpdb
@@ -520,6 +524,7 @@ t/plack-2-txt-bodies.eml
 t/plack-attached-patch.eml
 t/plack-qp.eml
 t/plack.t
+t/pop3d.t
 t/precheck.t
 t/psgi_attach.eml
 t/psgi_attach.t

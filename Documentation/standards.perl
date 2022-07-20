@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
-use strict;
-# Copyright 2019-2021 all contributors <meta@public-inbox.org>
+use v5.12;
+# Copyright all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 print <<EOF;
@@ -66,8 +66,12 @@ my $rfcs = [
 	2369 => 'URLs as Meta-Syntax for Core Mail List Commands',
 	8058 => 'Signaling One-Click Functionality for List Email Headers',
 
-	# TODO: flesh this out
+	1081 => 'Post Office Protocol – Version 3',
+	1939 => 'Post Office Protocol – Version 3 (STD 53)',
+	2449 => 'POP3 extension mechanism',
+	2384 => 'POP URL Scheme',
 
+	# TODO: flesh this out
 ];
 
 my @rfc_urls = qw(tools.ietf.org/html/rfc%d
@@ -102,6 +106,6 @@ Other relevant documentation
 Copyright
 ---------
 
-Copyright (C) 2019-2020 all contributors <meta@public-inbox.org>
+Copyright (C) all contributors <meta@public-inbox.org>
 License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 EOF

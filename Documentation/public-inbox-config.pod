@@ -67,10 +67,12 @@ may be any newsgroup name with hierarchies delimited by C<.>.
 For example, the newsgroup for L<mailto:meta@public-inbox.org>
 is: C<inbox.comp.mail.public-inbox.meta>
 
-It also configures the folder hierarchy used by L<public-inbox-imapd(1)>.
+It also configures the folder hierarchy used by L<public-inbox-imapd(1)>
+as well as L<public-inbox-pop3d(1)>
 
 Omitting this for a given inbox will prevent the inbox from
-being served by L<public-inbox-nntpd(1)> and/or L<public-inbox-imapd(1)>.
+being served by L<public-inbox-nntpd(1)>,
+L<public-inbox-imapd(1)>, and/or L<public-inbox-pop3d(1)>
 
 Default: none, optional
 
@@ -225,6 +227,10 @@ Same as C<publicinbox.imapserver>, but for the hostname(s) of the
 L<public-inbox-nntpd(1)> instance.
 
 Default: none
+
+=item publicinbox.pop3state
+
+See L<public-inbox-pop3d(1)/publicinbox.pop3state>
 
 =item publicinbox.<name>.feedmax
 
@@ -463,7 +469,7 @@ L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/>
 
 =head1 COPYRIGHT
 
-Copyright 2016-2021 all contributors L<mailto:meta@public-inbox.org>
+Copyright all contributors L<mailto:meta@public-inbox.org>
 
 License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
 

@@ -1,4 +1,4 @@
-# Copyright (C) 2014-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Used throughout the project for reading configuration
@@ -434,7 +434,8 @@ sub _fill_ibx {
 	# more things to encourage decentralization
 	for my $k (qw(address altid nntpmirror imapmirror
 			coderepo hide listid url
-			infourl watchheader nntpserver imapserver)) {
+			infourl watchheader
+			nntpserver imapserver pop3server)) {
 		my $v = $self->{"$pfx.$k"} // next;
 		$ibx->{$k} = _array($v);
 	}
