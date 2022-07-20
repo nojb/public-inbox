@@ -240,8 +240,17 @@ EOF
 	ok(defined($capa->{PIPELINING}), 'pipelining supported by CAPA');
 	is($capa->{EXPIRE}, 0, 'EXPIRE 0 set');
 
-	# clients which see "EXPIRE 0" can elide DELE requests
+	# ensure TOP doesn't trigger "EXPIRE 0" like RETR does (cf. RFC2449)
 	my $list = $oldc->list;
+	ok(scalar keys %$list, 'got a listing of messages');
+	ok($oldc->top($_, 1), "TOP $_ 1") for keys %$list;
+	ok($oldc->quit, 'QUIT after TOP');
+
+	# clients which see "EXPIRE 0" can elide DELE requests
+	$oldc = Net::POP3->new(@old_args);
+	ok($oldc->apop("$locked_mb.0", 'anonymous'), 'APOP for RETR');
+	is_deeply($oldc->capa, $capa, 'CAPA unchanged');
+	is_deeply($oldc->list, $list, 'LIST unchanged by previous TOP');
 	ok($oldc->get($_), "RETR $_") for keys %$list;
 	ok($oldc->quit, 'QUIT after RETR');
 

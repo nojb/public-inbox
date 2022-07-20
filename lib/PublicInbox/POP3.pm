@@ -300,12 +300,13 @@ sub retr_cb { # called by git->cat_async via ibx_async_cat
 		$hdr .= "\r\n\r\n";
 		my @tmp = split(/^/m, $bdy);
 		$hdr .= join('', splice(@tmp, 0, $top_nr));
+	} elsif (exists $self->{expire}) {
+		$self->{expire} .= pack('S', $off + 1);
 	}
 	$$bref =~ s/^\./../gms;
 	$$bref .= substr($$bref, -2, 2) eq "\r\n" ? ".\r\n" : "\r\n.\r\n";
 	$self->msg_more("+OK message follows\r\n");
 	$self->write($bref);
-	$self->{expire} .= pack('S', $off + 1) if exists $self->{expire};
 	$self->requeue;
 }
 
