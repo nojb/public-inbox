@@ -176,7 +176,7 @@ sub _login_ok ($) {
 		$self->{uid_max} = $self->{ibx}->over(1)->max;
 		\"+OK logged in\r\n";
 	} else {
-		\"-ERR unable to lock maildrop\r\n";
+		\"-ERR [IN-USE] unable to lock maildrop\r\n";
 	}
 }
 
@@ -350,6 +350,7 @@ USER\r
 PIPELINING\r
 UIDL\r
 EXPIRE 0\r
+RESP-CODES\r
 .\r
 EOM
 }
