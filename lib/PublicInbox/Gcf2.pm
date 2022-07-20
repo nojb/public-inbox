@@ -138,10 +138,12 @@ sub loop (;$) {
 		} else { # check expiry to deal with deleted pack files
 			my $now = clock_gettime(CLOCK_MONOTONIC);
 			$check_at //= $now + $exp;
-			if ($now > $check_at && have_unlinked_files()) {
+			if ($now > $check_at) {
 				undef $check_at;
-				$gcf2 = new();
-				%seen = ();
+				if (have_unlinked_files()) {
+					$gcf2 = new();
+					%seen = ();
+				}
 			}
 		}
 	}
