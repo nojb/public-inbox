@@ -77,7 +77,7 @@ sub accept_tls_opt ($) {
 
 sub load_mod ($) {
 	my ($scheme) = @_;
-	my $modc = "PublicInbox::\U$1";
+	my $modc = "PublicInbox::\U$scheme";
 	my $mod = $modc.'D';
 	eval "require $mod"; # IMAPD|HTTPD|NNTPD|POP3D
 	die $@ if $@;
@@ -204,8 +204,10 @@ EOF
 	for my $sockname (@inherited_names) {
 		$sockname =~ /:([0-9]+)\z/ or next;
 		if (my $scheme = $KNOWN_TLS{$1}) {
+			$xnetd->{$sockname} = load_mod(substr($scheme, 0, -1));
 			$tls_opt{"$scheme://$sockname"} ||= accept_tls_opt('');
 		} elsif (($scheme = $KNOWN_STARTTLS{$1})) {
+			$xnetd->{$sockname} = load_mod($scheme);
 			next if $tls_opt{"$scheme://$sockname"};
 			$tls_opt{''} ||= accept_tls_opt('');
 		}
