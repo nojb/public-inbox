@@ -208,7 +208,7 @@ EOF
 			$tls_opt{"$scheme://$sockname"} ||= accept_tls_opt('');
 		} elsif (($scheme = $KNOWN_STARTTLS{$1})) {
 			$xnetd->{$sockname} = load_mod($scheme);
-			next if $tls_opt{"$scheme://$sockname"};
+			$tls_opt{"$scheme://$sockname"} ||= accept_tls_opt('');
 			$tls_opt{''} ||= accept_tls_opt('');
 		}
 	}
