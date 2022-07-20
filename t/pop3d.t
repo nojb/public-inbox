@@ -106,6 +106,8 @@ for my $args (
 	my @p3s_args = ($pop3s->sockhost,
 			Port => $pop3s->sockport, SSL => 1, %o);
 	my $p3s = Net::POP3->new(@p3s_args);
+	my $capa = $p3s->capa;
+	ok(!exists $capa->{STLS}, 'no STLS CAPA for POP3S');
 	ok($p3s->quit, 'QUIT works w/POP3S');
 	{
 		$p3s = Net::POP3->new(@p3s_args);
@@ -127,7 +129,11 @@ for my $args (
 	my $np3 = Net::POP3->new(@np3_args);
 	ok($np3->quit, 'plain QUIT works');
 	$np3 = Net::POP3->new(@np3_args, %o);
+	$capa = $np3->capa;
+	ok(exists $capa->{STLS}, 'STLS CAPA advertised before STLS');
 	ok($np3->starttls, 'STLS works');
+	$capa = $np3->capa;
+	ok(!exists $capa->{STLS}, 'STLS CAPA not advertised after STLS');
 	ok($np3->quit, 'QUIT works after STLS');
 
 	for my $mailbox (('x'x32)."\@$group", $group, ('a'x32)."\@z.$group") {
@@ -239,6 +245,7 @@ EOF
 	my $capa = $oldc->capa;
 	ok(defined($capa->{PIPELINING}), 'pipelining supported by CAPA');
 	is($capa->{EXPIRE}, 0, 'EXPIRE 0 set');
+	ok(!exists $capa->{STLS}, 'STLS unset w/o daemon certs');
 
 	# ensure TOP doesn't trigger "EXPIRE 0" like RETR does (cf. RFC2449)
 	my $list = $oldc->list;

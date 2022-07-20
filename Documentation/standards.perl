@@ -69,6 +69,7 @@ my $rfcs = [
 	1081 => 'Post Office Protocol – Version 3',
 	1939 => 'Post Office Protocol – Version 3 (STD 53)',
 	2449 => 'POP3 extension mechanism',
+	2595 => 'STARTTLS for IMAP and POP3',
 	2384 => 'POP URL Scheme',
 
 	# TODO: flesh this out

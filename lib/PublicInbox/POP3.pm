@@ -343,15 +343,17 @@ sub cmd_dele {
 # RFC 2449
 sub cmd_capa {
 	my ($self) = @_;
+	my $STLS = !$self->{ibx} && !$self->{sock}->can('stop_SSL') &&
+			$self->{pop3d}->{accept_tls} ? "\nSTLS\r" : '';
 	$self->{expire} = ''; # "EXPIRE 0" allows clients to avoid DELE commands
-	\<<EOM;
+	<<EOM;
 +OK Capability list follows\r
 TOP\r
 USER\r
 PIPELINING\r
 UIDL\r
 EXPIRE 0\r
-RESP-CODES\r
+RESP-CODES\r$STLS
 .\r
 EOM
 }
