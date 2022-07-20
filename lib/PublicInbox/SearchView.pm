@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Displays search results for the web interface
@@ -193,18 +193,24 @@ sub search_nav_top {
 
 	my $x = $q->{x};
 	my $pfx = "\t\t\t";
-	if ($x eq '') {
-		my $t = $q->qs_html(x => 't');
-		$rv .= qq{<b>summary</b>|<a\nhref="?$t">nested</a>}
-	} elsif ($x eq 't') {
+	if ($x eq 't') {
 		my $s = $q->qs_html(x => '');
 		$rv .= qq{<a\nhref="?$s">summary</a>|<b>nested</b>};
 		$pfx = "thread overview <a\nhref=#t>below</a> | ";
+	} else {
+		my $t = $q->qs_html(x => 't');
+		$rv .= qq{<b>summary</b>|<a\nhref="?$t">nested</a>}
 	}
 	my $A = $q->qs_html(x => 'A', r => undef);
-	$rv .= qq{|<a\nhref="?$A">Atom feed</a>]};
+	$rv .= qq{|<a\nhref="?$A">Atom feed</a>]\n};
+	$rv .= <<EOM if $x ne 't' && $q->{t};
+*** "t=1" collapses threads in summary, "full threads" requires mbox.gz ***
+EOM
+	$rv .= <<EOM if $x eq 'm';
+*** "x=m" ignored for GET requests, use download buttons below ***
+EOM
 	if ($ctx->{ibx}->isrch->has_threadid) {
-		$rv .= qq{\n${pfx}download mbox.gz: } .
+		$rv .= qq{${pfx}download mbox.gz: } .
 			# we set name=z w/o using it since it seems required for
 			# lynx (but works fine for w3m).
 			qq{<input\ntype=submit\nname=z\n} .
@@ -212,7 +218,7 @@ sub search_nav_top {
 			qq{|<input\ntype=submit\nname=x\n} .
 				q{value="full threads"/>};
 	} else { # BOFH needs to --reindex
-		$rv .= qq{\n${pfx}download: } .
+		$rv .= qq{${pfx}download: } .
 			qq{<input\ntype=submit\nname=z\nvalue="mbox.gz"/>}
 	}
 	$rv .= qq{</pre></form><pre>};
