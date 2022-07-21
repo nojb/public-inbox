@@ -12,8 +12,29 @@ use PublicInbox::Config;
 use PublicInbox::POP3;
 use PublicInbox::Syscall;
 use File::Temp 0.19 (); # 0.19 for ->newdir
-use File::FcntlLock;
 use Fcntl qw(F_SETLK F_UNLCK F_WRLCK SEEK_SET);
+my @FLOCK;
+if ($^O eq 'linux' || $^O eq 'freebsd') {
+	require Config;
+	my $off_t;
+	my $sz = $Config::Config{lseeksize};
+
+	if ($sz == 8 && eval('length(pack("q", 1)) == 8')) { $off_t = 'q' }
+	elsif ($sz == 4) { $off_t = 'l' }
+	else { warn "sizeof(off_t)=$sz requires File::FcntlLock\n" }
+
+	if (defined($off_t)) {
+		if ($^O eq 'linux') {
+			@FLOCK = ("ss\@8$off_t$off_t\@32",
+				qw(l_type l_whence l_start l_len));
+		} elsif ($^O eq 'freebsd') {
+			@FLOCK = ("${off_t}${off_t}lss\@256",
+				qw(l_start l_len l_pid l_type l_whence));
+		}
+	}
+}
+@FLOCK or eval { require File::FcntlLock } or
+	die "File::FcntlLock required for POP3 on $^O: $@\n";
 
 sub new {
 	my ($cls, $pi_cfg) = @_;
@@ -117,6 +138,19 @@ sub state_dbh_new {
 	$dbh;
 }
 
+sub _setlk ($%) {
+	my ($self, %lk) = @_;
+	$lk{l_pid} = 0; # needed for *BSD
+	$lk{l_whence} = SEEK_SET;
+	if (@FLOCK) {
+		fcntl($self->{txn_fh}, F_SETLK,
+			pack($FLOCK[0], @lk{@FLOCK[1..$#FLOCK]}));
+	} else {
+		my $fs = File::FcntlLock->new(%lk);
+		$fs->lock($self->{txn_fh}, F_SETLK);
+	}
+}
+
 sub lock_mailbox {
 	my ($self, $pop3) = @_; # pop3 - PublicInbox::POP3 client object
 	my $lk = $self->lock_for_scope; # lock the SQLite DB, only
@@ -202,12 +236,8 @@ SELECT txn_id,uid_dele FROM deletes WHERE user_id = ? AND mailbox_id = ?
 	return if $self->{txn_locks}->{$txn_id};
 
 	# see if it's locked by another worker:
-	my $fs = File::FcntlLock->new;
-	$fs->l_type(F_WRLCK);
-	$fs->l_whence(SEEK_SET);
-	$fs->l_start($txn_id - 1);
-	$fs->l_len(1);
-	$fs->lock($self->{txn_fh}, F_SETLK) or return;
+	_setlk($self, l_type => F_WRLCK, l_start => $txn_id - 1, l_len => 1)
+		or return;
 
 	$pop3->{user_id} = $user_id;
 	$pop3->{txn_id} = $txn_id;
@@ -220,12 +250,8 @@ sub unlock_mailbox {
 	delete $self->{txn_locks}->{$txn_id}; # same worker
 
 	# other workers
-	my $fs = File::FcntlLock->new;
-	$fs->l_type(F_UNLCK);
-	$fs->l_whence(SEEK_SET);
-	$fs->l_start($txn_id - 1);
-	$fs->l_len(1);
-	$fs->lock($self->{txn_fh}, F_SETLK) or die "F_UNLCK: $!";
+	_setlk($self, l_type => F_UNLCK, l_start => $txn_id - 1, l_len => 1)
+		or die "F_UNLCK: $!";
 }
 
 1;

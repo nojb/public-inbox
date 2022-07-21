@@ -5,8 +5,9 @@ use v5.12;
 use PublicInbox::TestCommon;
 use Socket qw(IPPROTO_TCP SOL_SOCKET);
 # Net::POP3 is part of the standard library, but distros may split it off...
-require_mods(qw(DBD::SQLite Net::POP3 IO::Socket::SSL File::FcntlLock));
+require_mods(qw(DBD::SQLite Net::POP3 IO::Socket::SSL));
 require_git('2.6'); # for v2
+require_mods(qw(File::FcntlLock)) if $^O !~ /\A(?:linux|freebsd)\z/;
 use_ok 'IO::Socket::SSL';
 use_ok 'PublicInbox::TLS';
 my ($tmpdir, $for_destroy) = tmpdir();
