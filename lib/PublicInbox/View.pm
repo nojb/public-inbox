@@ -142,6 +142,9 @@ $info
   <a
 href="$se_url">$se_url</a>
 $link</pre>
+
+  Be sure your reply has a <b>Subject:</b> header at the top and a blank line
+  before the message body.
 EOF
 }
 

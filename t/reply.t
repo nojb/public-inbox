@@ -38,7 +38,6 @@ my $exp = [
     '--to=from@example.com',
     '--cc=cc@example.com',
     '--cc=to@example.com',
-    "--subject='Re: hihi'"
 ];
 
 is_deeply($arg, $exp, 'default reply is to :all');
@@ -46,8 +45,7 @@ $ibx->{replyto} = ':all';
 ($arg, $link) = PublicInbox::Reply::mailto_arg_link($ibx, $hdr);
 is_deeply($arg, $exp, '":all" also works');
 
-$exp = [ '--in-reply-to=blah@example.com', '--to=primary@example.com',
-	"--subject='Re: hihi'" ];
+$exp = [ '--in-reply-to=blah@example.com', '--to=primary@example.com' ];
 $ibx->{replyto} = ':list';
 ($arg, $link) = PublicInbox::Reply::mailto_arg_link($ibx, $hdr);
 is_deeply($arg, $exp, '":list" works for centralized lists');
@@ -57,7 +55,6 @@ $exp = [
 	 '--to=primary@example.com',
 	 '--cc=cc@example.com',
 	 '--cc=to@example.com',
-	"--subject='Re: hihi'"
 ];
 $ibx->{replyto} = ':list,Cc,To';
 ($arg, $link) = PublicInbox::Reply::mailto_arg_link($ibx, $hdr);
@@ -65,9 +62,7 @@ is_deeply($arg, $exp, '":list,Cc,To" works for kinda centralized lists');
 
 $ibx->{replyto} = 'new@example.com';
 ($arg, $link) = PublicInbox::Reply::mailto_arg_link($ibx, $hdr);
-$exp = [ '--in-reply-to=blah@example.com', '--to=new@example.com',
-	"--subject='Re: hihi'"
-];
+$exp = [ '--in-reply-to=blah@example.com', '--to=new@example.com' ];
 is_deeply($arg, $exp, 'explicit address works, too');
 
 $ibx->{replyto} = ':all';
@@ -78,7 +73,6 @@ $exp = [
     '--to=from@example$(echo .)com',
     '--cc=cc@example$(echo .)com',
     '--cc=to@example$(echo .)com',
-    "--subject='Re: hihi'"
 ];
 is_deeply($arg, $exp, 'address obfuscation works');
 is($link, '', 'no mailto: link given');

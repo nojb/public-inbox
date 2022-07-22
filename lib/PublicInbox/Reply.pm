@@ -68,7 +68,6 @@ sub mailto_arg_link {
 	my $obfs = $ibx->{obfuscate};
 	my $subj = $hdr->header('Subject') || '';
 	$subj = "Re: $subj" unless $subj =~ /\bRe:/i;
-	my $subj_raw = $subj;
 	my $mid = $hdr->header_raw('Message-ID');
 	push @arg, '--in-reply-to='.squote_maybe(mid_clean($mid));
 	my $irt = mid_href($mid);
@@ -97,8 +96,6 @@ sub mailto_arg_link {
 			push(@arg, map { "--cc=$_" } @cc);
 		}
 	}
-
-	push @arg, "--subject=".squote_maybe($subj_raw);
 
 	# I'm not sure if address obfuscation and mailto: links can
 	# be made compatible; and address obfuscation is misguided,
