@@ -27,10 +27,10 @@ my %IN_OPT = (
 );
 
 # global deflate context and buffer
-my $zbuf = \(my $buf = '');
-my $zout;
+my ($zout, $zbuf);
 {
 	my $err;
+	$zbuf = \(my $initial = ''); # replaced by $next in zflush/write
 	($zout, $err) = Compress::Raw::Zlib::Deflate->new(
 		# nnrpd (INN) and Compress::Raw::Zlib favor MemLevel=9,
 		# the zlib C library and git use MemLevel=8 as the default
