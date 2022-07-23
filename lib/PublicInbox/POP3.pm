@@ -55,8 +55,6 @@ sub out ($$;@) {
 	printf { $self->{pop3d}->{out} } $fmt."\n", @args;
 }
 
-sub zflush {} # noop
-
 sub requeue_once ($) {
 	my ($self) = @_;
 	# COMPRESS users all share the same DEFLATE context.

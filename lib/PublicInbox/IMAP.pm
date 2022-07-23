@@ -1271,8 +1271,6 @@ sub event_step {
 
 sub compressed { undef }
 
-sub zflush {} # overridden by IMAPdeflate
-
 # RFC 4978
 sub cmd_compress ($$$) {
 	my ($self, $tag, $alg) = @_;

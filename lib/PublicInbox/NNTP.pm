@@ -968,8 +968,6 @@ sub cmd_compress ($$) {
 	undef
 }
 
-sub zflush {} # overridden by NNTPdeflate
-
 sub cmd_xpath ($$) {
 	my ($self, $mid) = @_;
 	return r501 unless $mid =~ $ONE_MSGID;

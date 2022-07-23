@@ -648,6 +648,8 @@ sub shutdn ($) {
     }
 }
 
+sub zflush {} # overridden by NNTPdeflate and IMAPdeflate
+
 sub dwaitpid ($;$$) {
 	my ($pid, $cb, $arg) = @_;
 	if ($in_loop) {
