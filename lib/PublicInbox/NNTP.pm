@@ -22,20 +22,19 @@ use PublicInbox::Address;
 
 use constant {
 	LINE_MAX => 512, # RFC 977 section 2.3
-	r501 => '501 command syntax error',
-	r502 => '502 Command unavailable',
+	r501 => "501 command syntax error\r\n",
+	r502 => "502 Command unavailable\r\n",
 	r221 => "221 Header follows\r\n",
-	r224 => '224 Overview information follows (multi-line)',
 	r225 =>	"225 Headers follow (multi-line)\r\n",
-	r430 => '430 No article with that message-id',
+	r430 => "430 No article with that message-id\r\n",
 };
 use Errno qw(EAGAIN);
 my $ONE_MSGID = qr/\A$MID_EXTRACT\z/;
 my @OVERVIEW = qw(Subject From Date Message-ID References);
 my $OVERVIEW_FMT = join(":\r\n", @OVERVIEW, qw(Bytes Lines), '') .
-		"Xref:full\r\n.";
+		"Xref:full\r\n.\r\n";
 my $LIST_HEADERS = join("\r\n", @OVERVIEW,
-			qw(:bytes :lines Xref To Cc)) . "\r\n.";
+			qw(:bytes :lines Xref To Cc)) . "\r\n.\r\n";
 my $CAPABILITIES = <<"";
 101 Capability list:\r
 VERSION 2\r
@@ -69,17 +68,16 @@ sub process_line ($$) {
 	return 1 unless defined($req); # skip blank line
 	$req = $self->can('cmd_'.lc($req)) //
 		return $self->write(\"500 command not recognized\r\n");
-	return res($self, r501) unless args_ok($req, scalar @args);
-
+	return $self->write(\r501) unless args_ok($req, scalar @args);
 	my $res = eval { $req->($self, @args) };
 	my $err = $@;
 	if ($err && $self->{sock}) {
 		local $/ = "\n";
 		chomp($l);
 		err($self, 'error from: %s (%s)', $l, $err);
-		$res = '503 program fault - command not performed';
+		$res = \"503 program fault - command not performed\r\n";
 	}
-	defined($res) ? res($self, $res) : 0;
+	defined($res) ? $self->write($res) : 0;
 }
 
 # The keyword argument is not used (rfc3977 5.2.2)
@@ -90,15 +88,15 @@ sub cmd_capabilities ($;$) {
 			$self->{nntpd}->{accept_tls}) {
 		$res .= "STARTTLS\r\n";
 	}
-	$res .= '.';
+	$res .= ".\r\n";
 }
 
 sub cmd_mode ($$) {
 	my ($self, $arg) = @_;
-	uc($arg) eq 'READER' ? '201 Posting prohibited' : r501;
+	uc($arg) eq 'READER' ? \"201 Posting prohibited\r\n" : \r501;
 }
 
-sub cmd_slave ($) { '202 slave status noted' }
+sub cmd_slave ($) { \"202 slave status noted\r\n" }
 
 sub cmd_xgtitle ($;$) {
 	my ($self, $wildmat) = @_;
@@ -205,10 +203,10 @@ sub cmd_listgroup ($;$$) {
 	my ($self, $group, $range) = @_;
 	if (defined $group) {
 		my $res = cmd_group($self, $group);
-		return $res if ($res !~ /\A211 /);
-		$self->msg_more($res .= "\r\n");
+		return $res if ref($res); # error if const strref
+		$self->msg_more($res);
 	}
-	$self->{ibx} or return '412 no newsgroup selected';
+	$self->{ibx} or return \"412 no newsgroup selected\r\n";
 	if (defined $range) {
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
@@ -339,7 +337,7 @@ sub cmd_newnews ($$$$;$$) {
 	ngpat2re($skip);
 	my @names = grep(!/$skip/, grep(/$keep/,
 				@{$self->{nntpd}->{groupnames}}));
-	return '.' unless scalar(@names);
+	return ".\r\n" unless scalar(@names);
 	my $prev = 0;
 	long_response($self, \&newnews_i, \@names, $ts, \$prev);
 }
@@ -348,30 +346,29 @@ sub cmd_group ($$) {
 	my ($self, $group) = @_;
 	my $nntpd = $self->{nntpd};
 	my $ibx = $nntpd->{pi_cfg}->{-by_newsgroup}->{$group} or
-		return '411 no such news group';
+		return \"411 no such news group\r\n";
 	$nntpd->idler_start;
 
 	$self->{ibx} = $ibx;
 	my ($min, $max) = $ibx->mm(1)->minmax;
 	$self->{article} = $min;
 	my $est_size = $max - $min;
-	"211 $est_size $min $max $group";
+	"211 $est_size $min $max $group\r\n";
 }
 
 sub article_adj ($$) {
 	my ($self, $off) = @_;
-	my $ibx = $self->{ibx} or return '412 no newsgroup selected';
-
-	my $n = $self->{article};
-	defined $n or return '420 no current article has been selected';
+	my $ibx = $self->{ibx} // return \"412 no newsgroup selected\r\n";
+	my $n = $self->{article} //
+		return \"420 no current article has been selected\r\n";
 
 	$n += $off;
 	my $mid = $ibx->mm(1)->mid_for($n) // do {
 		$n = $off > 0 ? 'next' : 'previous';
-		return "421 no $n article in this group";
+		return "421 no $n article in this group\r\n";
 	};
 	$self->{article} = $n;
-	"223 $n <$mid> article retrieved - request text separately";
+	"223 $n <$mid> article retrieved - request text separately\r\n";
 }
 
 sub cmd_next ($) { article_adj($_[0], 1) }
@@ -382,8 +379,8 @@ sub cmd_last ($) { article_adj($_[0], -1) }
 sub cmd_post ($) {
 	my ($self) = @_;
 	my $ibx = $self->{ibx};
-	$ibx ? "440 mailto:$ibx->{-primary_address} to post"
-		: '440 posting not allowed'
+	$ibx ? "440 mailto:$ibx->{-primary_address} to post\r\n"
+		: \"440 posting not allowed\r\n"
 }
 
 sub cmd_quit ($) {
@@ -471,22 +468,22 @@ sub art_lookup ($$$) {
 	my $err;
 	if (defined $art) {
 		if ($art =~ /\A[0-9]+\z/) {
-			$err = '423 no such article number in this group';
+			$err = \"423 no such article number in this group\r\n";
 			$n = int($art);
 			goto find_ibx;
 		} elsif ($art =~ $ONE_MSGID) {
 			($ibx, $n) = mid_lookup($self, $1);
 			goto found if $ibx;
-			return r430;
+			return \r430;
 		} else {
-			return r501;
+			return \r501;
 		}
 	} else {
-		$err = '420 no current article has been selected';
+		$err = \"420 no current article has been selected\r\n";
 		$n = $self->{article} // return $err;
 find_ibx:
 		$ibx = $self->{ibx} or
-				return '412 no newsgroup has been selected';
+			return \"412 no newsgroup has been selected\r\n";
 	}
 found:
 	my $smsg = $ibx->over(1)->get_art($n) or return $err;
@@ -494,7 +491,7 @@ found:
 	if ($code == 223) { # STAT
 		set_art($self, $n);
 		"223 $n <$smsg->{mid}> article retrieved - " .
-			"request text separately";
+			"request text separately\r\n";
 	} else { # HEAD | BODY | ARTICLE
 		$smsg->{nntp} = $self;
 		$smsg->{nntp_code} = $code;
@@ -588,20 +585,18 @@ sub cmd_stat ($;$) {
 	art_lookup($self, $art, 223); # art may be msgid
 }
 
-sub cmd_ihave ($) { '435 article not wanted - do not send it' }
+sub cmd_ihave ($) { \"435 article not wanted - do not send it\r\n" }
 
-sub cmd_date ($) { '111 '.strftime('%Y%m%d%H%M%S', gmtime(time)) }
+sub cmd_date ($) { '111 '.strftime('%Y%m%d%H%M%S', gmtime(time))."\r\n" }
 
-sub cmd_help ($) {
-	my ($self) = @_;
-	$self->msg_more("100 help text follows\r\n");
-	'.'
-}
+sub cmd_help ($) { \"100 help text follows\r\n.\r\n" }
 
+# returns a ref on success
 sub get_range ($$) {
 	my ($self, $range) = @_;
-	my $ibx = $self->{ibx} or return '412 no news group has been selected';
-	defined $range or return '420 No article(s) selected';
+	my $ibx = $self->{ibx} //
+		return "412 no news group has been selected\r\n";
+	$range // return "420 No article(s) selected\r\n";
 	my ($beg, $end);
 	my ($min, $max) = $ibx->mm(1)->minmax;
 	if ($range =~ /\A([0-9]+)\z/) {
@@ -615,8 +610,7 @@ sub get_range ($$) {
 	}
 	$beg = $min if ($beg < $min);
 	$end = $max if ($end > $max);
-	return '420 No article(s) selected' if ($beg > $end);
-	[ \$beg, $end ];
+	$beg > $end ? "420 No article(s) selected\r\n" : [ \$beg, $end ];
 }
 
 sub long_step {
@@ -639,7 +633,7 @@ sub long_step {
 		$self->requeue_once if !ref($more);
 	} else { # all done!
 		delete $self->{long_cb};
-		$self->write(\".\r\n");
+		$self->write(\".\r\n"); # TODO get rid of this
 		my $elapsed = now() - $t0;
 		my $fd = fileno($self->{sock});
 		out($self, " deferred[$fd] done - %0.6f", $elapsed);
@@ -813,7 +807,7 @@ sub do_hdr ($$$;$) {
 	} elsif ($sub =~ /\A:(bytes|lines)\z/) {
 		hdr_smsg($self, $xhdr, $1, $range);
 	} else {
-		$xhdr ? (r221 . '.') : "503 HDR not permitted on $header";
+		$xhdr ? (r221.".\r\n") : "503 HDR not permitted on $header\r\n";
 	}
 }
 
@@ -858,9 +852,9 @@ sub xrover_i {
 
 sub cmd_xrover ($;$) {
 	my ($self, $range) = @_;
-	my $ibx = $self->{ibx} or return '412 no newsgroup selected';
+	my $ibx = $self->{ibx} or return \"412 no newsgroup selected\r\n";
 	(defined $range && $range =~ /[<>]/) and
-		return '420 No article(s) selected'; # no message IDs
+		return \"420 No article(s) selected\r\n"; # no message IDs
 
 	$range = $self->{article} unless defined $range;
 	my $r = get_range($self, $range);
@@ -903,8 +897,7 @@ sub cmd_over ($;$) {
 			$smsg->{-orig_num} = $smsg->{num};
 			$smsg->{num} = 0;
 		}
-		$self->msg_more(over_line($self, $ibx, $smsg));
-		'.';
+		over_line($self, $ibx, $smsg).".\r\n";
 	} else {
 		cmd_xover($self, $range);
 	}
@@ -942,7 +935,7 @@ sub cmd_starttls ($) {
 	# RFC 4642 2.2.1
 	return r502 if ($sock->can('accept_SSL') || $self->compressed);
 	my $opt = $self->{nntpd}->{accept_tls} or
-		return '580 can not initiate TLS negotiation';
+		return \"580 can not initiate TLS negotiation\r\n";
 	$self->write(\"382 Continue with TLS negotiation\r\n");
 	$self->{sock} = IO::Socket::SSL->start_SSL($sock, %$opt);
 	$self->requeue if PublicInbox::DS::accept_tls_step($self);
@@ -952,7 +945,7 @@ sub cmd_starttls ($) {
 # RFC 8054
 sub cmd_compress ($$) {
 	my ($self, $alg) = @_;
-	return '503 Only DEFLATE is supported' if uc($alg) ne 'DEFLATE';
+	return "503 Only DEFLATE is supported\r\n" if uc($alg) ne 'DEFLATE';
 	return r502 if $self->compressed;
 	PublicInbox::NNTPdeflate->enable($self);
 	$self->requeue;
@@ -984,18 +977,8 @@ sub cmd_xpath ($$) {
 			push @paths, "$ibx->{newsgroup}/$n";
 		}
 	}
-	return '430 no such article on server' unless @paths;
-	'223 '.join(' ', sort(@paths));
-}
-
-sub res ($$) { do_write($_[0], $_[1] . "\r\n") }
-
-sub do_write ($$) {
-	my $self = $_[0];
-	my $done = $self->write(\($_[1]));
-	return 0 unless $self->{sock};
-
-	$done;
+	return \"430 no such article on server\r\n" unless @paths;
+	'223 '.join(' ', sort(@paths))."\r\n";
 }
 
 sub err ($$;@) {

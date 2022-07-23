@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # RFC 8054 NNTP COMPRESS DEFLATE implementation
@@ -48,10 +48,10 @@ sub enable {
 	my ($in, $err) = Compress::Raw::Zlib::Inflate->new(%IN_OPT);
 	if ($err != Z_OK) {
 		$self->err("Inflate->new failed: $err");
-		$self->res('403 Unable to activate compression');
+		$self->write(\"403 Unable to activate compression\r\n");
 		return;
 	}
-	$self->res('206 Compression active');
+	$self->write(\"206 Compression active\r\n");
 	bless $self, $class;
 	$self->{zin} = $in;
 }
