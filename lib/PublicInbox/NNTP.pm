@@ -29,7 +29,6 @@ use constant {
 	r225 =>	"225 Headers follow (multi-line)\r\n",
 	r430 => '430 No article with that message-id',
 };
-use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 use Errno qw(EAGAIN);
 my $ONE_MSGID = qr/\A$MID_EXTRACT\z/;
 my @OVERVIEW = qw(Subject From Date Message-ID References);
@@ -47,25 +46,11 @@ HDR\r
 OVER\r
 COMPRESS DEFLATE\r
 
-sub greet ($) { $_[0]->write($_[0]->{nntpd}->{greet}) };
+sub do_greet ($) { $_[0]->write($_[0]->{nntpd}->{greet}) };
 
-sub new ($$$) {
-	my ($class, $sock, $nntpd) = @_;
-	my $self = bless { nntpd => $nntpd }, $class;
-	my $ev = EPOLLIN;
-	my $wbuf;
-	if ($sock->can('accept_SSL') && !$sock->accept_SSL) {
-		return CORE::close($sock) if $! != EAGAIN;
-		$ev = PublicInbox::TLS::epollbit() or return CORE::close($sock);
-		$wbuf = [ \&PublicInbox::DS::accept_tls_step, \&greet ];
-	}
-	$self->SUPER::new($sock, $ev | EPOLLONESHOT);
-	if ($wbuf) {
-		$self->{wbuf} = $wbuf;
-	} else {
-		greet($self);
-	}
-	$self;
+sub new {
+	my ($cls, $sock, $nntpd) = @_;
+	(bless { nntpd => $nntpd }, $cls)->greet($sock)
 }
 
 sub args_ok ($$) {

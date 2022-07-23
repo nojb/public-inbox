@@ -36,7 +36,6 @@ use parent qw(PublicInbox::DS);
 use PublicInbox::Eml;
 use PublicInbox::EmlContentFoo qw(parse_content_disposition);
 use PublicInbox::DS qw(now);
-use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 use PublicInbox::GitAsyncCat;
 use Text::ParseWords qw(parse_line);
 use Errno qw(EAGAIN);
@@ -99,29 +98,15 @@ undef %FETCH_NEED;
 my $valid_range = '[0-9]+|[0-9]+:[0-9]+|[0-9]+:\*';
 $valid_range = qr/\A(?:$valid_range)(?:,(?:$valid_range))*\z/;
 
-sub greet ($) {
+sub do_greet {
 	my ($self) = @_;
 	my $capa = capa($self);
 	$self->write(\"* OK [$capa] public-inbox-imapd ready\r\n");
 }
 
-sub new ($$$) {
-	my ($class, $sock, $imapd) = @_;
-	my $self = bless { imapd => $imapd }, 'PublicInbox::IMAP_preauth';
-	my $ev = EPOLLIN;
-	my $wbuf;
-	if ($sock->can('accept_SSL') && !$sock->accept_SSL) {
-		return CORE::close($sock) if $! != EAGAIN;
-		$ev = PublicInbox::TLS::epollbit() or return CORE::close($sock);
-		$wbuf = [ \&PublicInbox::DS::accept_tls_step, \&greet ];
-	}
-	$self->SUPER::new($sock, $ev | EPOLLONESHOT);
-	if ($wbuf) {
-		$self->{wbuf} = $wbuf;
-	} else {
-		greet($self);
-	}
-	$self;
+sub new {
+	my (undef, $sock, $imapd) = @_;
+	(bless { imapd => $imapd }, 'PublicInbox::IMAP_preauth')->greet($sock)
 }
 
 sub logged_in { 1 }

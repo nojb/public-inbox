@@ -33,7 +33,6 @@
 package PublicInbox::POP3;
 use v5.12;
 use parent qw(PublicInbox::DS);
-use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
 use PublicInbox::GitAsyncCat;
 use PublicInbox::DS qw(now);
 use Errno qw(EAGAIN);
@@ -113,29 +112,15 @@ sub long_response ($$;@) {
 	undef;
 }
 
-sub _greet ($) {
+sub do_greet {
 	my ($self) = @_;
 	my $s = $self->{salt} = sprintf('%x.%x', int(rand(0x7fffffff)), time);
 	$self->write("+OK POP3 server ready <$s\@public-inbox>\r\n");
 }
 
-sub new ($$$) {
-	my ($class, $sock, $pop3d) = @_;
-	my $self = bless { pop3d => $pop3d }, __PACKAGE__;
-	my $ev = EPOLLIN;
-	my $wbuf;
-	if ($sock->can('accept_SSL') && !$sock->accept_SSL) {
-		return CORE::close($sock) if $! != EAGAIN;
-		$ev = PublicInbox::TLS::epollbit() or return CORE::close($sock);
-		$wbuf = [ \&PublicInbox::DS::accept_tls_step, \&_greet ];
-	}
-	$self->SUPER::new($sock, $ev | EPOLLONESHOT);
-	if ($wbuf) {
-		$self->{wbuf} = $wbuf;
-	} else {
-		_greet($self);
-	}
-	$self;
+sub new {
+	my ($cls, $sock, $pop3d) = @_;
+	(bless { pop3d => $pop3d }, $cls)->greet($sock)
 }
 
 # POP user is $UUID1@$NEWSGROUP.$SLICE

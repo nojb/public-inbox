@@ -347,6 +347,24 @@ retry:
     $DescriptorMap{$fd} = $self;
 }
 
+# for IMAP, NNTP, and POP3 which greet clients upon connect
+sub greet {
+	my ($self, $sock) = @_;
+	my $ev = EPOLLIN;
+	my $wbuf;
+	if ($sock->can('accept_SSL') && !$sock->accept_SSL) {
+		return CORE::close($sock) if $! != EAGAIN;
+		$ev = PublicInbox::TLS::epollbit() or return CORE::close($sock);
+		$wbuf = [ \&accept_tls_step, $self->can('do_greet')];
+	}
+	new($self, $sock, $ev | EPOLLONESHOT);
+	if ($wbuf) {
+		$self->{wbuf} = $wbuf;
+	} else {
+		$self->do_greet;
+	}
+	$self;
+}
 
 #####################################################################
 ### I N S T A N C E   M E T H O D S
