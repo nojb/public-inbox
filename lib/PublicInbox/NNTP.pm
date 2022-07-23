@@ -189,7 +189,7 @@ sub listgroup_range_i {
 	my ($self, $beg, $end) = @_;
 	my $r = $self->{ibx}->mm(1)->msg_range($beg, $end, 'num');
 	scalar(@$r) or return;
-	$self->msg_more(join('', map { "$_->[0]\r\n" } @$r));
+	$self->msg_more(join("\r\n", @$r, ''));
 	1;
 }
 
