@@ -55,7 +55,7 @@ sub refresh_groups {
 			# run in the same process someday.
 		}
 	});
-	$self->{groupnames} = [ sort(keys %$groups) ];
+	@{$self->{groupnames}} = sort(keys %$groups);
 	# this will destroy old groups that got deleted
 	$self->{pi_cfg} = $pi_cfg;
 }

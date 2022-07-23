@@ -108,60 +108,63 @@ sub list_overview_fmt ($) { $OVERVIEW_FMT }
 
 sub list_headers ($;$) { $LIST_HEADERS }
 
-sub list_active_i { # "LIST ACTIVE" and also just "LIST" (no args)
-	my ($self, $groupnames) = @_;
-	my @window = splice(@$groupnames, 0, 100) or return 0;
-	my $ibx;
+sub names2ibx ($;$) {
+	my ($self, $names) = @_;
 	my $groups = $self->{nntpd}->{pi_cfg}->{-by_newsgroup};
-	for my $ngname (@window) {
-		$ibx = $groups->{$ngname} and group_line($self, $ibx);
+	if ($names) { # modify arrayref in-place
+		$_ = $groups->{$_} for @$names;
+		$names; # now an arrayref of ibx
+	} else {
+		my @ret = map { $groups->{$_} } @{$self->{nntpd}->{groupnames}};
+		\@ret;
 	}
-	scalar(@$groupnames); # continue if there's more
+}
+
+sub list_active_i { # "LIST ACTIVE" and also just "LIST" (no args)
+	my ($self, $ibxs) = @_;
+	my @window = splice(@$ibxs, 0, 1000);
+	$self->msg_more(join('', map { group_line($_) } @window));
+	scalar @$ibxs; # continue if there's more
 }
 
 sub list_active ($;$) { # called by cmd_list
 	my ($self, $wildmat) = @_;
 	wildmat2re($wildmat);
-	$self->long_response(\&list_active_i, [
-		grep(/$wildmat/, @{$self->{nntpd}->{groupnames}}) ]);
+	my @names = grep(/$wildmat/, @{$self->{nntpd}->{groupnames}});
+	$self->long_response(\&list_active_i, names2ibx($self, \@names));
 }
 
 sub list_active_times_i {
-	my ($self, $groupnames) = @_;
-	my @window = splice(@$groupnames, 0, 100) or return 0;
-	my $groups = $self->{nntpd}->{pi_cfg}->{-by_newsgroup};
-	for my $ngname (@window) {
-		my $ibx = $groups->{$ngname} or next;
-		my $c = eval { $ibx->uidvalidity } // time;
-		$self->msg_more("$ngname $c <$ibx->{-primary_address}>\r\n");
-	}
-	scalar(@$groupnames); # continue if there's more
+	my ($self, $ibxs) = @_;
+	my @window = splice(@$ibxs, 0, 1000);
+	$self->msg_more(join('', map {
+		my $c = eval { $_->uidvalidity } // time;
+		"$_->{newsgroup} $c <$_->{-primary_address}>\r\n";
+	} @window));
+	scalar @$ibxs; # continue if there's more
 }
 
 sub list_active_times ($;$) { # called by cmd_list
 	my ($self, $wildmat) = @_;
 	wildmat2re($wildmat);
-	$self->long_response(\&list_active_times_i, [
-		grep(/$wildmat/, @{$self->{nntpd}->{groupnames}}) ]);
+	my @names = grep(/$wildmat/, @{$self->{nntpd}->{groupnames}});
+	$self->long_response(\&list_active_times_i, names2ibx($self, \@names));
 }
 
 sub list_newsgroups_i {
-	my ($self, $groupnames) = @_;
-	my @window = splice(@$groupnames, 0, 100) or return 0;
-	my $groups = $self->{nntpd}->{pi_cfg}->{-by_newsgroup};
-	my $ibx;
-	for my $ngname (@window) {
-		$ibx = $groups->{$ngname} and
-			$self->msg_more("$ngname ".$ibx->description."\r\n");
-	}
-	scalar(@$groupnames); # continue if there's more
+	my ($self, $ibxs) = @_;
+	my @window = splice(@$ibxs, 0, 1000);
+	$self->msg_more(join('', map {
+		"$_->{newsgroup} ".$_->description."\r\n"
+	} @window));
+	scalar @$ibxs; # continue if there's more
 }
 
 sub list_newsgroups ($;$) { # called by cmd_list
 	my ($self, $wildmat) = @_;
 	wildmat2re($wildmat);
-	$self->long_response(\&list_newsgroups_i, [
-		grep(/$wildmat/, @{$self->{nntpd}->{groupnames}}) ]);
+	my @names = grep(/$wildmat/, @{$self->{nntpd}->{groupnames}});
+	$self->long_response(\&list_newsgroups_i, names2ibx($self, \@names));
 }
 
 # LIST SUBSCRIPTIONS, DISTRIB.PATS are not supported
@@ -178,8 +181,7 @@ sub cmd_list ($;$$) {
 		$arg->($self, @args);
 	} else {
 		$self->msg_more("215 list of newsgroups follows\r\n");
-		$self->long_response(\&list_active_i, [ # copy array
-			@{$self->{nntpd}->{groupnames}} ]);
+		$self->long_response(\&list_active_i, names2ibx($self));
 	}
 }
 
@@ -242,23 +244,19 @@ sub parse_time ($$;$) {
 	}
 }
 
-sub group_line ($$) {
-	my ($self, $ibx) = @_;
+sub group_line ($) {
+	my ($ibx) = @_;
 	my ($min, $max) = $ibx->mm(1)->minmax;
-	$self->msg_more("$ibx->{newsgroup} $max $min n\r\n");
+	"$ibx->{newsgroup} $max $min n\r\n";
 }
 
 sub newgroups_i {
-	my ($self, $ts, $i, $groupnames) = @_;
-	my $end = $$i + 100;
-	my $groups = $self->{nntpd}->{pi_cfg}->{-by_newsgroup};
-	while ($$i < $end) {
-		my $ngname = $groupnames->[$$i++] // return;
-		my $ibx = $groups->{$ngname} or next; # expired on reload
-		next unless (eval { $ibx->uidvalidity } // 0) > $ts;
-		group_line($self, $ibx);
-	}
-	1;
+	my ($self, $ts, $ibxs) = @_;
+	my @window = splice(@$ibxs, 0, 1000);
+	$self->msg_more(join('', map { group_line($_) } grep {
+		 (eval { $_->uidvalidity } // 0) > $ts
+	} @window));
+	scalar @$ibxs;
 }
 
 sub cmd_newgroups ($$$;$$) {
@@ -268,8 +266,7 @@ sub cmd_newgroups ($$$;$$) {
 
 	# TODO dists
 	$self->msg_more("231 list of new newsgroups follows\r\n");
-	$self->long_response(\&newgroups_i, $ts, \(my $i = 0),
-				$self->{nntpd}->{groupnames});
+	$self->long_response(\&newgroups_i, $ts, names2ibx($self));
 }
 
 sub wildmat2re (;$) {
@@ -304,22 +301,19 @@ sub ngpat2re (;$) {
 }
 
 sub newnews_i {
-	my ($self, $names, $ts, $prev) = @_;
-	my $ngname = $names->[0];
-	if (my $ibx = $self->{nntpd}->{pi_cfg}->{-by_newsgroup}->{$ngname}) {
-		if (my $over = $ibx->over) {
-			my $msgs = $over->query_ts($ts, $$prev);
-			if (scalar @$msgs) {
-				$self->msg_more(join('', map {
-							"<$_->{mid}>\r\n";
-						} @$msgs));
-				$$prev = $msgs->[-1]->{num};
-				return 1; # continue on current group
-			}
+	my ($self, $ibxs, $ts, $prev) = @_;
+	if (my $over = $ibxs->[0]->over) {
+		my $msgs = $over->query_ts($ts, $$prev);
+		if (scalar @$msgs) {
+			$self->msg_more(join('', map {
+						"<$_->{mid}>\r\n";
+					} @$msgs));
+			$$prev = $msgs->[-1]->{num};
+			return 1; # continue on current group
 		}
 	}
-	shift @$names;
-	if (@$names) { # continue onto next newsgroup
+	shift @$ibxs;
+	if (@$ibxs) { # continue onto next newsgroup
 		$$prev = 0;
 		1;
 	} else { # all done, break out of the long_response
@@ -335,11 +329,12 @@ sub cmd_newnews ($$$$;$$) {
 	my ($keep, $skip) = split(/!/, $newsgroups, 2);
 	ngpat2re($keep);
 	ngpat2re($skip);
-	my @names = grep(!/$skip/, grep(/$keep/,
-				@{$self->{nntpd}->{groupnames}}));
-	return ".\r\n" unless scalar(@names);
+	my @names = grep(/$keep/, @{$self->{nntpd}->{groupnames}});
+	@names = grep(!/$skip/, @names);
+	return \".\r\n" unless scalar(@names);
 	my $prev = 0;
-	$self->long_response(\&newnews_i, \@names, $ts, \$prev);
+	$self->long_response(\&newnews_i, names2ibx($self, \@names),
+				$ts, \$prev);
 }
 
 sub cmd_group ($$) {
