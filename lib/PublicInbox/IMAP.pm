@@ -1035,7 +1035,7 @@ sub cmd_uid_fetch ($$$$;@) {
 	my $range_info = range_step($self, \$range_csv);
 	return "$tag $range_info\r\n" if !ref($range_info);
 	uo2m_hibernate($self) if $cb == \&fetch_blob; # slow, save RAM
-	long_response($self, $cb, $tag, [], $range_info, $ops, $partial);
+	$self->long_response($cb, $tag, [], $range_info, $ops, $partial);
 }
 
 sub cmd_fetch ($$$$;@) {
@@ -1050,7 +1050,7 @@ sub cmd_fetch ($$$$;@) {
 	my $range_info = range_step($self, \$range_csv);
 	return "$tag $range_info\r\n" if !ref($range_info);
 	uo2m_hibernate($self) if $cb == \&fetch_blob; # slow, save RAM
-	long_response($self, $cb, $tag, [], $range_info, $ops, $partial);
+	$self->long_response($cb, $tag, [], $range_info, $ops, $partial);
 }
 
 sub msn_convert ($$) {
@@ -1094,7 +1094,7 @@ sub search_common {
 	my ($sql, $range_info) = delete @$q{qw(sql range_info)};
 	if (!scalar(keys %$q)) { # overview.sqlite3
 		$self->msg_more('* SEARCH');
-		long_response($self, \&search_uid_range,
+		$self->long_response(\&search_uid_range,
 				$tag, $sql, $range_info, $want_msn);
 	} elsif ($q = $q->{xap}) {
 		my $srch = $self->{ibx}->isrch or
@@ -1165,35 +1165,6 @@ sub process_line ($$) {
 	$self->write($res);
 }
 
-sub long_step {
-	my ($self) = @_;
-	# wbuf is unset or empty, here; {long} may add to it
-	my ($fd, $cb, $t0, @args) = @{$self->{long_cb}};
-	my $more = eval { $cb->($self, @args) };
-	if ($@ || !$self->{sock}) { # something bad happened...
-		delete $self->{long_cb};
-		my $elapsed = now() - $t0;
-		if ($@) {
-			err($self,
-			    "%s during long response[$fd] - %0.6f",
-			    $@, $elapsed);
-		}
-		out($self, " deferred[$fd] aborted - %0.6f", $elapsed);
-		$self->close;
-	} elsif ($more) { # $self->{wbuf}:
-		# control passed to ibx_async_cat if $more == \undef
-		$self->requeue_once($self) if !ref($more);
-	} else { # all done!
-		delete $self->{long_cb};
-		my $elapsed = now() - $t0;
-		my $fd = fileno($self->{sock});
-		out($self, " deferred[$fd] done - %0.6f", $elapsed);
-		my $wbuf = $self->{wbuf}; # do NOT autovivify
-
-		$self->requeue unless $wbuf && @$wbuf;
-	}
-}
-
 sub err ($$;@) {
 	my ($self, $fmt, @args) = @_;
 	printf { $self->{imapd}->{err} } $fmt."\n", @args;
@@ -1202,18 +1173,6 @@ sub err ($$;@) {
 sub out ($$;@) {
 	my ($self, $fmt, @args) = @_;
 	printf { $self->{imapd}->{out} } $fmt."\n", @args;
-}
-
-sub long_response ($$;@) {
-	my ($self, $cb, @args) = @_; # cb returns true if more, false if done
-
-	my $sock = $self->{sock} or return;
-	# make sure we disable reading during a long response,
-	# clients should not be sending us stuff and making us do more
-	# work while we are stream a response to them
-	$self->{long_cb} = [ fileno($sock), $cb, now(), @args ];
-	long_step($self); # kick off!
-	undef;
 }
 
 # callback used by PublicInbox::DS for any (e)poll (in/out/hup/err)

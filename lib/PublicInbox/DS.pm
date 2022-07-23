@@ -650,18 +650,56 @@ sub shutdn ($) {
 
 sub zflush {} # overridden by NNTPdeflate and IMAPdeflate
 
+sub long_response_done {} # overridden by Net::NNTP
+
+sub long_step {
+	my ($self) = @_;
+	# wbuf is unset or empty, here; {long} may add to it
+	my ($fd, $cb, $t0, @args) = @{$self->{long_cb}};
+	my $more = eval { $cb->($self, @args) };
+	if ($@ || !$self->{sock}) { # something bad happened...
+		delete $self->{long_cb};
+		my $elapsed = now() - $t0;
+		$@ and $self->err("%s during long response[$fd] - %0.6f",
+				    $@, $elapsed);
+		$self->out(" deferred[$fd] aborted - %0.6f", $elapsed);
+		$self->close;
+	} elsif ($more) { # $self->{wbuf}:
+		# control passed to ibx_async_cat if $more == \undef
+		requeue_once($self) if !ref($more);
+	} else { # all done!
+		delete $self->{long_cb};
+		$self->long_response_done;
+		my $elapsed = now() - $t0;
+		my $fd = fileno($self->{sock});
+		$self->out(" deferred[$fd] done - %0.6f", $elapsed);
+		my $wbuf = $self->{wbuf}; # do NOT autovivify
+		requeue($self) unless $wbuf && @$wbuf;
+	}
+}
+
 sub requeue_once {
 	my ($self) = @_;
 	# COMPRESS users all share the same DEFLATE context.
-	# Flush it here to ensure clients don't see
-	# each other's data
+	# Flush it here to ensure clients don't see each other's data
 	$self->zflush;
 
 	# no recursion, schedule another call ASAP,
 	# but only after all pending writes are done.
 	# autovivify wbuf.  wbuf may be populated by $cb,
 	# no need to rearm if so: (push returns new size of array)
-	requeue($self) if push(@{$self->{wbuf}}, $self->can('long_step')) == 1;
+	requeue($self) if push(@{$self->{wbuf}}, \&long_step) == 1;
+}
+
+sub long_response ($$;@) {
+	my ($self, $cb, @args) = @_; # cb returns true if more, false if done
+	my $sock = $self->{sock} or return;
+	# make sure we disable reading during a long response,
+	# clients should not be sending us stuff and making us do more
+	# work while we are stream a response to them
+	$self->{long_cb} = [ fileno($sock), $cb, now(), @args ];
+	long_step($self); # kick off!
+	undef;
 }
 
 sub dwaitpid ($;$$) {

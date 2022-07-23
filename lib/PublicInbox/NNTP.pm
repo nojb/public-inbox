@@ -122,7 +122,7 @@ sub list_active_i { # "LIST ACTIVE" and also just "LIST" (no args)
 sub list_active ($;$) { # called by cmd_list
 	my ($self, $wildmat) = @_;
 	wildmat2re($wildmat);
-	long_response($self, \&list_active_i, [
+	$self->long_response(\&list_active_i, [
 		grep(/$wildmat/, @{$self->{nntpd}->{groupnames}}) ]);
 }
 
@@ -141,7 +141,7 @@ sub list_active_times_i {
 sub list_active_times ($;$) { # called by cmd_list
 	my ($self, $wildmat) = @_;
 	wildmat2re($wildmat);
-	long_response($self, \&list_active_times_i, [
+	$self->long_response(\&list_active_times_i, [
 		grep(/$wildmat/, @{$self->{nntpd}->{groupnames}}) ]);
 }
 
@@ -160,7 +160,7 @@ sub list_newsgroups_i {
 sub list_newsgroups ($;$) { # called by cmd_list
 	my ($self, $wildmat) = @_;
 	wildmat2re($wildmat);
-	long_response($self, \&list_newsgroups_i, [
+	$self->long_response(\&list_newsgroups_i, [
 		grep(/$wildmat/, @{$self->{nntpd}->{groupnames}}) ]);
 }
 
@@ -178,7 +178,7 @@ sub cmd_list ($;$$) {
 		$arg->($self, @args);
 	} else {
 		$self->msg_more("215 list of newsgroups follows\r\n");
-		long_response($self, \&list_active_i, [ # copy array
+		$self->long_response(\&list_active_i, [ # copy array
 			@{$self->{nntpd}->{groupnames}} ]);
 	}
 }
@@ -210,9 +210,9 @@ sub cmd_listgroup ($;$$) {
 	if (defined $range) {
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
-		long_response($self, \&listgroup_range_i, @$r);
+		$self->long_response(\&listgroup_range_i, @$r);
 	} else { # grab every article number
-		long_response($self, \&listgroup_all_i, \(my $num = 0));
+		$self->long_response(\&listgroup_all_i, \(my $num = 0));
 	}
 }
 
@@ -268,7 +268,7 @@ sub cmd_newgroups ($$$;$$) {
 
 	# TODO dists
 	$self->msg_more("231 list of new newsgroups follows\r\n");
-	long_response($self, \&newgroups_i, $ts, \(my $i = 0),
+	$self->long_response(\&newgroups_i, $ts, \(my $i = 0),
 				$self->{nntpd}->{groupnames});
 }
 
@@ -339,7 +339,7 @@ sub cmd_newnews ($$$$;$$) {
 				@{$self->{nntpd}->{groupnames}}));
 	return ".\r\n" unless scalar(@names);
 	my $prev = 0;
-	long_response($self, \&newnews_i, \@names, $ts, \$prev);
+	$self->long_response(\&newnews_i, \@names, $ts, \$prev);
 }
 
 sub cmd_group ($$) {
@@ -613,46 +613,7 @@ sub get_range ($$) {
 	$beg > $end ? "420 No article(s) selected\r\n" : [ \$beg, $end ];
 }
 
-sub long_step {
-	my ($self) = @_;
-	# wbuf is unset or empty, here; {long} may add to it
-	my ($fd, $cb, $t0, @args) = @{$self->{long_cb}};
-	my $more = eval { $cb->($self, @args) };
-	if ($@ || !$self->{sock}) { # something bad happened...
-		delete $self->{long_cb};
-		my $elapsed = now() - $t0;
-		if ($@) {
-			err($self,
-			    "%s during long response[$fd] - %0.6f",
-			    $@, $elapsed);
-		}
-		out($self, " deferred[$fd] aborted - %0.6f", $elapsed);
-		$self->close;
-	} elsif ($more) { # $self->{wbuf}:
-		# control passed to ibx_async_cat if $more == \undef
-		$self->requeue_once if !ref($more);
-	} else { # all done!
-		delete $self->{long_cb};
-		$self->write(\".\r\n"); # TODO get rid of this
-		my $elapsed = now() - $t0;
-		my $fd = fileno($self->{sock});
-		out($self, " deferred[$fd] done - %0.6f", $elapsed);
-		my $wbuf = $self->{wbuf}; # do NOT autovivify
-		$self->requeue unless $wbuf && @$wbuf;
-	}
-}
-
-sub long_response ($$;@) {
-	my ($self, $cb, @args) = @_; # cb returns true if more, false if done
-
-	my $sock = $self->{sock} or return;
-	# make sure we disable reading during a long response,
-	# clients should not be sending us stuff and making us do more
-	# work while we are stream a response to them
-	$self->{long_cb} = [ fileno($sock), $cb, now(), @args ];
-	long_step($self); # kick off!
-	undef;
-}
+sub long_response_done { $_[0]->write(\".\r\n") } # overrides superclass
 
 sub hdr_msgid_range_i {
 	my ($self, $beg, $end) = @_;
@@ -674,7 +635,7 @@ sub hdr_message_id ($$$) { # optimize XHDR Message-ID [range] for slrnpull.
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
 		$self->msg_more($xhdr ? r221 : r225);
-		long_response($self, \&hdr_msgid_range_i, @$r);
+		$self->long_response(\&hdr_msgid_range_i, @$r);
 	}
 }
 
@@ -746,7 +707,7 @@ sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
 		$self->msg_more($xhdr ? r221 : r225);
-		long_response($self, \&xref_range_i, @$r);
+		$self->long_response(\&xref_range_i, @$r);
 	}
 }
 
@@ -790,7 +751,7 @@ sub hdr_smsg ($$$$) {
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
 		$self->msg_more($xhdr ? r221 : r225);
-		long_response($self, \&smsg_range_i, @$r, $field);
+		$self->long_response(\&smsg_range_i, @$r, $field);
 	}
 }
 
@@ -860,7 +821,7 @@ sub cmd_xrover ($;$) {
 	my $r = get_range($self, $range);
 	return $r unless ref $r;
 	$self->msg_more("224 Overview information follows\r\n");
-	long_response($self, \&xrover_i, @$r);
+	$self->long_response(\&xrover_i, @$r);
 }
 
 sub over_line ($$$) {
@@ -924,7 +885,7 @@ sub cmd_xover ($;$) {
 	my ($beg, $end) = @$r;
 	$self->msg_more(
 		"224 Overview information follows for $$beg to $end\r\n");
-	long_response($self, \&xover_i, @$r);
+	$self->long_response(\&xover_i, @$r);
 }
 
 sub compressed { undef }
