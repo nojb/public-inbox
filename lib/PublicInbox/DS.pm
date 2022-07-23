@@ -648,8 +648,8 @@ sub shutdn ($) {
     }
 }
 
-sub zflush {} # overridden by NNTPdeflate and IMAPdeflate
-
+sub zflush {} # overridden by DSdeflate
+sub compressed {} # overridden by DSdeflate
 sub long_response_done {} # overridden by Net::NNTP
 
 sub long_step {

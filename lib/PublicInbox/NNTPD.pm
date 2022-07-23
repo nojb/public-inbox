@@ -9,7 +9,7 @@ use v5.10.1;
 use Sys::Hostname;
 use PublicInbox::Config;
 use PublicInbox::InboxIdle;
-use PublicInbox::NNTPdeflate; # loads PublicInbox::NNTP
+use PublicInbox::NNTP;
 
 sub new {
 	my ($class) = @_;

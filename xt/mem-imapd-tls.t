@@ -1,5 +1,5 @@
 #!perl -w
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 # Idle client memory usage test, particularly after EXAMINE when
 # Message Sequence Numbers are loaded
@@ -221,7 +221,7 @@ package IMAPCdeflate;
 use strict;
 our @ISA;
 use Compress::Raw::Zlib;
-use PublicInbox::IMAPdeflate;
+use PublicInbox::IMAP;
 my %ZIN_OPT;
 BEGIN {
 	@ISA = qw(IMAPC);

@@ -2,6 +2,7 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # RFC 8054 NNTP COMPRESS DEFLATE implementation
+# RFC 4978 IMAP COMPRESS=DEFLATE extension
 #
 # RSS usage for 10K idle-but-did-something NNTP clients on 64-bit:
 #   TLS + DEFLATE[a] :  1.8 GB  (MemLevel=9, 1.2 GB with MemLevel=8)
@@ -14,14 +15,13 @@
 # [b] - memory-optimized implementation using a global deflate context.
 #       It's less efficient in terms of compression, but way more
 #       efficient in terms of server memory usage.
-package PublicInbox::NNTPdeflate;
+package PublicInbox::DSdeflate;
 use strict;
-use 5.010_001;
-use parent qw(PublicInbox::NNTP);
+use v5.10.1;
 use Compress::Raw::Zlib;
 
 my %IN_OPT = (
-	-Bufsize => PublicInbox::NNTP::LINE_MAX,
+	-Bufsize => 1024,
 	-WindowBits => -15, # RFC 1951
 	-AppendOutput => 1,
 );
@@ -42,21 +42,18 @@ my $zout;
 	$err == Z_OK or die "Failed to initialize zlib deflate stream: $err";
 }
 
-
 sub enable {
 	my ($class, $self) = @_;
 	my ($in, $err) = Compress::Raw::Zlib::Inflate->new(%IN_OPT);
 	if ($err != Z_OK) {
 		$self->err("Inflate->new failed: $err");
-		$self->write(\"403 Unable to activate compression\r\n");
 		return;
 	}
-	$self->write(\"206 Compression active\r\n");
 	bless $self, $class;
 	$self->{zin} = $in;
 }
 
-# overrides PublicInbox::NNTP::compressed
+# overrides PublicInbox::DS::compressed
 sub compressed { 1 }
 
 sub do_read ($$$$) {

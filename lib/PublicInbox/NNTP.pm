@@ -883,8 +883,6 @@ sub cmd_xover ($;$) {
 	$self->long_response(\&xover_i, @$r);
 }
 
-sub compressed { undef }
-
 sub cmd_starttls ($) {
 	my ($self) = @_;
 	my $sock = $self->{sock} or return;
@@ -903,7 +901,9 @@ sub cmd_compress ($$) {
 	my ($self, $alg) = @_;
 	return "503 Only DEFLATE is supported\r\n" if uc($alg) ne 'DEFLATE';
 	return r502 if $self->compressed;
-	PublicInbox::NNTPdeflate->enable($self);
+	PublicInbox::NNTPdeflate->enable($self) or return
+				\"403 Unable to activate compression\r\n";
+	PublicInbox::DS::write($self, \"206 Compression active\r\n");
 	$self->requeue;
 	undef
 }
@@ -984,5 +984,9 @@ sub busy { # for graceful shutdown in PublicInbox::Daemon:
 	my ($self) = @_;
 	defined($self->{rbuf}) || defined($self->{wbuf})
 }
+
+package PublicInbox::NNTPdeflate;
+use PublicInbox::DSdeflate;
+our @ISA = qw(PublicInbox::DSdeflate PublicInbox::NNTP);
 
 1;

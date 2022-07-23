@@ -1212,8 +1212,6 @@ sub event_step {
 	$self->requeue unless $pending;
 }
 
-sub compressed { undef }
-
 # RFC 4978
 sub cmd_compress ($$$) {
 	my ($self, $tag, $alg) = @_;
@@ -1223,7 +1221,9 @@ sub cmd_compress ($$$) {
 	# CRIME made TLS compression obsolete
 	# return "$tag NO [COMPRESSIONACTIVE]\r\n" if $self->tls_compressed;
 
-	PublicInbox::IMAPdeflate->enable($self, $tag);
+	PublicInbox::IMAPdeflate->enable($self) or return
+				\"$tag BAD failed to activate compression\r\n";
+	PublicInbox::DS::write($self, \"$tag OK DEFLATE active\r\n");
 	$self->requeue;
 	undef
 }
@@ -1268,5 +1268,9 @@ package PublicInbox::IMAP_preauth;
 our @ISA = qw(PublicInbox::IMAP);
 
 sub logged_in { 0 }
+
+package PublicInbox::IMAPdeflate;
+use PublicInbox::DSdeflate;
+our @ISA = qw(PublicInbox::DSdeflate PublicInbox::IMAP);
 
 1;

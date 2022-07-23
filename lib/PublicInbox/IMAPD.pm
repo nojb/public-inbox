@@ -9,7 +9,7 @@ use v5.10.1;
 use PublicInbox::Config;
 use PublicInbox::ConfigIter;
 use PublicInbox::InboxIdle;
-use PublicInbox::IMAPdeflate; # loads PublicInbox::IMAP
+use PublicInbox::IMAP;
 use PublicInbox::DummyInbox;
 my $dummy = bless { uidvalidity => 0 }, 'PublicInbox::DummyInbox';
 

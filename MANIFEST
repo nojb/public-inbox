@@ -169,6 +169,7 @@ lib/PublicInbox/ContentHash.pm
 lib/PublicInbox/DS.pm
 lib/PublicInbox/DSKQXS.pm
 lib/PublicInbox/DSPoll.pm
+lib/PublicInbox/DSdeflate.pm
 lib/PublicInbox/Daemon.pm
 lib/PublicInbox/DirIdle.pm
 lib/PublicInbox/DummyInbox.pm
@@ -206,7 +207,6 @@ lib/PublicInbox/IMAP.pm
 lib/PublicInbox/IMAPClient.pm
 lib/PublicInbox/IMAPD.pm
 lib/PublicInbox/IMAPTracker.pm
-lib/PublicInbox/IMAPdeflate.pm
 lib/PublicInbox/IMAPsearchqp.pm
 lib/PublicInbox/IPC.pm
 lib/PublicInbox/IdxStack.pm
@@ -295,7 +295,6 @@ lib/PublicInbox/Msgmap.pm
 lib/PublicInbox/MultiGit.pm
 lib/PublicInbox/NNTP.pm
 lib/PublicInbox/NNTPD.pm
-lib/PublicInbox/NNTPdeflate.pm
 lib/PublicInbox/NetNNTPSocks.pm
 lib/PublicInbox/NetReader.pm
 lib/PublicInbox/NetWriter.pm
