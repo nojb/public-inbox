@@ -148,12 +148,21 @@ sub _stat_cache ($) {
 	my ($self) = @_;
 	my ($beg, $end) = (($self->{uid_dele} // -1) + 1, $self->{uid_max});
 	PublicInbox::IMAP::uid_clamp($self, \$beg, \$end);
-	my $opt = { limit => PublicInbox::IMAP::UID_SLICE };
-	my $m = $self->{ibx}->over(1)->do_get(<<'', $opt, $beg, $end);
+	my (@cache, $m);
+	my $sth = $self->{ibx}->over(1)->dbh->prepare_cached(<<'', undef, 1);
 SELECT num,ddd FROM over WHERE num >= ? AND num <= ?
 ORDER BY num ASC
 
-	[ map { ($_->{num}, $_->{bytes} + 0, $_->{blob}) } @$m ];
+	$sth->execute($beg, $end);
+	do {
+		$m = $sth->fetchall_arrayref({}, 1000);
+		for my $x (@$m) {
+			PublicInbox::Over::load_from_row($x);
+			push(@cache, $x->{num}, $x->{bytes} + 0, $x->{blob});
+			undef $x; # saves ~1.5M memory w/ 50k messages
+		}
+	} while (scalar(@$m) && ($beg = $cache[-3] + 1));
+	\@cache;
 }
 
 sub cmd_stat {
