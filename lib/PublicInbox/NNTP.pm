@@ -24,9 +24,9 @@ use constant {
 	LINE_MAX => 512, # RFC 977 section 2.3
 	r501 => '501 command syntax error',
 	r502 => '502 Command unavailable',
-	r221 => '221 Header follows',
+	r221 => "221 Header follows\r\n",
 	r224 => '224 Overview information follows (multi-line)',
-	r225 =>	'225 Headers follow (multi-line)',
+	r225 =>	"225 Headers follow (multi-line)\r\n",
 	r430 => '430 No article with that message-id',
 };
 use PublicInbox::Syscall qw(EPOLLIN EPOLLONESHOT);
@@ -82,8 +82,8 @@ sub process_line ($$) {
 	my ($self, $l) = @_;
 	my ($req, @args) = split(/[ \t]+/, $l);
 	return 1 unless defined($req); # skip blank line
-	$req = $self->can('cmd_'.lc($req));
-	return res($self, '500 command not recognized') unless $req;
+	$req = $self->can('cmd_'.lc($req)) //
+		return $self->write(\"500 command not recognized\r\n");
 	return res($self, r501) unless args_ok($req, scalar @args);
 
 	my $res = eval { $req->($self, @args) };
@@ -403,7 +403,7 @@ sub cmd_post ($) {
 
 sub cmd_quit ($) {
 	my ($self) = @_;
-	res($self, '205 closing connection - goodbye!');
+	$self->write(\"205 closing connection - goodbye!\r\n");
 	$self->shutdn;
 	undef;
 }
@@ -663,7 +663,7 @@ sub long_step {
 		$self->requeue if $new_size == 1;
 	} else { # all done!
 		delete $self->{long_cb};
-		res($self, '.');
+		$self->write(\".\r\n");
 		my $elapsed = now() - $t0;
 		my $fd = fileno($self->{sock});
 		out($self, " deferred[$fd] done - %0.6f", $elapsed);
@@ -703,7 +703,7 @@ sub hdr_message_id ($$$) { # optimize XHDR Message-ID [range] for slrnpull.
 		$range = $self->{article} unless defined $range;
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
-		more($self, $xhdr ? r221 : r225);
+		$self->msg_more($xhdr ? r221 : r225);
 		long_response($self, \&hdr_msgid_range_i, @$r);
 	}
 }
@@ -775,7 +775,7 @@ sub hdr_xref ($$$) { # optimize XHDR Xref [range] for rtin
 		$range = $self->{article} unless defined $range;
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
-		more($self, $xhdr ? r221 : r225);
+		$self->msg_more($xhdr ? r221 : r225);
 		long_response($self, \&xref_range_i, @$r);
 	}
 }
@@ -819,7 +819,7 @@ sub hdr_smsg ($$$$) {
 		$range = $self->{article} unless defined $range;
 		my $r = get_range($self, $range);
 		return $r unless ref $r;
-		more($self, $xhdr ? r221 : r225);
+		$self->msg_more($xhdr ? r221 : r225);
 		long_response($self, \&smsg_range_i, @$r, $field);
 	}
 }
@@ -837,7 +837,7 @@ sub do_hdr ($$$;$) {
 	} elsif ($sub =~ /\A:(bytes|lines)\z/) {
 		hdr_smsg($self, $xhdr, $1, $range);
 	} else {
-		$xhdr ? (r221 . "\r\n.") : "503 HDR not permitted on $header";
+		$xhdr ? (r221 . '.') : "503 HDR not permitted on $header";
 	}
 }
 
@@ -867,16 +867,9 @@ sub hdr_mid_prefix ($$$$$) {
 
 sub hdr_mid_response ($$$$$$) {
 	my ($self, $xhdr, $ibx, $n, $mid, $v) = @_;
-	my $res = '';
-	if ($xhdr) {
-		$res .= r221 . "\r\n";
-		$res .= "$mid $v\r\n";
-	} else {
-		$res .= r225 . "\r\n";
-		my $pfx = hdr_mid_prefix($self, $xhdr, $ibx, $n, $mid);
-		$res .= "$pfx $v\r\n";
-	}
-	res($self, $res .= '.');
+	$self->write(($xhdr ? r221.$mid :
+		   r225.hdr_mid_prefix($self, $xhdr, $ibx, $n, $mid)) .
+		" $v\r\n.\r\n");
 	undef;
 }
 
@@ -972,7 +965,7 @@ sub cmd_starttls ($) {
 	return r502 if ($sock->can('accept_SSL') || $self->compressed);
 	my $opt = $self->{nntpd}->{accept_tls} or
 		return '580 can not initiate TLS negotiation';
-	res($self, '382 Continue with TLS negotiation');
+	$self->write(\"382 Continue with TLS negotiation\r\n");
 	$self->{sock} = IO::Socket::SSL->start_SSL($sock, %$opt);
 	$self->requeue if PublicInbox::DS::accept_tls_step($self);
 	undef;
