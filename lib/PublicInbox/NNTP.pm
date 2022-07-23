@@ -117,7 +117,7 @@ sub cmd_slave ($) { '202 slave status noted' }
 
 sub cmd_xgtitle ($;$) {
 	my ($self, $wildmat) = @_;
-	more($self, '282 list of groups and descriptions follows');
+	$self->msg_more("282 list of groups and descriptions follows\r\n");
 	list_newsgroups($self, $wildmat);
 }
 
@@ -150,7 +150,7 @@ sub list_active_times_i {
 	for my $ngname (@window) {
 		my $ibx = $groups->{$ngname} or next;
 		my $c = eval { $ibx->uidvalidity } // time;
-		more($self, "$ngname $c <$ibx->{-primary_address}>");
+		$self->msg_more("$ngname $c <$ibx->{-primary_address}>\r\n");
 	}
 	scalar(@$groupnames); # continue if there's more
 }
@@ -169,7 +169,7 @@ sub list_newsgroups_i {
 	my $ibx;
 	for my $ngname (@window) {
 		$ibx = $groups->{$ngname} and
-			more($self, "$ngname ".$ibx->description);
+			$self->msg_more("$ngname ".$ibx->description."\r\n");
 	}
 	scalar(@$groupnames); # continue if there's more
 }
@@ -191,10 +191,10 @@ sub cmd_list ($;$$) {
 		$arg = "list_$arg";
 		$arg = $self->can($arg);
 		return r501 unless $arg && args_ok($arg, scalar @args);
-		more($self, '215 information follows');
+		$self->msg_more("215 information follows\r\n");
 		$arg->($self, @args);
 	} else {
-		more($self, '215 list of newsgroups follows');
+		$self->msg_more("215 list of newsgroups follows\r\n");
 		long_response($self, \&list_active_i, [ # copy array
 			@{$self->{nntpd}->{groupnames}} ]);
 	}
@@ -212,7 +212,7 @@ sub listgroup_all_i {
 	my ($self, $num) = @_;
 	my $ary = $self->{ibx}->over(1)->ids_after($num);
 	scalar(@$ary) or return;
-	more($self, join("\r\n", @$ary));
+	$self->msg_more(join("\r\n", @$ary, ''));
 	1;
 }
 
@@ -221,7 +221,7 @@ sub cmd_listgroup ($;$$) {
 	if (defined $group) {
 		my $res = cmd_group($self, $group);
 		return $res if ($res !~ /\A211 /);
-		more($self, $res);
+		$self->msg_more($res .= "\r\n");
 	}
 	$self->{ibx} or return '412 no newsgroup selected';
 	if (defined $range) {
@@ -262,7 +262,7 @@ sub parse_time ($$;$) {
 sub group_line ($$) {
 	my ($self, $ibx) = @_;
 	my ($min, $max) = $ibx->mm(1)->minmax;
-	more($self, "$ibx->{newsgroup} $max $min n");
+	$self->msg_more("$ibx->{newsgroup} $max $min n\r\n");
 }
 
 sub newgroups_i {
@@ -284,7 +284,7 @@ sub cmd_newgroups ($$$;$$) {
 	return r501 if $@;
 
 	# TODO dists
-	more($self, '231 list of new newsgroups follows');
+	$self->msg_more("231 list of new newsgroups follows\r\n");
 	long_response($self, \&newgroups_i, $ts, \(my $i = 0),
 				$self->{nntpd}->{groupnames});
 }
@@ -348,7 +348,7 @@ sub cmd_newnews ($$$$;$$) {
 	my ($self, $newsgroups, $date, $time, $gmt, $dists) = @_;
 	my $ts = eval { parse_time($date, $time, $gmt) };
 	return r501 if $@;
-	more($self, '230 list of new articles by message-id follows');
+	$self->msg_more("230 list of new articles by message-id follows\r\n");
 	my ($keep, $skip) = split(/!/, $newsgroups, 2);
 	ngpat2re($keep);
 	ngpat2re($skip);
@@ -565,15 +565,15 @@ sub blob_cb { # called by git->cat_async via ibx_async_cat
 	my $r = "$code $smsg->{num} <$smsg->{mid}> article retrieved - ";
 	my $eml = PublicInbox::Eml->new($bref);
 	if ($code == 220) {
-		more($self, $r .= 'head and body follow');
+		$self->msg_more($r .= "head and body follow\r\n");
 		msg_hdr_write($eml, $smsg);
 		$self->msg_more("\r\n");
 		msg_body_write($self, $bref);
 	} elsif ($code == 221) {
-		more($self, $r .= 'head follows');
+		$self->msg_more($r .= "head follows\r\n");
 		msg_hdr_write($eml, $smsg);
 	} elsif ($code == 222) {
-		more($self, $r .= 'body follows');
+		$self->msg_more($r .= "body follows\r\n");
 		msg_body_write($self, $bref);
 	} else {
 		$self->close;
@@ -609,7 +609,7 @@ sub cmd_date ($) { '111 '.strftime('%Y%m%d%H%M%S', gmtime(time)) }
 
 sub cmd_help ($) {
 	my ($self) = @_;
-	more($self, '100 help text follows');
+	$self->msg_more("100 help text follows\r\n");
 	'.'
 }
 
@@ -876,7 +876,7 @@ sub hdr_mid_response ($$$$$$) {
 sub xrover_i {
 	my ($self, $beg, $end) = @_;
 	my $h = over_header_for($self->{ibx}, $$beg, 'references');
-	more($self, "$$beg $h") if defined($h);
+	$self->msg_more("$$beg $h\r\n") if defined($h);
 	$$beg++ < $end;
 }
 
@@ -889,7 +889,7 @@ sub cmd_xrover ($;$) {
 	$range = $self->{article} unless defined $range;
 	my $r = get_range($self, $range);
 	return $r unless ref $r;
-	more($self, '224 Overview information follows');
+	$self->msg_more("224 Overview information follows\r\n");
 	long_response($self, \&xrover_i, @$r);
 }
 
@@ -916,7 +916,8 @@ sub cmd_over ($;$) {
 		my ($ibx, $n) = mid_lookup($self, $1);
 		defined $n or return r430;
 		my $smsg = $ibx->over(1)->get_art($n) or return r430;
-		more($self, '224 Overview information follows (multi-line)');
+		$self->msg_more(
+			"224 Overview information follows (multi-line)\r\n");
 
 		# Only set article number column if it's the current group
 		# (RFC 3977 8.3.2)
@@ -952,7 +953,8 @@ sub cmd_xover ($;$) {
 	my $r = get_range($self, $range);
 	return $r unless ref $r;
 	my ($beg, $end) = @$r;
-	more($self, "224 Overview information follows for $$beg to $end");
+	$self->msg_more(
+		"224 Overview information follows for $$beg to $end\r\n");
 	long_response($self, \&xover_i, @$r);
 }
 
@@ -1013,8 +1015,6 @@ sub cmd_xpath ($$) {
 }
 
 sub res ($$) { do_write($_[0], $_[1] . "\r\n") }
-
-sub more ($$) { $_[0]->msg_more($_[1] . "\r\n") }
 
 sub do_write ($$) {
 	my $self = $_[0];
