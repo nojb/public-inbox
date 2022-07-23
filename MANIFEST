@@ -595,6 +595,7 @@ xt/lei-auth-fail.t
 xt/lei-onion-convert.t
 xt/mem-imapd-tls.t
 xt/mem-msgview.t
+xt/mem-nntpd-tls.t
 xt/msgtime_cmp.t
 xt/net_nntp_socks.t
 xt/net_writer-imap.t
