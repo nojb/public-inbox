@@ -502,7 +502,7 @@ sub msg_body_write ($$) {
 	# these can momentarily double the memory consumption :<
 	$$msg =~ s/^\./../smg;
 	$$msg =~ s/(?<!\r)\n/\r\n/sg; # Alpine barfs without this
-	$$msg .= "\r\n" unless $$msg =~ /\r\n\z/s;
+	$$msg .= "\r\n" unless substr($$msg, -2, 2) eq "\r\n";
 	$self->msg_more($$msg);
 }
 
