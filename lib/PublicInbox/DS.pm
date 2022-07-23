@@ -650,6 +650,20 @@ sub shutdn ($) {
 
 sub zflush {} # overridden by NNTPdeflate and IMAPdeflate
 
+sub requeue_once {
+	my ($self) = @_;
+	# COMPRESS users all share the same DEFLATE context.
+	# Flush it here to ensure clients don't see
+	# each other's data
+	$self->zflush;
+
+	# no recursion, schedule another call ASAP,
+	# but only after all pending writes are done.
+	# autovivify wbuf.  wbuf may be populated by $cb,
+	# no need to rearm if so: (push returns new size of array)
+	requeue($self) if push(@{$self->{wbuf}}, $self->can('long_step')) == 1;
+}
+
 sub dwaitpid ($;$$) {
 	my ($pid, $cb, $arg) = @_;
 	if ($in_loop) {

@@ -635,17 +635,8 @@ sub long_step {
 		out($self, " deferred[$fd] aborted - %0.6f", $elapsed);
 		$self->close;
 	} elsif ($more) { # $self->{wbuf}:
-		# COMPRESS users all share the same DEFLATE context.
-		# Flush it here to ensure clients don't see
-		# each other's data
-		$self->zflush;
-
-		# no recursion, schedule another call ASAP, but only after
-		# all pending writes are done.  autovivify wbuf:
-		my $new_size = push(@{$self->{wbuf}}, \&long_step);
-
-		# wbuf may be populated by $cb, no need to rearm if so:
-		$self->requeue if $new_size == 1;
+		# control passed to ibx_async_cat if $more == \undef
+		$self->requeue_once if !ref($more);
 	} else { # all done!
 		delete $self->{long_cb};
 		$self->write(\".\r\n");

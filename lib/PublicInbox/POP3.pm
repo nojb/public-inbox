@@ -55,22 +55,6 @@ sub out ($$;@) {
 	printf { $self->{pop3d}->{out} } $fmt."\n", @args;
 }
 
-sub requeue_once ($) {
-	my ($self) = @_;
-	# COMPRESS users all share the same DEFLATE context.
-	# Flush it here to ensure clients don't see
-	# each other's data
-	$self->zflush;
-
-	# no recursion, schedule another call ASAP,
-	# but only after all pending writes are done.
-	# autovivify wbuf:
-	my $new_size = push(@{$self->{wbuf}}, \&long_step);
-
-	# wbuf may be populated by $cb, no need to rearm if so:
-	$self->requeue if $new_size == 1;
-}
-
 sub long_step {
 	my ($self) = @_;
 	# wbuf is unset or empty, here; {long} may add to it

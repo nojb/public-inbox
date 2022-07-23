@@ -563,22 +563,6 @@ sub fetch_body ($;$) {
 	join('', @hold);
 }
 
-sub requeue_once ($) {
-	my ($self) = @_;
-	# COMPRESS users all share the same DEFLATE context.
-	# Flush it here to ensure clients don't see
-	# each other's data
-	$self->zflush;
-
-	# no recursion, schedule another call ASAP,
-	# but only after all pending writes are done.
-	# autovivify wbuf:
-	my $new_size = push(@{$self->{wbuf}}, \&long_step);
-
-	# wbuf may be populated by $cb, no need to rearm if so:
-	$self->requeue if $new_size == 1;
-}
-
 sub fetch_run_ops {
 	my ($self, $smsg, $bref, $ops, $partial) = @_;
 	my $uid = $smsg->{num};
@@ -601,7 +585,7 @@ sub fetch_blob_cb { # called by git->cat_async via ibx_async_cat
 		# it's possible to have TOCTOU if an admin runs
 		# public-inbox-(edit|purge), just move onto the next message
 		warn "E: $smsg->{blob} missing in $ibx->{inboxdir}\n";
-		return requeue_once($self);
+		return $self->requeue_once;
 	} else {
 		$smsg->{blob} eq $oid or die "BUG: $smsg->{blob} != $oid";
 	}
@@ -611,7 +595,7 @@ sub fetch_blob_cb { # called by git->cat_async via ibx_async_cat
 					\&fetch_blob_cb, $fetch_arg);
 	}
 	fetch_run_ops($self, $smsg, $bref, $ops, $partial);
-	$pre ? $self->zflush : requeue_once($self);
+	$pre ? $self->zflush : $self->requeue_once;
 }
 
 sub emit_rfc822 {
@@ -1198,7 +1182,7 @@ sub long_step {
 		$self->close;
 	} elsif ($more) { # $self->{wbuf}:
 		# control passed to ibx_async_cat if $more == \undef
-		requeue_once($self) if !ref($more);
+		$self->requeue_once($self) if !ref($more);
 	} else { # all done!
 		delete $self->{long_cb};
 		my $elapsed = now() - $t0;
