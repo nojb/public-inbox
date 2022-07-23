@@ -226,8 +226,8 @@ my %ZIN_OPT;
 BEGIN {
 	@ISA = qw(IMAPC);
 	%ZIN_OPT = ( -WindowBits => -15, -AppendOutput => 1 );
-	*write = \&PublicInbox::IMAPdeflate::write;
-	*do_read = \&PublicInbox::IMAPdeflate::do_read;
+	*write = \&PublicInbox::DSdeflate::write;
+	*do_read = \&PublicInbox::DSdeflate::do_read;
 };
 
 sub enable {
