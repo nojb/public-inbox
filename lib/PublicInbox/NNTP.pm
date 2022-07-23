@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Each instance of this represents a NNTP client socket
@@ -71,7 +71,7 @@ sub new ($$$) {
 sub args_ok ($$) {
 	my ($cb, $argc) = @_;
 	my $tot = prototype $cb;
-	my ($nreq, undef) = split(';', $tot);
+	my ($nreq, undef) = split(/;/, $tot);
 	$nreq = ($nreq =~ tr/$//) - 1;
 	$tot = ($tot =~ tr/$//) - 1;
 	($argc <= $tot && $argc >= $nreq);
@@ -349,7 +349,7 @@ sub cmd_newnews ($$$$;$$) {
 	my $ts = eval { parse_time($date, $time, $gmt) };
 	return r501 if $@;
 	more($self, '230 list of new articles by message-id follows');
-	my ($keep, $skip) = split('!', $newsgroups, 2);
+	my ($keep, $skip) = split(/!/, $newsgroups, 2);
 	ngpat2re($keep);
 	ngpat2re($skip);
 	my @names = grep(!/$skip/, grep(/$keep/,
