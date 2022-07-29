@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # used for displaying help texts and other non-mail content
@@ -272,7 +272,7 @@ EOF
 	@ret; # may be empty, this sub is called as an arg for join()
 }
 
-sub _add_imap_nntp_urls ($$) {
+sub _add_non_http_urls ($$) {
 	my ($ctx, $txt) = @_;
 	$ctx->{ibx}->can('nntp_url') or return; # TODO extindex can have IMAP
 	my $urls = $ctx->{ibx}->imap_url($ctx);
@@ -286,10 +286,24 @@ EOM
 	}
 	$urls = $ctx->{ibx}->nntp_url($ctx);
 	if (@$urls) {
-		$$txt .= "\n";
-		$$txt .= @$urls == 1 ? 'Newsgroup' : 'Newsgroups are';
+		$$txt .= @$urls == 1 ? "\nNewsgroup" : "\nNewsgroups are";
 		$$txt .= ' available over NNTP:';
 		$$txt .= "\n  " . join("\n  ", @$urls) . "\n";
+	}
+	$urls = $ctx->{ibx}->pop3_url($ctx);
+	if (@$urls) {
+		$urls = join("\n  ", @$urls);
+		$$txt .= <<EOM;
+
+POP3 access is available:
+  $urls
+
+The password is: anonymous
+The username is: \$(uuidgen)\@$ctx->{ibx}->{newsgroup}
+where \$(uuidgen) in the output of the `uuidgen' command on your system.
+The UUID in the username functions as a private cookie (don't share it).
+Idle accounts will expire periodically.
+EOM
 	}
 }
 
@@ -379,7 +393,7 @@ EOM
 
 Example config snippet for mirrors: $cfg_link
 EOF
-	_add_imap_nntp_urls($ctx, $txt);
+	_add_non_http_urls($ctx, $txt);
 	_add_onion_note($txt);
 
 	my $code_url = prurl($ctx->{env}, $PublicInbox::WwwStream::CODE_URL);
@@ -508,7 +522,7 @@ message threading
 EOF
 	} # $over
 
-	_add_imap_nntp_urls($ctx, \(my $note = ''));
+	_add_non_http_urls($ctx, \(my $note = ''));
 	$note and $note =~ s/^/  /gms and $$txt .= <<EOF;
 additional protocols
 --------------------

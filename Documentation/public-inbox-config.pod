@@ -228,6 +228,13 @@ L<public-inbox-nntpd(1)> instance.
 
 Default: none
 
+=item publicinbox.pop3server
+
+Same as C<publicinbox.imapserver>, but for the hostname(s) of the
+L<public-inbox-pop3d(1)> instance.
+
+Default: none
+
 =item publicinbox.pop3state
 
 See L<public-inbox-pop3d(1)/publicinbox.pop3state>

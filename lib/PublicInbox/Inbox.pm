@@ -28,7 +28,7 @@ sub do_cleanup {
 		check_inodes($ibx);
 	} else {
 		delete(@$ibx{qw(over mm description cloneurl
-				-imap_url -nntp_url)});
+				-imap_url -nntp_url -pop3_url)});
 	}
 	my $srch = $ibx->{search} // $ibx;
 	delete @$srch{qw(xdb qp)};
@@ -230,9 +230,9 @@ sub base_url {
 	$url;
 }
 
-# imapserver, nntpserver, and pop3server configs are used here:
+# imapserver, nntpserver configs are used here:
 sub _x_url ($$$) {
-	my ($self, $x, $ctx) = @_; # $x is "imap", "nntp", or "pop3"
+	my ($self, $x, $ctx) = @_; # $x is "imap" or "nntp"
 	# no checking for nntp_usable here, we can point entirely
 	# to non-local servers or users run by a different user
 	my $ns = $self->{"${x}server"} //
@@ -276,7 +276,29 @@ EOM
 # my ($self, $ctx) = @_;
 sub imap_url { $_[0]->{-imap_url} //= _x_url($_[0], 'imap', $_[1]) }
 sub nntp_url { $_[0]->{-nntp_url} //= _x_url($_[0], 'nntp', $_[1]) }
-sub pop3_url { $_[0]->{-pop3_url} //= _x_url($_[0], 'pop3', $_[1]) }
+
+sub pop3_url {
+	my ($self, $ctx) = @_;
+	$self->{-pop3_url} //= do {
+		my $ps = $self->{'pop3server'} //
+		       $ctx->{www}->{pi_cfg}->get_all('publicinbox.pop3server');
+		my $group = $self->{newsgroup};
+		my @urls;
+		($ps && $group) and
+			@urls = map { m!\Apops?://! ? $_ : "pop://$_" } @$ps;
+		if (my $mi = $self->{'pop3mirror'}) {
+			my @m = map { m!\Apops?://! ? $_ : "pop://$_" } @$mi;
+			my %seen; # List::Util::uniq requires Perl 5.26+
+			@urls = grep { !$seen{$_}++ } (@urls, @m);
+		}
+		my $n = 0;
+		for (@urls) { $n += s!/+\z!! }
+		warn <<EOM if $n;
+W: pop3server and/or pop3mirror URLs should not end with trailing slash `/'
+EOM
+		\@urls;
+	}
+}
 
 sub nntp_usable {
 	my ($self) = @_;
