@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # "Solve" blobs which don't exist in git code repositories by
@@ -301,7 +301,6 @@ sub do_git_init ($) {
 	repositoryFormatVersion = $v
 	filemode = true
 	bare = false
-	fsyncObjectfiles = false
 	logAllRefUpdates = false
 EOF
 	print $fh <<EOM if defined($$fmt);
@@ -325,6 +324,7 @@ EOM
 	$self->{git_env} = {
 		GIT_DIR => $git_dir,
 		GIT_INDEX_FILE => "$git_dir/index",
+		GIT_TEST_FSYNC => 0, # undocumented git env
 	};
 	prepare_index($self);
 }
