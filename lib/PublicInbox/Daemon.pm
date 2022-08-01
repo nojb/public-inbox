@@ -66,6 +66,7 @@ sub accept_tls_opt ($) {
 			my $host = '';
 			$path =~ s/\A([^:]+):// and $host = $1;
 			$x->{$host} = $path;
+			check_absolute($k, $path) if $daemonize;
 		}
 	}
 	my $ctx = IO::Socket::SSL::SSL_Context->new(%ctx_opt) or
@@ -283,6 +284,8 @@ sub daemonize () {
 		check_absolute('--stdout', $stdout);
 		check_absolute('--stderr', $stderr);
 		check_absolute('--pid-file', $pid_file);
+		check_absolute('--cert', $default_cert);
+		check_absolute('--key', $default_key);
 
 		chdir '/' or die "chdir failed: $!";
 	}
