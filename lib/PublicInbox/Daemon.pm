@@ -35,6 +35,9 @@ my ($uid, $gid);
 my ($default_cert, $default_key);
 my %KNOWN_TLS = (443 => 'https', 563 => 'nntps', 993 => 'imaps', 995 =>'pop3s');
 my %KNOWN_STARTTLS = (110 => 'pop3', 119 => 'nntp', 143 => 'imap');
+my %SCHEME2PORT = map { $KNOWN_TLS{$_} => $_ + 0 } keys %KNOWN_TLS;
+for (keys %KNOWN_STARTTLS) { $SCHEME2PORT{$KNOWN_STARTTLS{$_}} = $_ + 0 }
+$SCHEME2PORT{http} = 80;
 
 sub listener_opt ($) {
 	my ($str) = @_; # opt1=val1,opt2=val2 (opt may repeat for multi-value)
@@ -103,9 +106,10 @@ sub open_log_path ($$) { # my ($fh, $path) = @_; # $_[0] is modified
 	do_chown($_[1]);
 }
 
-sub load_mod ($;$) {
-	my ($scheme, $opt) = @_;
+sub load_mod ($;$$) {
+	my ($scheme, $opt, $addr) = @_;
 	my $modc = "PublicInbox::\U$scheme";
+	$modc =~ s/S\z//;
 	my $mod = $modc.'D';
 	eval "require $mod"; # IMAPD|HTTPD|NNTPD|POP3D
 	die $@ if $@;
@@ -200,11 +204,17 @@ EOF
 	foreach my $l (@cfg_listen) {
 		my $orig = $l;
 		my $scheme = '';
-		if ($l =~ s!\A([^:]+)://!!) {
-			$scheme = $1;
-		} elsif ($l =~ /\A(?:\[[^\]]+\]|[^:]+):([0-9])+/) {
-			my $s = $KNOWN_TLS{$1} // $KNOWN_STARTTLS{$1};
-			$scheme = $s if defined $s;
+		my $port;
+		if ($l =~ s!\A([^:]+)://!!) { $scheme = $1 }
+		if ($l =~ /\A(?:\[[^\]]+\]|[^:]+):([0-9]+)/) {
+			$port = $1 + 0;
+			my $s = $KNOWN_TLS{$port} // $KNOWN_STARTTLS{$port};
+			$scheme //= $s if defined $s;
+		} elsif (index($l, '/') != 0) { # unix socket
+			$port //= $SCHEME2PORT{$scheme} if $scheme;
+			$port // die "no port in listen=$l\n";
+			$l =~ s!\A([^/]+)!$1:$port! or
+				die "unable to add port=$port to $l\n";
 		}
 		my $opt; # non-TLS options
 		if ($l =~ s!/?\?(.+)\z!!) {
@@ -215,8 +225,8 @@ EOF
 		} elsif ($scheme =~ /\A(?:https|imaps|nntps|pop3s)\z/) {
 			die "$orig specified w/o cert=\n";
 		}
-		$scheme =~ /\A(http|imap|nntp|pop3)/ and
-			$xnetd->{$l} = load_mod($1, $opt);
+		$scheme =~ /\A(?:http|imap|nntp|pop3)/ and
+			$xnetd->{$l} = load_mod($scheme, $opt, $l);
 
 		next if $listener_names->{$l}; # already inherited
 		my (%o, $sock_pkg);
@@ -263,7 +273,7 @@ EOF
 	for my $sockname (@inherited_names) {
 		$sockname =~ /:([0-9]+)\z/ or next;
 		if (my $scheme = $KNOWN_TLS{$1}) {
-			$xnetd->{$sockname} = load_mod(substr($scheme, 0, -1));
+			$xnetd->{$sockname} = load_mod($scheme);
 			$tls_opt{"$scheme://$sockname"} ||= accept_tls_opt('');
 		} elsif (($scheme = $KNOWN_STARTTLS{$1})) {
 			$xnetd->{$sockname} = load_mod($scheme);
