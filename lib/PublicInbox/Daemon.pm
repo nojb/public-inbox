@@ -104,6 +104,7 @@ sub open_log_path ($$) { # my ($fh, $path) = @_; # $_[0] is modified
 	open $_[0], '>>', $_[1] or die "open(>> $_[1]): $!";
 	$_[0]->autoflush(1);
 	do_chown($_[1]);
+	$_[0];
 }
 
 sub load_mod ($;$$) {
@@ -141,8 +142,7 @@ sub load_mod ($;$$) {
 		die "multiple $f= options specified\n" if @$p > 1;
 		check_absolute("$f=", $p->[0]) if $daemonize;
 		$p = File::Spec->canonpath($p->[0]);
-		open_log_path(my $fh, $p);
-		$tlsd->{$f} = $logs{$p} = $fh;
+		$tlsd->{$f} = $logs{$p} //= open_log_path(my $fh, $p);
 		warn "# $scheme://$addr $f=$p\n";
 	}
 	\%xn;
