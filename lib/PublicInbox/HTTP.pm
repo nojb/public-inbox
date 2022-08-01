@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Generic PSGI server for convenience.  It aims to provide
@@ -52,8 +52,8 @@ sub http_date () {
 }
 
 sub new ($$$) {
-	my ($class, $sock, $addr, $httpd) = @_;
-	my $self = bless { httpd => $httpd }, $class;
+	my ($class, $sock, $addr, $srv_env) = @_;
+	my $self = bless { srv_env => $srv_env }, $class;
 	my $ev = EPOLLIN;
 	my $wbuf;
 	if ($sock->can('accept_SSL') && !$sock->accept_SSL) {
@@ -78,7 +78,7 @@ sub event_step { # called by PublicInbox::DS
 	return read_input($self) if ref($self->{env});
 
 	my $rbuf = $self->{rbuf} // (\(my $x = ''));
-	my %env = %{$self->{httpd}->{env}}; # full hash copy
+	my %env = %{$self->{srv_env}}; # full hash copy
 	my $r;
 	while (($r = parse_http_request($$rbuf, \%env)) < 0) {
 		# We do not support Trailers in chunked requests, for
@@ -145,7 +145,7 @@ sub app_dispatch {
 	# note: NOT $self->{sock}, we want our close (+ PublicInbox::DS::close),
 	# to do proper cleanup:
 	$env->{'psgix.io'} = $self; # for ->close or async_pass
-	my $res = Plack::Util::run_app($self->{httpd}->{app}, $env);
+	my $res = Plack::Util::run_app($env->{'pi-httpd.app'}, $env);
 	eval {
 		if (ref($res) eq 'CODE') {
 			$res->(sub { response_write($self, $env, $_[0]) });

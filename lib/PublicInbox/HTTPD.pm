@@ -13,12 +13,17 @@ use PublicInbox::HTTPD::Async;
 
 sub pi_httpd_async { PublicInbox::HTTPD::Async->new(@_) }
 
-sub new {
-	my ($class, $sock, $app, $client) = @_;
-	my $n = getsockname($sock) or die "not a socket: $sock $!\n";
-	my ($host, $port) = PublicInbox::Daemon::host_with_port($n);
+# we have a different env for ever listener socket for
+# SERVER_NAME, SERVER_PORT and psgi.url_scheme
+# envs: listener FD => PSGI env
+sub new { bless { envs => {} }, __PACKAGE__ }
 
-	my %env = (
+# this becomes {srv_env} in PublicInbox::HTTP
+sub env_for ($$$) {
+	my ($self, $srv, $client) = @_;
+	my $n = getsockname($srv) or die "not a socket: $srv $!\n";
+	my ($host, $port) = PublicInbox::Daemon::host_with_port($n);
+	{
 		SERVER_NAME => $host,
 		SERVER_PORT => $port,
 		SCRIPT_NAME => '',
@@ -40,26 +45,24 @@ sub new {
 		# this to limit git-http-backend(1) parallelism.
 		# We also check for the truthiness of this to
 		# detect when to use async paths for slow blobs
-		'pi-httpd.async' => \&pi_httpd_async
-	);
-	bless { app => $app, env => \%env }, $class;
+		'pi-httpd.async' => \&pi_httpd_async,
+		'pi-httpd.app' => $self->{app},
+	}
 }
 
-my %httpds; # per-listen-FD mapping for HTTPD->{env}->{SERVER_<NAME|PORT>}
-my $default_app; # ugh...
-
-sub refresh {
+sub refresh_groups {
+	my ($self) = @_;
+	my $app;
 	if (@main::ARGV) {
-		eval { $default_app = Plack::Util::load_psgi(@ARGV) };
-		if ($@) {
-			die $@,
-"$0 runs in /, command-line paths must be absolute\n";
-		}
+		eval { $app = Plack::Util::load_psgi(@ARGV) };
+		die $@, <<EOM if $@;
+$0 runs in /, command-line paths must be absolute
+EOM
 	} else {
 		require PublicInbox::WWW;
 		my $www = PublicInbox::WWW->new;
 		$www->preload;
-		$default_app = builder {
+		$app = builder {
 			eval { enable 'ReverseProxy' };
 			$@ and warn <<EOM;
 Plack::Middleware::ReverseProxy missing,
@@ -69,14 +72,18 @@ EOM
 			sub { $www->call(@_) };
 		};
 	}
-	%httpds = (); # invalidate cache
+	$_->{'pi-httpd.app'} = $app for values %{$self->{envs}};
+	$self->{app} = $app;
 }
 
-sub post_accept { # Listener->{post_accept}
-	my ($client, $addr, $srv) = @_; # $_[3] - tls_wrap (unused)
-	my $httpd = $httpds{fileno($srv)} //=
-				__PACKAGE__->new($srv, $default_app, $client);
-	PublicInbox::HTTP->new($client, $addr, $httpd),
+sub post_accept_cb { # for Listener->{post_accept}
+	my ($self) = @_;
+	sub {
+		my ($client, $addr, $srv) = @_; # $_[4] - tls_wrap (unused)
+		PublicInbox::HTTP->new($client, $addr,
+				$self->{envs}->{fileno($srv)} //=
+					env_for($self, $srv, $client));
+	}
 }
 
 1;

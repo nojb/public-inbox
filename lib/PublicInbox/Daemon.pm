@@ -81,11 +81,11 @@ sub load_mod ($) {
 	my $mod = $modc.'D';
 	eval "require $mod"; # IMAPD|HTTPD|NNTPD|POP3D
 	die $@ if $@;
-	my %xn = map { $_ => $mod->can($_) } qw(refresh post_accept);
-	$xn{tlsd} = $mod->new if $mod->can('refresh_groups'); #!HTTPD
-	my $tlsd = $xn{tlsd};
-	$xn{refresh} //= sub { $tlsd->refresh_groups(@_) };
-	$xn{post_accept} //= sub { $modc->new($_[0], $tlsd) };
+	my %xn;
+	my $tlsd = $xn{tlsd} = $mod->new;
+	$xn{refresh} = sub { $tlsd->refresh_groups(@_) };
+	$xn{post_accept} = $tlsd->can('post_accept_cb') ?
+			$tlsd->post_accept_cb : sub { $modc->new($_[0], $tlsd) };
 	$xn{af_default} = 'httpready' if $modc eq 'PublicInbox::HTTP';
 	\%xn;
 }
