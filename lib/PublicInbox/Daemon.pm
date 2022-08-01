@@ -129,6 +129,7 @@ sub load_mod ($;$) {
 			die "multiple psgi= options specified\n" if @$p > 1;
 			check_absolute('psgi=', $p->[0]) if $daemonize;
 			$tlsd->{psgi} = $p->[0];
+			warn "# $scheme://$addr psgi=$p->[0]\n";
 		}
 	}
 	for my $f (@paths) {
@@ -138,6 +139,7 @@ sub load_mod ($;$) {
 		$p = File::Spec->canonpath($p->[0]);
 		open_log_path(my $fh, $p);
 		$tlsd->{$f} = $logs{$p} = $fh;
+		warn "# $scheme://$addr $f=$p\n";
 	}
 	\%xn;
 }
@@ -247,8 +249,10 @@ EOF
 		warn "error binding $l: $! ($@)\n" unless $s;
 		umask $prev;
 		if ($s) {
-			$listener_names->{sockname($s)} = $s;
 			$s->blocking(0);
+			my $k = sockname($s);
+			warn "# bound $scheme://$k\n";
+			$listener_names->{$k} = $s;
 			push @listeners, $s;
 		}
 	}
@@ -434,11 +438,12 @@ sub inherit ($) {
 		if (my $k = sockname($s)) {
 			my $prev_was_blocking = $s->blocking(0);
 			warn <<"" if $prev_was_blocking;
-Inherited socket (fd=$fd) is blocking, making it non-blocking.
+Inherited socket ($k fd=$fd) is blocking, making it non-blocking.
 Set 'NonBlocking = true' in the systemd.service unit to avoid stalled
 processes when multiple service instances start.
 
 			$listener_names->{$k} = $s;
+			warn "# inherited $k fd=$fd\n";
 			push @rv, $s;
 		} else {
 			warn "failed to inherit fd=$fd (LISTEN_FDS=$fds)";
