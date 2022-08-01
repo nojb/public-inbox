@@ -4,16 +4,18 @@ public-inbox-daemon - common usage for public-inbox network daemons
 
 =head1 SYNOPSIS
 
+	public-inbox-netd
 	public-inbox-httpd
 	public-inbox-imapd
 	public-inbox-nntpd
+	public-inbox-pop3d
 
 =head1 DESCRIPTION
 
 This manual describes common options and behavior for
 public-inbox network daemons.  Network daemons for public-inbox
-provide read-only NNTP, IMAP and HTTP access to public-inboxes.  Write
-access to a public-inbox will never be required to run these.
+provide read-only IMAP, HTTP, NNTP and POP3 access to public-inboxes.
+Write access to a public-inbox will never be required to run these.
 
 These daemons are implemented with a common core using
 non-blocking sockets and optimized for fairness; even with
@@ -29,9 +31,9 @@ processes to take advantage of multiple CPUs.
 
 =over
 
-=item -l ADDRESS
+=item -l [PROTO://]ADDRESS[?opt1=val1,opt2=val2]
 
-=item --listen ADDRESS
+=item --listen [PROTO://]ADDRESS[?opt1=val1,opt2=val2]
 
 This takes an absolute path to a Unix socket or HOST:PORT
 to listen on.  For example, to listen to TCP connections on
@@ -42,8 +44,14 @@ like L<nginx(8)> to use.
 May be specified multiple times to allow listening on multiple
 sockets.
 
-This does not need to be specified at all if relying on
-L<systemd.socket(5)> or similar
+Unless per-listener options are used (required for
+L<public-inbox-netd(1)>), this does not need to be specified at
+all if relying on L<systemd.socket(5)> or similar,
+
+Per-listener options may be specified after C<?> as C<KEY=VALUE>
+pairs delimited by C<,>.  See L<public-inbox-netd(1)> for
+documentation on the C<cert=>, C<key=>, C<env.NAME=VALUE>,
+C<out=>, C<err=>, and C<psgi=> options available.
 
 Default: server-dependent unless socket activation is used with
 L<systemd(1)> or similar (see L<systemd.socket(5)>).
@@ -57,13 +65,19 @@ Using this is preferable to setting up the redirect externally
 (e.g. E<gt>E<gt>/path/to/log in shell) since it allows
 SIGUSR1 to be handled (see L<SIGNALS/SIGNALS> below).
 
-Default: /dev/null
+C<out=> may also be specified on a per-listener basis.
+
+Default: /dev/null with C<--daemonize>, inherited otherwise
 
 =item -2 PATH
 
 =item --stderr PATH
 
 Like C<--stdout>, but for the stderr descriptor (2).
+
+C<err=> may also be specified on a per-listener basis.
+
+Default: /dev/null with C<--daemonize>, inherited otherwise
 
 =item -W
 
@@ -81,6 +95,25 @@ to increase worker processes or have the worker restarted by
 the master on crashes.
 
 Default: 1
+
+=item --cert /path/to/cert
+
+The default TLS certificate for HTTPS, IMAPS, NNTPS, POP3S and/or STARTTLS
+support if the C<cert> option is not given with C<--listen>.
+
+Well-known TCP ports automatically get TLS or STARTTLS support
+If using systemd-compatible socket activation and a TCP listener
+on port well-known ports (563 is inherited, it is automatically
+NNTPS when this option is given.  When a listener on port 119 is
+inherited and this option is given, it automatically gets
+STARTTLS support.
+
+=item --key /path/to/key
+
+The default TLS certificate key for the default C<--cert> or
+per-listener C<cert=> option.  The private key may be
+concatenated into the path used by the cert, in which case this
+option is not needed.
 
 =back
 
@@ -183,11 +216,11 @@ L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/>
 
 =head1 COPYRIGHT
 
-Copyright 2013-2021 all contributors L<mailto:meta@public-inbox.org>
+Copyright all contributors L<mailto:meta@public-inbox.org>
 
 License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
 
 =head1 SEE ALSO
 
 L<public-inbox-httpd(1)>, L<public-inbox-imapd(1)>,
-L<public-inbox-nntpd(1)>
+L<public-inbox-nntpd(1)>, L<public-inbox-pop3d(1)>, L<public-inbox-netd(1)>

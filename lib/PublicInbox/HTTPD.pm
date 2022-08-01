@@ -16,7 +16,7 @@ sub pi_httpd_async { PublicInbox::HTTPD::Async->new(@_) }
 # we have a different env for ever listener socket for
 # SERVER_NAME, SERVER_PORT and psgi.url_scheme
 # envs: listener FD => PSGI env
-sub new { bless { envs => {} }, __PACKAGE__ }
+sub new { bless { envs => {}, err => \*STDERR }, __PACKAGE__ }
 
 # this becomes {srv_env} in PublicInbox::HTTP
 sub env_for ($$$) {
@@ -28,7 +28,7 @@ sub env_for ($$$) {
 		SERVER_PORT => $port,
 		SCRIPT_NAME => '',
 		'psgi.version' => [ 1, 1 ],
-		'psgi.errors' => \*STDERR,
+		'psgi.errors' => $self->{err},
 		'psgi.url_scheme' => $client->can('accept_SSL') ?
 					'https' : 'http',
 		'psgi.nonblocking' => Plack::Util::TRUE,
@@ -53,8 +53,9 @@ sub env_for ($$$) {
 sub refresh_groups {
 	my ($self) = @_;
 	my $app;
-	if (@main::ARGV) {
-		eval { $app = Plack::Util::load_psgi(@ARGV) };
+	$self->{psgi} //= $main::ARGV[0] if @main::ARGV;
+	if ($self->{psgi}) {
+		eval { $app = Plack::Util::load_psgi($self->{psgi}) };
 		die $@, <<EOM if $@;
 $0 runs in /, command-line paths must be absolute
 EOM

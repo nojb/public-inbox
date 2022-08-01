@@ -1,7 +1,7 @@
 # Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
-# represents an POP3D (currently a singleton)
+# represents an POP3D
 package PublicInbox::POP3D;
 use v5.12;
 use parent qw(PublicInbox::Lock);
@@ -37,20 +37,12 @@ if ($^O eq 'linux' || $^O eq 'freebsd') {
 	die "File::FcntlLock required for POP3 on $^O: $@\n";
 
 sub new {
-	my ($cls, $pi_cfg) = @_;
-	$pi_cfg //= PublicInbox::Config->new;
-	my $d = $pi_cfg->{'publicinbox.pop3state'} //
-		die "publicinbox.pop3state undefined\n";
-	-d $d or do {
-		require File::Path;
-		File::Path::make_path($d, { mode => 0700 });
-		PublicInbox::Syscall::nodatacow_dir($d);
-	};
+	my ($cls) = @_;
 	bless {
 		err => \*STDERR,
 		out => \*STDOUT,
-		pi_cfg => $pi_cfg,
-		lock_path => "$d/db.lock", # PublicInbox::Lock to protect SQLite
+		# pi_cfg => PublicInbox::Config
+		# lock_path => ...
 		# interprocess lock is the $pop3state/txn.locks file
 		# txn_locks => {}, # intraworker locks
 		# accept_tls => { SSL_server => 1, ..., SSL_reuse_ctx => ... }
@@ -61,16 +53,22 @@ sub refresh_groups { # PublicInbox::Daemon callback
 	my ($self, $sig) = @_;
 	# TODO share pi_cfg with nntpd/imapd inside -netd
 	my $new = PublicInbox::Config->new;
-	my $old = $self->{pi_cfg};
-	my $s = 'publicinbox.pop3state';
-	$new->{$s} //= $old->{$s};
-	if ($new->{$s} ne $old->{$s}) {
-		warn <<EOM;
+	my $d = $new->{'publicinbox.pop3state'} //
+		die "publicinbox.pop3state undefined ($new->{-f})\n";
+	-d $d or do {
+		require File::Path;
+		File::Path::make_path($d, { mode => 0700 });
+		PublicInbox::Syscall::nodatacow_dir($d);
+	};
+	$self->{lock_path} //= "$d/db.lock";
+	if (my $old = $self->{pi_cfg}) {
+		my $s = 'publicinbox.pop3state';
+		$new->{$s} //= $old->{$s};
+		return warn <<EOM if $new->{$s} ne $old->{$s};
 $s changed: `$old->{$s}' => `$new->{$s}', config reload ignored
 EOM
-	} else {
-		$self->{pi_cfg} = $new;
 	}
+	$self->{pi_cfg} = $new;
 }
 
 # persistent tables

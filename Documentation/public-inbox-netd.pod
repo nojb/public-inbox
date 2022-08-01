@@ -8,9 +8,10 @@ public-inbox-netd - read-only network daemon for sharing public-inboxes
 
 =head1 DESCRIPTION
 
-public-inbox-netd provides a read-only HTTP/IMAP/NNTP/POP3 daemon for
-public-inbox.  It uses options and environment variables common
-to all L<public-inbox-daemon(8)> implementations.
+public-inbox-netd provides a read-only multi-protocol
+(HTTP/IMAP/NNTP/POP3) daemon for public-inbox.  It uses options
+and environment variables common to all
+L<public-inbox-daemon(8)> implementations.
 
 The default configuration will never require write access
 to the directory where the public-inbox is stored, so it
@@ -28,21 +29,34 @@ See common options in L<public-inbox-daemon(8)/OPTIONS>.
 
 =item --listen PROTO://ADDRESS/?cert=/path/to/cert,key=/path/to/key
 
+=item -l http://ADDRESS/?env.PI_CONFIG=/path/to/cfg,psgi=/path/to/app.psgi
+
 In addition to the normal C<-l>/C<--listen> switch described in
 L<public-inbox-daemon(8)>, the protocol prefix (e.g. C<nntp://> or
 C<nntps://>) may be specified to force a given protocol.
 
+Environment variable overrides in effect during loading and
+reloading (SIGHUP) can be specified as C<env.NAME=VALUE> for
+all protocols.
+
+HTTP(S) listeners may also specify C<psgi=> to use a different
+C<.psgi> file for each listener.
+
+C<err=/path/to/errors.log> may be used to isolate error/debug output
+for a particular listener away from C<--stderr>.
+
+Non-HTTP(S) listeners may also specify C<out=> for logging to
+C<stdout>.  HTTP(S) users are encouraged to configure
+L<Plack::Middleware::AccessLog> or
+L<Plack::Middleware::AccessLog::Timed>, instead.
+
 =item --cert /path/to/cert
 
-The default TLS certificate for optional TLS support
-if the C<cert> option is not given with C<--listen>.
+See L<public-inbox-daemon(1)>.
 
 =item --key /path/to/key
 
-The default private TLS certificate key for optional TLS support
-if the C<key> option is not given with C<--listen>.  The private
-key may be concatenated into the path used by C<--cert>, in which case this
-option is not needed.
+See L<public-inbox-daemon(1)>.
 
 =back
 
@@ -56,6 +70,8 @@ L<public-inbox-config(5)>.
 =item publicinbox.<name>.newsgroup
 
 =item publicinbox.nntpserver
+
+=item publicinbox.pop3state
 
 =back
 

@@ -1,4 +1,5 @@
-# Copyright (C) 2016-2021 all contributors <meta@public-inbox.org>
+#!perl -w
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 # note: our HTTP server should be standalone and capable of running
 # generic PSGI/Plack apps.
@@ -19,7 +20,7 @@ ok(defined mkfifo($fifo, 0777), 'created FIFO');
 my $err = "$tmpdir/stderr.log";
 my $out = "$tmpdir/stdout.log";
 my $psgi = "./t/httpd-corner.psgi";
-my $sock = tcp_server() or die;
+my $sock = tcp_server();
 my @zmods = qw(PublicInbox::GzipFilter IO::Uncompress::Gunzip);
 
 # Make sure we don't clobber socket options set by systemd or similar
@@ -53,14 +54,40 @@ sub unix_server ($) {
 
 my $upath = "$tmpdir/s";
 my $unix = unix_server($upath);
+my $alt = tcp_server();
 my $td;
 my $spawn_httpd = sub {
 	my (@args) = @_;
-	my $cmd = [ '-httpd', @args, "--stdout=$out", "--stderr=$err", $psgi ];
-	$td = start_script($cmd, undef, { 3 => $sock, 4 => $unix });
+	my $x = tcp_host_port($alt);
+	my $cmd = [ '-httpd', @args, "--stdout=$out", "--stderr=$err", $psgi,
+		'-l', "http://$x/?psgi=t/alt.psgi,env.PI_CONFIG=/path/to/alt".
+			",err=$tmpdir/alt.err" ];
+	my $env = { PI_CONFIG => '/dev/null' };
+	$td = start_script($cmd, $env, { 3 => $sock, 4 => $unix, 5 => $alt });
 };
 
 $spawn_httpd->();
+{
+	my $conn = conn_for($alt, 'alt PSGI path');
+	$conn->write("GET / HTTP/1.0\r\n\r\n");
+	$conn->read(my $buf, 4096);
+	like($buf, qr!^/path/to/alt\z!sm,
+		'alt.psgi loaded on alt socket with correct env');
+
+	$conn = conn_for($sock, 'default PSGI path');
+	$conn->write("GET /PI_CONFIG HTTP/1.0\r\n\r\n");
+	$conn->read($buf, 4096);
+	like($buf, qr!^/dev/null\z!sm,
+		'default PSGI on original socket');
+	my $log = capture("$tmpdir/alt.err");
+	ok(grep(/ALT/, @$log), 'alt psgi.errors written to');
+	$log = capture($err);
+	ok(!grep(/ALT/, @$log), 'STDERR not written to');
+	is(unlink($err, "$tmpdir/alt.err"), 2, 'unlinked stderr and alt.err');
+
+	$td->kill('USR1'); # trigger reopen_logs
+}
+
 if ('test worker death') {
 	my $conn = conn_for($sock, 'killed worker');
 	$conn->write("GET /pid HTTP/1.1\r\nHost:example.com\r\n\r\n");
@@ -81,6 +108,10 @@ if ('test worker death') {
 	chomp($body);
 	like($body, qr/\A[0-9]+\z/, '/pid response');
 	isnt($body, $pid, 'respawned worker');
+}
+{ # check on prior USR1 signal
+	ok(-e $err, 'stderr recreated after USR1');
+	ok(-e "$tmpdir/alt.err", 'alt.err recreated after USR1');
 }
 {
 	my $conn = conn_for($sock, 'Header spaces bogus');

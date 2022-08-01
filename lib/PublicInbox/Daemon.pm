@@ -10,6 +10,7 @@ use v5.10.1;
 use Getopt::Long qw(:config gnu_getopt no_ignore_case auto_abbrev);
 use IO::Handle; # ->autoflush
 use IO::Socket;
+use File::Spec;
 use POSIX qw(WNOHANG :signal_h);
 use Socket qw(IPPROTO_TCP SOL_SOCKET);
 STDOUT->autoflush(1);
@@ -27,7 +28,7 @@ my ($set_user, $oldset);
 my (@cfg_listen, $stdout, $stderr, $group, $user, $pid_file, $daemonize);
 my $worker_processes = 1;
 my @listeners;
-my %pids;
+my (%pids, %logs);
 my %tls_opt; # scheme://sockname => args for IO::Socket::SSL->start_SSL
 my $reexec_pid;
 my ($uid, $gid);
@@ -35,24 +36,31 @@ my ($default_cert, $default_key);
 my %KNOWN_TLS = (443 => 'https', 563 => 'nntps', 993 => 'imaps', 995 =>'pop3s');
 my %KNOWN_STARTTLS = (110 => 'pop3', 119 => 'nntp', 143 => 'imap');
 
-sub accept_tls_opt ($) {
-	my ($opt_str) = @_;
-	# opt_str: opt1=val1,opt2=val2 (opt may repeat for multi-value)
-	require PublicInbox::TLS;
+sub listener_opt ($) {
+	my ($str) = @_; # opt1=val1,opt2=val2 (opt may repeat for multi-value)
 	my $o = {};
 	# allow ',' as delimiter since '&' is shell-unfriendly
-	foreach (split(/[,&]/, $opt_str)) {
+	for (split(/[,&]/, $str)) {
 		my ($k, $v) = split(/=/, $_, 2);
-		push @{$o->{$k} ||= []}, $v;
+		push @{$o->{$k}}, $v;
 	}
 
 	# key may be a part of cert.  At least
 	# p5-io-socket-ssl/example/ssl_server.pl has this fallback:
-	$o->{cert} //= [ $default_cert ];
+	$o->{cert} //= [ $default_cert ] if defined($default_cert);
 	$o->{key} //= defined($default_key) ? [ $default_key ] : $o->{cert};
+	$o;
+}
+
+sub accept_tls_opt ($) {
+	my ($opt) = @_;
+	my $o = ref($opt) eq 'HASH' ? $opt : listener_opt($opt);
+	return if !defined($o->{cert});
+	require PublicInbox::TLS;
 	my %ctx_opt = (SSL_server => 1);
 	# parse out hostname:/path/to/ mappings:
-	foreach my $k (qw(cert key)) {
+	for my $k (qw(cert key)) {
+		$o->{$k} // next;
 		my $x = $ctx_opt{'SSL_'.$k.'_file'} = {};
 		foreach my $path (@{$o->{$k}}) {
 			my $host = '';
@@ -75,18 +83,61 @@ sub accept_tls_opt ($) {
 	{ SSL_server => 1, SSL_startHandshake => 0, SSL_reuse_ctx => $ctx };
 }
 
-sub load_mod ($) {
-	my ($scheme) = @_;
+sub check_absolute ($$) {
+	my ($var, $val) = @_;
+	die <<EOM if index($val // '/', '/') != 0;
+$var must be an absolute path when using --daemonize: $val
+EOM
+}
+
+sub do_chown ($) {
+	$uid // return;
+	my ($path) = @_;
+	chown($uid, $gid, $path) or warn "chown $path: $!\n";
+}
+
+sub open_log_path ($$) { # my ($fh, $path) = @_; # $_[0] is modified
+	open $_[0], '>>', $_[1] or die "open(>> $_[1]): $!";
+	$_[0]->autoflush(1);
+	do_chown($_[1]);
+}
+
+sub load_mod ($;$) {
+	my ($scheme, $opt) = @_;
 	my $modc = "PublicInbox::\U$scheme";
 	my $mod = $modc.'D';
 	eval "require $mod"; # IMAPD|HTTPD|NNTPD|POP3D
 	die $@ if $@;
 	my %xn;
 	my $tlsd = $xn{tlsd} = $mod->new;
-	$xn{refresh} = sub { $tlsd->refresh_groups(@_) };
+	my %env = map {
+		substr($_, length('env.')) => $opt->{$_}->[-1];
+	} grep(/\Aenv\./, keys %$opt);
+	$xn{refresh} = sub {
+		my ($sig) = @_;
+		local @ENV{keys %env} = values %env;
+		$tlsd->refresh_groups($sig);
+	};
 	$xn{post_accept} = $tlsd->can('post_accept_cb') ?
 			$tlsd->post_accept_cb : sub { $modc->new($_[0], $tlsd) };
-	$xn{af_default} = 'httpready' if $modc eq 'PublicInbox::HTTP';
+	my @paths = qw(out err);
+	if ($modc eq 'PublicInbox::HTTP') {
+		@paths = qw(err);
+		$xn{af_default} = 'httpready';
+		if (my $p = $opt->{psgi}) {
+			die "multiple psgi= options specified\n" if @$p > 1;
+			check_absolute('psgi=', $p->[0]) if $daemonize;
+			$tlsd->{psgi} = $p->[0];
+		}
+	}
+	for my $f (@paths) {
+		my $p = $opt->{$f} or next;
+		die "multiple $f= options specified\n" if @$p > 1;
+		check_absolute("$f=", $p->[0]) if $daemonize;
+		$p = File::Spec->canonpath($p->[0]);
+		open_log_path(my $fh, $p);
+		$tlsd->{$f} = $logs{$p} = $fh;
+	}
 	\%xn;
 }
 
@@ -125,6 +176,7 @@ EOF
 	GetOptions(%opt) or die $help;
 	if ($show_help) { print $help; exit 0 };
 
+	$_ = File::Spec->canonpath($_ // next) for ($stdout, $stderr);
 	if (defined $pid_file && $pid_file =~ /\.oldbin\z/) {
 		die "--pid-file cannot end with '.oldbin'\n";
 	}
@@ -151,15 +203,17 @@ EOF
 			my $s = $KNOWN_TLS{$1} // $KNOWN_STARTTLS{$1};
 			$scheme = $s if defined $s;
 		}
+		my $opt; # non-TLS options
 		if ($l =~ s!/?\?(.+)\z!!) {
-			$tls_opt{"$scheme://$l"} = accept_tls_opt($1);
+			$opt = listener_opt($1);
+			$tls_opt{"$scheme://$l"} = accept_tls_opt($opt);
 		} elsif (defined($default_cert)) {
 			$tls_opt{"$scheme://$l"} = accept_tls_opt('');
 		} elsif ($scheme =~ /\A(?:https|imaps|nntps|pop3s)\z/) {
 			die "$orig specified w/o cert=\n";
 		}
 		$scheme =~ /\A(http|imap|nntp|pop3)/ and
-			$xnetd->{$l} = load_mod($1);
+			$xnetd->{$l} = load_mod($1, $opt);
 
 		next if $listener_names->{$l}; # already inherited
 		my (%o, $sock_pkg);
@@ -212,16 +266,10 @@ EOF
 			$tls_opt{''} ||= accept_tls_opt('');
 		}
 	}
-
+	my @d;
+	while (my ($k, $v) = each %tls_opt) { push(@d, $k) if !defined($v) }
+	delete @tls_opt{@d};
 	die "No listeners bound\n" unless @listeners;
-}
-
-sub check_absolute ($$) {
-	my ($var, $val) = @_;
-	if (defined $val && index($val, '/') != 0) {
-		die
-"--$var must be an absolute path when using --daemonize: $val\n";
-	}
 }
 
 sub daemonize () {
@@ -232,9 +280,9 @@ sub daemonize () {
 			next unless -e $arg;
 			$ARGV[$i] = Cwd::abs_path($arg);
 		}
-		check_absolute('stdout', $stdout);
-		check_absolute('stderr', $stderr);
-		check_absolute('pid-file', $pid_file);
+		check_absolute('--stdout', $stdout);
+		check_absolute('--stderr', $stderr);
+		check_absolute('--pid-file', $pid_file);
 
 		chdir '/' or die "chdir failed: $!";
 	}
@@ -317,18 +365,9 @@ sub worker_quit { # $_[0] = signal name or number (unused)
 }
 
 sub reopen_logs {
-	if ($stdout) {
-		open STDOUT, '>>', $stdout or
-			warn "failed to redirect stdout to $stdout: $!\n";
-		STDOUT->autoflush(1);
-		do_chown($stdout);
-	}
-	if ($stderr) {
-		open STDERR, '>>', $stderr or
-			warn "failed to redirect stderr to $stderr: $!\n";
-		STDERR->autoflush(1);
-		do_chown($stderr);
-	}
+	$logs{$stdout} //= \*STDOUT if defined $stdout;
+	$logs{$stderr} //= \*STDERR if defined $stderr;
+	while (my ($p, $fh) = each %logs) { open_log_path($fh, $p) }
 }
 
 sub sockname ($) {
@@ -686,13 +725,6 @@ sub run {
 	daemon_loop($xnetd);
 	PublicInbox::DS->Reset;
 	# ->DESTROY runs when $for_destroy goes out-of-scope
-}
-
-sub do_chown ($) {
-	my ($path) = @_;
-	if (defined $uid and !chown($uid, $gid, $path)) {
-		warn "could not chown $path: $!\n";
-	}
 }
 
 sub write_pid ($) {

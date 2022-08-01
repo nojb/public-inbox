@@ -1,11 +1,12 @@
-# Copyright (C) 2016-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 # corner case tests for the generic PSGI server
 # Usage: plackup [OPTIONS] /path/to/this/file
-use strict;
+use v5.12;
 use warnings;
 use Plack::Builder;
 require Digest::SHA;
+my $pi_config = $ENV{PI_CONFIG} // 'unset'; # capture ASAP
 my $app = sub {
 	my ($env) = @_;
 	my $path = $env->{PATH_INFO};
@@ -114,6 +115,9 @@ my $app = sub {
 	} elsif ($path eq '/url_scheme') {
 		$code = 200;
 		push @$body, $env->{'psgi.url_scheme'}
+	} elsif ($path eq '/PI_CONFIG') {
+		$code = 200;
+		push @$body, $pi_config; # show value at ->refresh_groups
 	}
 	[ $code, $h, $body ]
 };

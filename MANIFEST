@@ -390,6 +390,7 @@ scripts/xhdr-num2mid
 t/.gitconfig
 t/address.t
 t/admin.t
+t/alt.psgi
 t/altid.t
 t/altid_v2.t
 t/cgi.t
