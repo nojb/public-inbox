@@ -648,7 +648,7 @@ sub shutdn ($) {
     }
 }
 
-sub zflush {} # overridden by DSdeflate
+sub dflush {} # overridden by DSdeflate
 sub compressed {} # overridden by DSdeflate
 sub long_response_done {} # overridden by Net::NNTP
 
@@ -682,7 +682,7 @@ sub requeue_once {
 	my ($self) = @_;
 	# COMPRESS users all share the same DEFLATE context.
 	# Flush it here to ensure clients don't see each other's data
-	$self->zflush;
+	$self->dflush;
 
 	# no recursion, schedule another call ASAP,
 	# but only after all pending writes are done.

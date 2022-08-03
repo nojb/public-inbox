@@ -30,7 +30,7 @@ my %IN_OPT = (
 my ($zout, $zbuf);
 {
 	my $err;
-	$zbuf = \(my $initial = ''); # replaced by $next in zflush/write
+	$zbuf = \(my $initial = ''); # replaced by $next in dflush/write
 	($zout, $err) = Compress::Raw::Zlib::Deflate->new(
 		# nnrpd (INN) and Compress::Raw::Zlib favor MemLevel=9,
 		# the zlib C library and git use MemLevel=8 as the default
@@ -100,7 +100,7 @@ sub msg_more ($$) {
 	1;
 }
 
-sub zflush ($) {
+sub dflush ($) {
 	my ($self) = @_;
 
 	my $deflated = $zbuf;

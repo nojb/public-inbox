@@ -556,7 +556,7 @@ sub blob_cb { # called by git->cat_async via ibx_async_cat
 		$self->close;
 		die "BUG: bad code: $r";
 	}
-	$self->write(\".\r\n"); # flushes (includes ->zflush)
+	$self->write(\".\r\n"); # flushes (includes ->dflush)
 	$self->requeue;
 }
 

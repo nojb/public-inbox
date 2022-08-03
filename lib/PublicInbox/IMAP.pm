@@ -595,7 +595,7 @@ sub fetch_blob_cb { # called by git->cat_async via ibx_async_cat
 					\&fetch_blob_cb, $fetch_arg);
 	}
 	fetch_run_ops($self, $smsg, $bref, $ops, $partial);
-	$pre ? $self->zflush : $self->requeue_once;
+	$pre ? $self->dflush : $self->requeue_once;
 }
 
 sub emit_rfc822 {
