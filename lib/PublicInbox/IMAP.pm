@@ -350,12 +350,12 @@ sub idle_done ($$) {
 	"$idle_tag OK Idle done\r\n";
 }
 
-sub ensure_slices_exist ($$$) {
-	my ($imapd, $ibx, $max) = @_;
-	defined(my $mb_top = $ibx->{newsgroup}) or return;
+sub ensure_slices_exist ($$) {
+	my ($imapd, $ibx) = @_;
+	my $mb_top = $ibx->{newsgroup} // return;
 	my $mailboxes = $imapd->{mailboxes};
 	my @created;
-	for (my $i = int($max/UID_SLICE); $i >= 0; --$i) {
+	for (my $i = int($ibx->art_max/UID_SLICE); $i >= 0; --$i) {
 		my $sub_mailbox = "$mb_top.$i";
 		last if exists $mailboxes->{$sub_mailbox};
 		$mailboxes->{$sub_mailbox} = $ibx;
@@ -387,7 +387,8 @@ sub inbox_lookup ($$;$) {
 			my $uid_end = $uid_base + UID_SLICE;
 			$exists = $over->imap_exists($uid_base, $uid_end);
 		}
-		ensure_slices_exist($self->{imapd}, $ibx, $over->max);
+		delete $ibx->{-art_max};
+		ensure_slices_exist($self->{imapd}, $ibx);
 	} else {
 		if ($examine) {
 			$self->{uid_base} = $uid_base;
@@ -396,9 +397,9 @@ sub inbox_lookup ($$;$) {
 		}
 		# if "INBOX.foo.bar" is selected and "INBOX.foo.bar.0",
 		# check for new UID ranges (e.g. "INBOX.foo.bar.1")
-		if (my $z = $self->{imapd}->{mailboxes}->{"$mailbox.0"}) {
-			ensure_slices_exist($self->{imapd}, $z,
-						$z->over(1)->max);
+		if (my $ibx = $self->{imapd}->{mailboxes}->{"$mailbox.0"}) {
+			delete $ibx->{-art_max};
+			ensure_slices_exist($self->{imapd}, $ibx);
 		}
 	}
 	($ibx, $exists, $uidmax + 1, $uid_base);

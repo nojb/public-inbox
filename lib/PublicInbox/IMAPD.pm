@@ -6,7 +6,6 @@ package PublicInbox::IMAPD;
 use strict;
 use v5.10.1;
 use PublicInbox::Config;
-use PublicInbox::ConfigIter;
 use PublicInbox::InboxIdle;
 use PublicInbox::IMAP;
 use PublicInbox::DummyInbox;
@@ -15,7 +14,7 @@ my $dummy = bless { uidvalidity => 0 }, 'PublicInbox::DummyInbox';
 sub new {
 	my ($class) = @_;
 	bless {
-		mailboxes => {},
+		# mailboxes => {},
 		err => \*STDERR,
 		out => \*STDOUT,
 		# ssl_ctx_opt => { SSL_cert_file => ..., SSL_key_file => ... }
@@ -25,53 +24,45 @@ sub new {
 }
 
 sub imapd_refresh_ibx { # pi_cfg->each_inbox cb
-	my ($ibx, $imapd) = @_;
-	my $ngname = $ibx->{newsgroup} or return;
+	my ($ibx, $imapd, $cache, $dummies) = @_;
+	my $ngname = $ibx->{newsgroup} // return;
 
 	# We require lower-case since IMAP mailbox names are
 	# case-insensitive (but -nntpd matches INN in being
-	# case-sensitive
+	# case-sensitive)
 	if ($ngname =~ m![^a-z0-9/_\.\-\~\@\+\=:]! ||
 			# don't confuse with 50K slices
 			$ngname =~ /\.[0-9]+\z/) {
 		warn "mailbox name invalid: newsgroup=`$ngname'\n";
 		return;
 	}
-	$ibx->over or return;
-	$ibx->{over} = undef;
-
-	# RFC 3501 2.3.1.1 -  "A good UIDVALIDITY value to use in
-	# this case is a 32-bit representation of the creation
-	# date/time of the mailbox"
-	eval { $ibx->uidvalidity };
-	my $mm = delete($ibx->{mm}) or return;
-	defined($ibx->{uidvalidity}) or return;
-	PublicInbox::IMAP::ensure_slices_exist($imapd, $ibx, $mm->max);
-
-	# preload to avoid fragmentation:
-	$ibx->description;
-	$ibx->base_url;
-
-	# ensure dummies are selectable
-	my $dummies = $imapd->{dummies};
-	do {
-		$dummies->{$ngname} = $dummy;
-	} while ($ngname =~ s/\.[^\.]+\z//);
+	my $ce = $cache->{$ngname};
+	%$ibx = (%$ibx, %$ce) if $ce;
+	# only valid if msgmap and over works:
+	if (defined($ibx->uidvalidity)) {
+		# fill ->{mailboxes}:
+		PublicInbox::IMAP::ensure_slices_exist($imapd, $ibx);
+		# preload to avoid fragmentation:
+		$ibx->description;
+		$ibx->base_url;
+		# ensure dummies are selectable:
+		do {
+			$dummies->{$ngname} = $dummy;
+		} while ($ngname =~ s/\.[^\.]+\z//);
+	}
+	delete @$ibx{qw(mm over)};
 }
 
-sub imapd_refresh_finalize {
-	my ($imapd, $pi_cfg) = @_;
-	my $mailboxes;
-	if (my $next = delete $imapd->{imapd_next}) {
-		$imapd->{mailboxes} = delete $next->{mailboxes};
-		$mailboxes = delete $next->{dummies};
-	} else {
-		$mailboxes = delete $imapd->{dummies};
-	}
-	%$mailboxes = (%$mailboxes, %{$imapd->{mailboxes}});
-	$imapd->{mailboxes} = $mailboxes;
-	$imapd->{mailboxlist} = [
-		map { $_->[2] }
+sub refresh_groups {
+	my ($self, $sig) = @_;
+	my $pi_cfg = PublicInbox::Config->new;
+	my $mailboxes = $self->{mailboxes} = {};
+	my $cache = eval { $pi_cfg->ALL->misc->nntpd_cache_load } // {};
+	my $dummies = {};
+	$pi_cfg->each_inbox(\&imapd_refresh_ibx, $self, $cache, $dummies);
+	%$dummies = (%$dummies, %$mailboxes);
+	$mailboxes = $self->{mailboxes} = $dummies;
+	@{$self->{mailboxlist}} = map { $_->[2] }
 		sort { $a->[0] cmp $b->[0] || $a->[1] <=> $b->[1] }
 		map {
 			my $u = $_; # capitalize "INBOX" for user-familiarity
@@ -85,37 +76,10 @@ sub imapd_refresh_finalize {
 				[ $1, $2 + 0,
 				  qq[* LIST (\\HasNoChildren) "." $u\r\n] ]
 			}
-		} keys %$mailboxes
-	];
-	$imapd->{pi_cfg} = $pi_cfg;
-	if (my $idler = $imapd->{idler}) {
+		} keys %$mailboxes;
+	$self->{pi_cfg} = $pi_cfg;
+	if (my $idler = $self->{idler}) {
 		$idler->refresh($pi_cfg);
-	}
-}
-
-sub imapd_refresh_step { # PublicInbox::ConfigIter cb
-	my ($pi_cfg, $section, $imapd) = @_;
-	if (defined($section)) {
-		return if $section !~ m!\Apublicinbox\.([^/]+)\z!;
-		my $ibx = $pi_cfg->lookup_name($1) or return;
-		imapd_refresh_ibx($ibx, $imapd->{imapd_next});
-	} else { # undef == "EOF"
-		imapd_refresh_finalize($imapd, $pi_cfg);
-	}
-}
-
-sub refresh_groups {
-	my ($self, $sig) = @_;
-	my $pi_cfg = PublicInbox::Config->new;
-	if ($sig) { # SIGHUP is handled through the event loop
-		$self->{imapd_next} = { dummies => {}, mailboxes => {} };
-		my $iter = PublicInbox::ConfigIter->new($pi_cfg,
-						\&imapd_refresh_step, $self);
-		$iter->event_step;
-	} else { # initial start is synchronous
-		$self->{dummies} = {};
-		$pi_cfg->each_inbox(\&imapd_refresh_ibx, $self);
-		imapd_refresh_finalize($self, $pi_cfg);
 	}
 }
 
