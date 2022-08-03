@@ -48,7 +48,6 @@ sub refresh_groups {
 			$ibx->base_url;
 		} else {
 			delete $groups->{$ngname};
-			delete $ibx->{newsgroup};
 			# Note: don't be tempted to delete more for memory
 			# savings just yet: NNTP, IMAP, and WWW may all
 			# run in the same process someday.
