@@ -17,7 +17,7 @@ sub new {
 		err => \*STDERR,
 		out => \*STDOUT,
 		# pi_cfg => $pi_cfg,
-		# accept_tls => { SSL_server => 1, ..., SSL_reuse_ctx => ... }
+		# ssl_ctx_opt => { SSL_cert_file => ..., SSL_key_file => ... }
 		# idler => PublicInbox::InboxIdle
 	}, $class;
 }

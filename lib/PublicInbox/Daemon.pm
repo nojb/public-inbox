@@ -29,7 +29,7 @@ my (@cfg_listen, $stdout, $stderr, $group, $user, $pid_file, $daemonize);
 my $worker_processes = 1;
 my @listeners;
 my (%pids, %logs);
-my %tls_opt; # scheme://sockname => args for IO::Socket::SSL->start_SSL
+my %tls_opt; # scheme://sockname => args for IO::Socket::SSL::SSL_Context->new
 my $reexec_pid;
 my ($uid, $gid);
 my ($default_cert, $default_key);
@@ -55,43 +55,31 @@ sub listener_opt ($) {
 	$o;
 }
 
-sub accept_tls_opt ($) {
-	my ($opt) = @_;
-	my $o = ref($opt) eq 'HASH' ? $opt : listener_opt($opt);
-	return if !defined($o->{cert});
-	require PublicInbox::TLS;
-	my %ctx_opt = (SSL_server => 1);
-	# parse out hostname:/path/to/ mappings:
-	for my $k (qw(cert key)) {
-		$o->{$k} // next;
-		my $x = $ctx_opt{'SSL_'.$k.'_file'} = {};
-		foreach my $path (@{$o->{$k}}) {
-			my $host = '';
-			$path =~ s/\A([^:]+):// and $host = $1;
-			$x->{$host} = $path;
-			check_absolute($k, $path) if $daemonize;
-		}
-	}
-	my $ctx = IO::Socket::SSL::SSL_Context->new(%ctx_opt) or
-		die 'SSL_Context->new: '.PublicInbox::TLS::err();
-
-	# save ~34K per idle connection (cf. SSL_CTX_set_mode(3ssl))
-	# RSS goes from 346MB to 171MB with 10K idle NNTPS clients on amd64
-	# cf. https://rt.cpan.org/Ticket/Display.html?id=129463
-	my $mode = eval { Net::SSLeay::MODE_RELEASE_BUFFERS() };
-	if ($mode && $ctx->{context}) {
-		eval { Net::SSLeay::CTX_set_mode($ctx->{context}, $mode) };
-		warn "W: $@ (setting SSL_MODE_RELEASE_BUFFERS)\n" if $@;
-	}
-
-	{ SSL_server => 1, SSL_startHandshake => 0, SSL_reuse_ctx => $ctx };
-}
-
 sub check_absolute ($$) {
 	my ($var, $val) = @_;
 	die <<EOM if index($val // '/', '/') != 0;
 $var must be an absolute path when using --daemonize: $val
 EOM
+}
+
+sub accept_tls_opt ($) {
+	my ($opt) = @_;
+	my $o = ref($opt) eq 'HASH' ? $opt : listener_opt($opt);
+	return if !defined($o->{cert});
+	require PublicInbox::TLS;
+	my @ctx_opt;
+	# parse out hostname:/path/to/ mappings:
+	for my $k (qw(cert key)) {
+		$o->{$k} // next;
+		push(@ctx_opt, "SSL_${k}_file", {});
+		foreach my $path (@{$o->{$k}}) {
+			my $host = '';
+			$path =~ s/\A([^:]+):// and $host = $1;
+			$ctx_opt[-1]->{$host} = $path;
+			check_absolute($k, $path) if $daemonize;
+		}
+	}
+	\@ctx_opt;
 }
 
 sub do_chown ($) {
@@ -637,12 +625,11 @@ EOF
 	exit # never gets here, just for documentation
 }
 
-sub tls_start_cb ($$) {
-	my ($opt, $orig_post_accept) = @_;
+sub tls_cb {
+	my ($post_accept, $tlsd) = @_;
 	sub {
 		my ($io, $addr, $srv) = @_;
-		my $ssl = IO::Socket::SSL->start_SSL($io, %$opt);
-		$orig_post_accept->($ssl, $addr, $srv);
+		$post_accept->(PublicInbox::TLS::start($io, $tlsd), $addr, $srv)
 	}
 }
 
@@ -669,21 +656,20 @@ sub daemon_loop ($) {
 	my $refresh = sub {
 		my ($sig) = @_;
 		for my $xn (values %$xnetd) {
+			delete $xn->{tlsd}->{ssl_ctx}; # PublicInbox::TLS::start
 			eval { $xn->{refresh}->($sig) };
 			warn "refresh $@\n" if $@;
 		}
 	};
 	my %post_accept;
-	while (my ($k, $v) = each %tls_opt) {
+	while (my ($k, $ctx_opt) = each %tls_opt) {
 		my $l = $k;
 		$l =~ s!\A([^:]+)://!!;
 		my $scheme = $1 // '';
 		my $xn = $xnetd->{$l} // $xnetd->{''};
-		if ($scheme =~ m!\A(?:https|imaps|nntps|pop3s)!) {
-			$post_accept{$l} = tls_start_cb($v, $xn->{post_accept});
-		} elsif ($xn->{tlsd}) { # STARTTLS, $k eq '' is OK
-			$xn->{tlsd}->{accept_tls} = $v;
-		}
+		$xn->{tlsd}->{ssl_ctx_opt} //= $ctx_opt;
+		$scheme =~ m!\A(?:https|imaps|nntps|pop3s)! and
+			$post_accept{$l} = tls_cb(@$xn{qw(post_accept tlsd)});
 	}
 	my $sig = {
 		HUP => $refresh,

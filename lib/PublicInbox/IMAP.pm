@@ -121,7 +121,7 @@ sub capa ($) {
 		$capa .= ' COMPRESS=DEFLATE';
 	} else {
 		if (!($self->{sock} // $self)->can('accept_SSL') &&
-			$self->{imapd}->{accept_tls}) {
+			$self->{imapd}->{ssl_ctx_opt}) {
 			$capa .= ' STARTTLS';
 		}
 		$capa .= ' AUTH=ANONYMOUS';
@@ -1230,14 +1230,12 @@ sub cmd_compress ($$$) {
 
 sub cmd_starttls ($$) {
 	my ($self, $tag) = @_;
-	my $sock = $self->{sock} or return;
-	if ($sock->can('stop_SSL') || $self->compressed) {
+	(($self->{sock} // return)->can('stop_SSL') || $self->compressed) and
 		return "$tag BAD TLS or compression already enabled\r\n";
-	}
-	my $opt = $self->{imapd}->{accept_tls} or
+	$self->{imapd}->{ssl_ctx_opt} or
 		return "$tag BAD can not initiate TLS negotiation\r\n";
 	$self->write(\"$tag OK begin TLS negotiation now\r\n");
-	$self->{sock} = IO::Socket::SSL->start_SSL($sock, %$opt);
+	PublicInbox::TLS::start($self->{sock}, $self->{imapd});
 	$self->requeue if PublicInbox::DS::accept_tls_step($self);
 	undef;
 }

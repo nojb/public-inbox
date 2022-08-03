@@ -130,12 +130,12 @@ sub cmd_pass {
 
 sub cmd_stls {
 	my ($self) = @_;
-	my $sock = $self->{sock} or return;
-	return \"-ERR TLS already enabled\r\n" if $sock->can('stop_SSL');
-	my $opt = $self->{pop3d}->{accept_tls} or
+	($self->{sock} // return)->can('stop_SSL') and
+		return \"-ERR TLS already enabled\r\n";
+	$self->{pop3d}->{ssl_ctx_opt} or
 		return \"-ERR can't start TLS negotiation\r\n";
 	$self->write(\"+OK begin TLS negotiation now\r\n");
-	$self->{sock} = IO::Socket::SSL->start_SSL($sock, %$opt);
+	PublicInbox::TLS::start($self->{sock}, $self->{pop3d});
 	$self->requeue if PublicInbox::DS::accept_tls_step($self);
 	undef;
 }
@@ -281,7 +281,7 @@ sub cmd_dele {
 sub cmd_capa {
 	my ($self) = @_;
 	my $STLS = !$self->{ibx} && !$self->{sock}->can('stop_SSL') &&
-			$self->{pop3d}->{accept_tls} ? "\nSTLS\r" : '';
+			$self->{pop3d}->{ssl_ctx_opt} ? "\nSTLS\r" : '';
 	$self->{expire} = ''; # "EXPIRE 0" allows clients to avoid DELE commands
 	<<EOM;
 +OK Capability list follows\r

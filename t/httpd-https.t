@@ -1,15 +1,15 @@
-# Copyright (C) 2019-2021 all contributors <meta@public-inbox.org>
+#!perl -w
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-use strict;
-use warnings;
-use Test::More;
+use v5.12;
 use Socket qw(SOCK_STREAM IPPROTO_TCP SOL_SOCKET);
 use PublicInbox::TestCommon;
+use File::Copy qw(cp);
 # IO::Poll is part of the standard library, but distros may split them off...
 require_mods(qw(IO::Socket::SSL IO::Poll Plack::Util));
-my $cert = 'certs/server-cert.pem';
-my $key = 'certs/server-key.pem';
-unless (-r $key && -r $cert) {
+my @certs = qw(certs/server-cert.pem certs/server-key.pem
+	certs/server2-cert.pem certs/server2-key.pem);
+if (scalar(grep { -r $_ } @certs) != scalar(@certs)) {
 	plan skip_all =>
 		"certs/ missing for $0, run $^X ./create-certs.perl in certs/";
 }
@@ -22,6 +22,20 @@ my $out = "$tmpdir/stdout.log";
 my $https = tcp_server();
 my $td;
 my $https_addr = tcp_host_port($https);
+my $cert = "$tmpdir/cert.pem";
+my $key = "$tmpdir/key.pem";
+cp('certs/server-cert.pem', $cert) or xbail $!;
+cp('certs/server-key.pem', $key) or xbail $!;
+
+my $check_url_scheme = sub {
+	my ($s, $line) = @_;
+	$s->print("GET /url_scheme HTTP/1.1\r\n\r\nHost: example.com\r\n\r\n")
+		or xbail "failed to write HTTP request: $! (line $line)";
+	my $buf = '';
+	sysread($s, $buf, 2007, length($buf)) until $buf =~ /\r\n\r\nhttps?/;
+	like($buf, qr!\AHTTP/1\.1 200!, "read HTTPS response (line $line)");
+	like($buf, qr!\r\nhttps\z!, "psgi.url_scheme is 'https' (line $line)");
+};
 
 for my $args (
 	[ "-lhttps://$https_addr/?key=$key,cert=$cert" ],
@@ -53,12 +67,7 @@ for my $args (
 	# normal HTTPS
 	my $c = tcp_connect($https);
 	IO::Socket::SSL->start_SSL($c, %o);
-	$c->print("GET /url_scheme HTTP/1.1\r\n\r\nHost: example.com\r\n\r\n")
-		or xbail "failed to write HTTP request: $!";
-	my $buf = '';
-	sysread($c, $buf, 2007, length($buf)) until $buf =~ /\r\n\r\nhttps?/;
-	like($buf, qr!\AHTTP/1\.1 200!, 'read HTTP response');
-	like($buf, qr!\r\nhttps\z!, "psgi.url_scheme is 'https'");
+	$check_url_scheme->($c, __LINE__);
 
 	# HTTPS with bad hostname
 	$c = tcp_connect($https);
@@ -81,7 +90,7 @@ for my $args (
 	$slow->blocking(1);
 	ok($slow->print("GET /empty HTTP/1.1\r\n\r\nHost: example.com\r\n\r\n"),
 		'wrote HTTP request from slow');
-	$buf = '';
+	my $buf = '';
 	sysread($slow, $buf, 666, length($buf)) until $buf =~ /\r\n\r\n/;
 	like($buf, qr!\AHTTP/1\.1 200!, 'read HTTP response from slow');
 	$slow = undef;
@@ -105,7 +114,27 @@ for my $args (
 		like($x, qr/\Adataready\0+\z/, 'got dataready accf for https');
 	};
 
-	$c = undef;
+	# switch cert and key:
+	cp('certs/server2-cert.pem', $cert) or xbail $!;
+	cp('certs/server2-key.pem', $key) or xbail $!;
+	$td->kill('HUP') or xbail "kill: $!";
+	tick(); # wait for SIGHUP to take effect (hopefully :x)
+
+	my $d = tcp_connect($https);
+	$d = IO::Socket::SSL->start_SSL($d, %o);
+	is($d, undef, 'HTTPS fails with bad hostname after new cert on HUP');
+
+	$d = tcp_connect($https);
+	$o{SSL_hostname} = $o{SSL_verifycn_name} = 'server2.local';
+	is(IO::Socket::SSL->start_SSL($d, %o), $d,
+		'new hostname to match cert works after HUP');
+	$check_url_scheme->($d, __LINE__);
+
+	# existing connection w/ old cert still works:
+	$check_url_scheme->($c, __LINE__);
+
+	undef $c;
+	undef $d;
 	$td->kill;
 	$td->join;
 	is($?, 0, 'no error in exited process');

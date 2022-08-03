@@ -85,7 +85,7 @@ sub cmd_capabilities ($;$) {
 	my ($self, undef) = @_;
 	my $res = $CAPABILITIES;
 	if (!$self->{sock}->can('accept_SSL') &&
-			$self->{nntpd}->{accept_tls}) {
+			$self->{nntpd}->{ssl_ctx_opt}) {
 		$res .= "STARTTLS\r\n";
 	}
 	$res .= ".\r\n";
@@ -885,13 +885,13 @@ sub cmd_xover ($;$) {
 
 sub cmd_starttls ($) {
 	my ($self) = @_;
-	my $sock = $self->{sock} or return;
 	# RFC 4642 2.2.1
-	return r502 if ($sock->can('accept_SSL') || $self->compressed);
-	my $opt = $self->{nntpd}->{accept_tls} or
+	(($self->{sock} // return)->can('stop_SSL') || $self->compressed) and
+		return r502;
+	$self->{nntpd}->{ssl_ctx_opt} or
 		return \"580 can not initiate TLS negotiation\r\n";
 	$self->write(\"382 Continue with TLS negotiation\r\n");
-	$self->{sock} = IO::Socket::SSL->start_SSL($sock, %$opt);
+	PublicInbox::TLS::start($self->{sock}, $self->{nntpd});
 	$self->requeue if PublicInbox::DS::accept_tls_step($self);
 	undef;
 }

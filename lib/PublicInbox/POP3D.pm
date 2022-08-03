@@ -45,7 +45,7 @@ sub new {
 		# lock_path => ...
 		# interprocess lock is the $pop3state/txn.locks file
 		# txn_locks => {}, # intraworker locks
-		# accept_tls => { SSL_server => 1, ..., SSL_reuse_ctx => ... }
+		# ssl_ctx_opt => { SSL_cert_file => ..., SSL_key_file => ... }
 	}, $cls;
 }
 
