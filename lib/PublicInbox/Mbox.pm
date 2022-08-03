@@ -24,8 +24,7 @@ sub getline {
 	if ($n) {
 		$ctx->translate(msg_body($eml));
 	} else { # last message
-		$ctx->zmore(msg_body($eml));
-		$ctx->zflush;
+		$ctx->zflush(msg_body($eml));
 	}
 }
 

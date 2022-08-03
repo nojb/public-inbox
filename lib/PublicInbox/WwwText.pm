@@ -38,11 +38,7 @@ sub get_text {
 	}
 	my $env = $ctx->{env};
 	if ($raw) {
-		if ($code == 200) {
-			my $gzf = gzf_maybe($hdr, $env);
-			$txt = $gzf->translate($txt);
-			$txt .= $gzf->zflush;
-		}
+		$txt = gzf_maybe($hdr, $env)->zflush($txt) if $code == 200;
 		$hdr->[3] = length($txt);
 		return [ $code, $hdr, [ $txt ] ]
 	}
