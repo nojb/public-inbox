@@ -543,9 +543,10 @@ sub help {
 	\@ret;
 }
 
+# always returns a scalar value
 sub int_val ($$) {
 	my ($doc, $col) = @_;
-	my $val = $doc->get_value($col) or return; # undefined is '' in Xapian
+	my $val = $doc->get_value($col) or return undef; # undef is '' in Xapian
 	sortable_unserialise($val) + 0; # PV => IV conversion
 }
 

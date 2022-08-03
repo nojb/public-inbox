@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # read-only counterpart to MiscIdx
@@ -11,6 +11,8 @@ my $json;
 # Xapian value columns:
 our $MODIFIED = 0;
 our $UIDVALIDITY = 1; # (created time)
+our $ART_MIN = 2; # NNTP article number
+our $ART_MAX = 3; # NNTP article number
 
 # avoid conflicting with message Search::prob_prefix for UI/UX reasons
 my %PROB_PREFIX = (
@@ -87,14 +89,13 @@ sub ibx_data_once {
 	my $term = 'Q'.$ibx->eidx_key; # may be {inboxdir}, so private
 	my $head = $xdb->postlist_begin($term);
 	my $tail = $xdb->postlist_end($term);
-	if ($head != $tail) {
-		my $doc = $xdb->get_document($head->get_docid);
-		$ibx->{uidvalidity} //= int_val($doc, $UIDVALIDITY);
-		$ibx->{-modified} = int_val($doc, $MODIFIED);
-		$doc->get_data;
-	} else {
-		undef;
-	}
+	return if $head == $tail;
+	my $doc = $xdb->get_document($head->get_docid);
+	$ibx->{uidvalidity} //= int_val($doc, $UIDVALIDITY);
+	$ibx->{-modified} = int_val($doc, $MODIFIED);
+	$ibx->{-art_min} = int_val($doc, $ART_MIN);
+	$ibx->{-art_max} = int_val($doc, $ART_MAX);
+	$doc->get_data;
 }
 
 sub doc2ibx_cache_ent { # @_ == ($self, $doc) OR ($doc)
@@ -109,6 +110,8 @@ sub doc2ibx_cache_ent { # @_ == ($self, $doc) OR ($doc)
 	{
 		uidvalidity => int_val($doc, $UIDVALIDITY),
 		-modified => int_val($doc, $MODIFIED),
+		-art_min => int_val($doc, $ART_MIN), # may be undef
+		-art_max => int_val($doc, $ART_MAX), # may be undef
 		# extract description from manifest.js.gz epoch description
 		description => $d
 	};

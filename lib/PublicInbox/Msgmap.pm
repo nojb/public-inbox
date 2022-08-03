@@ -144,13 +144,17 @@ sub max {
 	$sth->fetchrow_array // 0;
 }
 
-sub minmax {
-	# breaking MIN and MAX into separate queries speeds up from 250ms
-	# to around 700us with 2.7million messages.
+sub min {
 	my $sth = $_[0]->{dbh}->prepare_cached('SELECT MIN(num) FROM msgmap',
 						undef, 1);
 	$sth->execute;
-	($sth->fetchrow_array // 0, max($_[0]));
+	$sth->fetchrow_array // 0;
+}
+
+sub minmax {
+	# breaking MIN and MAX into separate queries speeds up from 250ms
+	# to around 700us with 2.7million messages.
+	(min($_[0]), max($_[0]));
 }
 
 sub mid_delete {

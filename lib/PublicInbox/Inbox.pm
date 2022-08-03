@@ -409,6 +409,16 @@ sub uidvalidity { $_[0]->{uidvalidity} //= eval { $_[0]->mm->created_at } }
 
 sub eidx_key { $_[0]->{newsgroup} // $_[0]->{inboxdir} }
 
+# only used by NNTP, so we need ->mm anyways
+sub art_min { $_[0]->{-art_min} //= eval { $_[0]->mm(1)->min } }
+
+# used by IMAP, too, which tries to avoid ->mm (but ->{mm} is likely
+# faster since it's smaller iff available)
+sub art_max {
+	$_[0]->{-art_max} //= eval { $_[0]->{mm}->max } //
+				eval { $_[0]->over(1)->max };
+}
+
 sub mailboxid { # rfc 8474, 8620, 8621
 	my ($self, $imap_slice) = @_;
 	my $pfx = defined($imap_slice) ? $self->{newsgroup} : $self->{name};

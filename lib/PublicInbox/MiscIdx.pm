@@ -108,12 +108,16 @@ EOF
 	$doc->add_boolean_term('Q'.$eidx_key); # uniQue id
 	$doc->add_boolean_term('T'.'inbox'); # Type
 
+	# force reread from disk, {description} could be loaded from {misc}
+	delete @$ibx{qw(-art_min -art_max description)};
 	if (defined($ibx->{newsgroup}) && $ibx->nntp_usable) {
 		$doc->add_boolean_term('T'.'newsgroup'); # additional Type
+		my $n = $ibx->art_min;
+		add_val($doc, $PublicInbox::MiscSearch::ART_MIN, $n) if $n;
+		$n = $ibx->art_max;
+		add_val($doc, $PublicInbox::MiscSearch::ART_MAX, $n) if $n;
 	}
 
-	# force reread from disk, {description} could be loaded from {misc}
-	delete $ibx->{description};
 	my $desc = $ibx->description;
 
 	# description = S/Subject (or title)
