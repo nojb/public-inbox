@@ -123,7 +123,7 @@ sub names2ibx ($;$) {
 sub list_active_i { # "LIST ACTIVE" and also just "LIST" (no args)
 	my ($self, $ibxs) = @_;
 	my @window = splice(@$ibxs, 0, 1000);
-	$self->msg_more(join('', map { group_line($_) } @window));
+	emit_group_lines($self, \@window);
 	scalar @$ibxs; # continue if there's more
 }
 
@@ -244,19 +244,27 @@ sub parse_time ($$;$) {
 	}
 }
 
-sub group_line ($) {
-	my ($ibx) = @_;
-	my ($min, $max) = $ibx->mm(1)->minmax;
-	"$ibx->{newsgroup} $max $min n\r\n";
+sub emit_group_lines {
+	my ($self, $ibxs) = @_;
+	my ($min, $max);
+	my $ALL = $self->{nntpd}->{pi_cfg}->ALL;
+	my $misc = $ALL->misc if $ALL;
+	my $buf = '';
+	for my $ibx (@$ibxs) {
+		$misc ? $misc->inbox_data($ibx) :
+			delete(@$ibx{qw(-art_min -art_max)});
+		($min, $max) = ($ibx->art_min, $ibx->art_max);
+		$buf .= "$ibx->{newsgroup} $max $min n\r\n";
+	}
+	$self->msg_more($buf);
 }
 
 sub newgroups_i {
 	my ($self, $ts, $ibxs) = @_;
 	my @window = splice(@$ibxs, 0, 1000);
-	$self->msg_more(join('', map { group_line($_) } grep {
-		 (eval { $_->uidvalidity } // 0) > $ts
-	} @window));
-	scalar @$ibxs;
+	@window = grep { (eval { $_->uidvalidity } // 0) > $ts } @window;
+	emit_group_lines($self, \@window);
+	scalar @$ibxs; # any more?
 }
 
 sub cmd_newgroups ($$$;$$) {
