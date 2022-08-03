@@ -149,10 +149,11 @@ sub zflush ($;$) {
 	my $zbuf = delete $self->{zbuf};
 	my $gz = delete $self->{gz};
 	my $err;
-	if (defined $_[1]) {
+	if (defined $_[1]) { # it's a bug iff $gz is undef w/ $_[1]
 		$err = $gz->deflate($_[1], $zbuf);
 		die "gzip->deflate: $err" if $err != Z_OK;
 	}
+	$gz // return; # not a bug, recursing on DS->write failure
 	$err = $gz->flush($zbuf);
 	die "gzip->flush: $err" if $err != Z_OK;
 	$zbuf;
