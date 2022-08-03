@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # In public-inbox <=1.5.0, public-inbox-httpd favored "getline"
@@ -116,6 +116,7 @@ sub translate ($$) {
 	}
 }
 
+# returns PublicInbox::HTTP::{Chunked,Identity}
 sub http_out ($) {
 	my ($self) = @_;
 	$self->{http_out} // do {
@@ -183,7 +184,7 @@ sub bail  {
 # this is public-inbox-httpd-specific
 sub async_blob_cb { # git->cat_async callback
 	my ($bref, $oid, $type, $size, $self) = @_;
-	my $http = $self->{env}->{'psgix.io'};
+	my $http = $self->{env}->{'psgix.io'}; # PublicInbox::HTTP
 	$http->{forward} or return; # client aborted
 	my $smsg = $self->{smsg} or bail($self, 'BUG: no smsg');
 	if (!defined($oid)) {
@@ -195,7 +196,7 @@ sub async_blob_cb { # git->cat_async callback
 	$smsg->{blob} eq $oid or bail($self, "BUG: $smsg->{blob} != $oid");
 	eval { $self->async_eml(PublicInbox::Eml->new($bref)) };
 	bail($self, "E: async_eml: $@") if $@;
-	if ($self->{-low_prio}) {
+	if ($self->{-low_prio}) { # run via PublicInbox::WWW::event_step
 		push(@{$self->{www}->{-low_prio_q}}, $self) == 1 and
 				PublicInbox::DS::requeue($self->{www});
 	} else {
