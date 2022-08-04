@@ -354,17 +354,14 @@ sub ensure_slices_exist ($$) {
 	my ($imapd, $ibx) = @_;
 	my $mb_top = $ibx->{newsgroup} // return;
 	my $mailboxes = $imapd->{mailboxes};
-	my @created;
+	my $list = $imapd->{mailboxlist}; # may be undef, just autoviv + noop
 	for (my $i = int($ibx->art_max/UID_SLICE); $i >= 0; --$i) {
 		my $sub_mailbox = "$mb_top.$i";
 		last if exists $mailboxes->{$sub_mailbox};
 		$mailboxes->{$sub_mailbox} = $ibx;
 		$sub_mailbox =~ s/\Ainbox\./INBOX./i; # more familiar to users
-		push @created, $sub_mailbox;
+		push @$list, qq[* LIST (\\HasNoChildren) "." $sub_mailbox\r\n]
 	}
-	return unless @created;
-	my $l = $imapd->{mailboxlist} or return;
-	push @$l, map { qq[* LIST (\\HasNoChildren) "." $_\r\n] } @created;
 }
 
 sub inbox_lookup ($$;$) {
