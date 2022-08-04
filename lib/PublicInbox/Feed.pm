@@ -1,10 +1,10 @@
-# Copyright (C) 2013-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Used for generating Atom feeds for web-accessible mailing list archives.
 package PublicInbox::Feed;
 use strict;
-use warnings;
+use v5.10.1;
 use PublicInbox::View;
 use PublicInbox::WwwAtomStream;
 use PublicInbox::Smsg; # this loads w/o Search::Xapian
@@ -108,13 +108,13 @@ sub recent_msgs {
 	my $last;
 	my $last_commit;
 	local $/ = "\n";
-	my @oids;
+	my @ret;
 	while (defined(my $line = <$log>)) {
 		if ($line =~ /$addmsg/o) {
 			my $add = $1;
 			next if $deleted{$add}; # optimization-only
-			push @oids, $add;
-			if (scalar(@oids) >= $max) {
+			push(@ret, bless { blob => $add }, 'PublicInbox::Smsg');
+			if (scalar(@ret) >= $max) {
 				$last = 1;
 				last;
 			}
@@ -136,8 +136,7 @@ sub recent_msgs {
 	$last_commit and
 		$ctx->{next_page} = qq[<a\nhref="?r=$last_commit"\nrel=next>] .
 					'next (older)</a>';
-
-	[ map { bless {blob => $_ }, 'PublicInbox::Smsg' } @oids ];
+	\@ret;
 }
 
 1;
