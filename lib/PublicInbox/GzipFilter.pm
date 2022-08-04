@@ -154,7 +154,7 @@ sub zflush ($;$) {
 		$err = $gz->deflate($_[1], $zbuf);
 		die "gzip->deflate: $err" if $err != Z_OK;
 	}
-	$gz // return; # not a bug, recursing on DS->write failure
+	$gz // return ''; # not a bug, recursing on DS->write failure
 	$err = $gz->flush($zbuf);
 	die "gzip->flush: $err" if $err != Z_OK;
 	$zbuf;
@@ -164,7 +164,7 @@ sub close {
 	my ($self) = @_;
 	my $http_out = http_out($self) // return;
 	$http_out->write(zflush($self));
-	delete($self->{http_out})->close;
+	(delete($self->{http_out}) // return)->close;
 }
 
 sub bail  {
