@@ -261,10 +261,10 @@ EOF
 	for my $sockname (@inherited_names) {
 		$sockname =~ /:([0-9]+)\z/ or next;
 		if (my $scheme = $KNOWN_TLS{$1}) {
-			$xnetd->{$sockname} = load_mod($scheme);
+			$xnetd->{$sockname} //= load_mod($scheme);
 			$tls_opt{"$scheme://$sockname"} ||= accept_tls_opt('');
 		} elsif (($scheme = $KNOWN_STARTTLS{$1})) {
-			$xnetd->{$sockname} = load_mod($scheme);
+			$xnetd->{$sockname} //= load_mod($scheme);
 			$tls_opt{"$scheme://$sockname"} ||= accept_tls_opt('');
 			$tls_opt{''} ||= accept_tls_opt('');
 		}
