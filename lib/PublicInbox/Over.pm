@@ -273,13 +273,13 @@ SELECT ibx_id,xnum,oidbin FROM xref3 WHERE docid = ? ORDER BY ibx_id,xnum ASC
 	my $eidx_key_sth = $dbh->prepare_cached(<<'', undef, 1);
 SELECT eidx_key FROM inboxes WHERE ibx_id = ?
 
-	[ map {
-		my $r = $_;
+	for my $r (@$rows) {
 		$eidx_key_sth->execute($r->[0]);
 		my $eidx_key = $eidx_key_sth->fetchrow_array;
 		$eidx_key //= "missing://ibx_id=$r->[0]";
-		"$eidx_key:$r->[1]:".unpack('H*', $r->[2]);
-	} @$rows ];
+		$r = "$eidx_key:$r->[1]:".unpack('H*', $r->[2]);
+	}
+	$rows;
 }
 
 sub next_by_mid {
