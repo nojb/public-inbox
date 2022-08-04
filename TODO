@@ -13,19 +13,13 @@ all need to be considered for everything we introduce)
 * support remapping of expired URLs similar to mailmap
   (coordinate with git.git with this?)
 
-* POP3 server, since some webmail providers support external POP3:
-  https://public-inbox.org/meta/20160411034104.GA7817@dcvr.yhbt.net/
-  Perhaps make this depend solely the NNTP server and work as a proxy.
-  Meaning users can run this without needing a full copy of the
-  archives in git repositories.
-
-* HTTP, IMAP and NNTP proxy support.  Allow us to be a frontend for
+* HTTP, IMAP, NNTP, POP3 proxy support.  Allow us to be a frontend for
   firewalled off (or Tor-exclusive) instances.  The use case is
   for offering a publicly accessible IP with a cheap VPS,
   yet storing large amounts of data on computers without a
   public IP behind a home Internet connection.
 
-* support HTTP(S) CONNECT proxying to NNTP for users with
+* support HTTP(S) CONNECT proxying to IMAP/NNTP/POP3 for users with
   firewall problems
 
 * DHT (distributed hash table) for mapping Message-IDs to various
@@ -43,9 +37,6 @@ all need to be considered for everything we introduce)
 
 * Support more of RFC 3977 (NNTP)
   Is there anything left for read-only support?
-
-* Combined "super server" for NNTP/HTTP/POP3/IMAP to reduce memory,
-  process, and FD overhead
 
 * Configurable linkification for per-inbox shorthands:
   "$gmane/123456" could be configured to expand to the
@@ -155,4 +146,6 @@ all need to be considered for everything we introduce)
 
 * support pipelining as an IMAP/NNTP client for -watch + lei
 
-* auto-detect and reload on TLS cert+key changes in daemons
+* expose lei contents via read/write IMAP/JMAP server for personal use
+
+* git SHA-256 migration/coexistence path
