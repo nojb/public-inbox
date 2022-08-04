@@ -1,4 +1,4 @@
-# Copyright (C) 2014-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Used for displaying the HTML web interface.
@@ -429,7 +429,7 @@ sub stream_thread_i { # PublicInbox::WwwStream::getline callback
 
 sub stream_thread ($$) {
 	my ($rootset, $ctx) = @_;
-	$ctx->{-queue} = [ map { (0, $_) } @$rootset ];
+	@{$ctx->{-queue}} = map { (0, $_) } @$rootset;
 	PublicInbox::WwwStream::aresponse($ctx, 200, \&stream_thread_i);
 }
 
