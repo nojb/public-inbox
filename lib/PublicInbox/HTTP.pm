@@ -135,7 +135,7 @@ sub app_dispatch {
 	$env->{REMOTE_ADDR} = $self->{remote_addr};
 	$env->{REMOTE_PORT} = $self->{remote_port};
 	if (defined(my $host = $env->{HTTP_HOST})) {
-		$host =~ s/:([0-9]+)\z// and $env->{SERVER_PORT} = $1;
+		$host =~ s/:([0-9]+)\z// and $env->{SERVER_PORT} = $1 + 0;
 		$env->{SERVER_NAME} = $host;
 	}
 	if (defined $input) {
