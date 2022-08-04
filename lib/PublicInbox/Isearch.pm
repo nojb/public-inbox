@@ -69,12 +69,11 @@ sub mset_to_artnums {
 			$range = 'AND xnum >= ? AND xnum <= ?';
 			@r = @$r;
 		}
-		my $rows = $self->{es}->over->dbh->
-			selectall_arrayref(<<"", undef, $ibx_id, @$docids, @r);
+		return $self->{es}->over->dbh->
+			selectcol_arrayref(<<"", undef, $ibx_id, @$docids, @r);
 SELECT xnum FROM xref3 WHERE ibx_id = ? AND docid IN ($qmarks) $range
 ORDER BY xnum ASC
 
-		return [ map { $_->[0] } @$rows ];
 	}
 
 	my $rows = $self->{es}->over->dbh->
