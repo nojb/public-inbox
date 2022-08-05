@@ -22,6 +22,7 @@ use PublicInbox::Sigfd;
 use PublicInbox::Git;
 use PublicInbox::GitAsyncCat;
 use PublicInbox::Eml;
+use PublicInbox::Config;
 our $SO_ACCEPTFILTER = 0x1000;
 my @CMD;
 my ($set_user, $oldset);
@@ -653,8 +654,10 @@ sub defer_accept ($$) {
 
 sub daemon_loop ($) {
 	my ($xnetd) = @_;
+	local $PublicInbox::Config::DEDUPE = {}; # enable dedupe cache
 	my $refresh = sub {
 		my ($sig) = @_;
+		%$PublicInbox::Config::DEDUPE = (); # clear cache
 		for my $xn (values %$xnetd) {
 			delete $xn->{tlsd}->{ssl_ctx}; # PublicInbox::TLS::start
 			eval { $xn->{refresh}->($sig) };

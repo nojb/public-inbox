@@ -13,6 +13,7 @@ use v5.10.1;
 use PublicInbox::Inbox;
 use PublicInbox::Spawn qw(popen_rd);
 our $LD_PRELOAD = $ENV{LD_PRELOAD}; # only valid at startup
+our $DEDUPE; # set to {} to dedupe or clear cache
 
 sub _array ($) { ref($_[0]) eq 'ARRAY' ? $_[0] : [ $_[0] ] }
 
@@ -22,11 +23,17 @@ sub new {
 	my ($class, $file, $errfh) = @_;
 	$file //= default_file();
 	my $self;
+	my $set_dedupe;
 	if (ref($file) eq 'SCALAR') { # used by some tests
 		open my $fh, '<', $file or die;  # PerlIO::scalar
 		$self = config_fh_parse($fh, "\n", '=');
 		bless $self, $class;
 	} else {
+		if (-f $file && $DEDUPE) {
+			$file = rel2abs_collapsed($file);
+			$self = $DEDUPE->{$file} and return $self;
+			$set_dedupe = 1;
+		}
 		$self = git_config_dump($class, $file, $errfh);
 		$self->{'-f'} = $file;
 	}
@@ -62,7 +69,7 @@ sub new {
 	if (my $css = delete $self->{'publicinbox.css'}) {
 		$self->{css} = _array($css);
 	}
-
+	$DEDUPE->{$file} = $self if $set_dedupe;
 	$self;
 }
 

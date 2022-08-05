@@ -30,9 +30,9 @@ sub in2_arm ($$) { # PublicInbox::Config::each_inbox callback
 	my $old_ibx = $cur->[0];
 	$cur->[0] = $ibx;
 	if ($old_ibx) {
-		$ibx->{unlock_subs} and
-			die "BUG: $dir->{unlock_subs} should not exist";
+		my $u = $ibx->{unlock_subs};
 		$ibx->{unlock_subs} = $old_ibx->{unlock_subs};
+		%{$ibx->{unlock_subs}} = (%$u, %{$ibx->{unlock_subs}}) if $u;
 
 		# Linux::Inotify2::Watch::name matches if watches are the
 		# same, no point in replacing a watch of the same name
