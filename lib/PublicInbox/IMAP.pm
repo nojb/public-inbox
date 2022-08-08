@@ -1186,7 +1186,7 @@ sub out ($$;@) {
 # callback used by PublicInbox::DS for any (e)poll (in/out/hup/err)
 sub event_step {
 	my ($self) = @_;
-
+	local $SIG{__WARN__} = $self->{imapd}->{warn_cb};
 	return unless $self->flush_write && $self->{sock} && !$self->{long_cb};
 
 	# only read more requests if we've drained the write buffer,

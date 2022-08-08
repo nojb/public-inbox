@@ -69,7 +69,7 @@ sub new ($$$) {
 
 sub event_step { # called by PublicInbox::DS
 	my ($self) = @_;
-
+	local $SIG{__WARN__} = $self->{srv_env}->{'pi-httpd.warn_cb'};
 	return unless $self->flush_write && $self->{sock};
 
 	# only read more requests if we've drained the write buffer,

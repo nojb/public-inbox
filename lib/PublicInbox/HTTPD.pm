@@ -47,6 +47,7 @@ sub env_for ($$$) {
 		# detect when to use async paths for slow blobs
 		'pi-httpd.async' => \&pi_httpd_async,
 		'pi-httpd.app' => $self->{app},
+		'pi-httpd.warn_cb' => $self->{warn_cb},
 	}
 }
 

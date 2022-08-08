@@ -134,6 +134,8 @@ sub load_mod ($;$$) {
 		$tlsd->{$f} = $logs{$p} //= open_log_path(my $fh, $p);
 		warn "# $scheme://$addr $f=$p\n";
 	}
+	my $err = $tlsd->{err};
+	$tlsd->{warn_cb} = sub { print $err @_ }; # for local $SIG{__WARN__}
 	\%xn;
 }
 
