@@ -192,20 +192,23 @@ EOF
 
 	foreach my $l (@cfg_listen) {
 		my $orig = $l;
-		my $scheme = '';
-		my $port;
-		if ($l =~ s!\A([^:]+)://!!) { $scheme = $1 }
+		my ($scheme, $port, $opt);
+
+		$l =~ s!\A([a-z0-9]+)://!! and $scheme = $1;
+		(!$scheme && ($default_listen // '') =~ m!\A([^:]+)://!) and
+			$scheme = $1;
 		if ($l =~ /\A(?:\[[^\]]+\]|[^:]+):([0-9]+)/) {
 			$port = $1 + 0;
-			my $s = $KNOWN_TLS{$port} // $KNOWN_STARTTLS{$port};
-			$scheme //= $s if defined $s;
-		} elsif (index($l, '/') != 0) { # unix socket
-			$port //= $SCHEME2PORT{$scheme} if $scheme;
-			$port // die "no port in listen=$l\n";
+			$scheme //= $KNOWN_TLS{$port} // $KNOWN_STARTTLS{$port};
+		}
+		$scheme or die "unable to determine URL scheme of $orig\n";
+		if (!defined($port) && index($l, '/') != 0) { # unix socket
+			$port = $SCHEME2PORT{$scheme} //
+				die "no port in listen=$orig\n";
 			$l =~ s!\A([^/]+)!$1:$port! or
 				die "unable to add port=$port to $l\n";
 		}
-		my $opt; # non-TLS options
+		$l =~ s!/\z!!; # chop one trailing slash
 		if ($l =~ s!/?\?(.+)\z!!) {
 			$opt = listener_opt($1);
 			$tls_opt{"$scheme://$l"} = accept_tls_opt($opt);
@@ -214,10 +217,10 @@ EOF
 		} elsif ($scheme =~ /\A(?:https|imaps|nntps|pop3s)\z/) {
 			die "$orig specified w/o cert=\n";
 		}
-		$scheme =~ /\A(?:http|imap|nntp|pop3)/ and
+		if ($listener_names->{$l}) { # already inherited
 			$xnetd->{$l} = load_mod($scheme, $opt, $l);
-
-		next if $listener_names->{$l}; # already inherited
+			next;
+		}
 		my (%o, $sock_pkg);
 		if (index($l, '/') == 0) {
 			$sock_pkg = 'IO::Socket::UNIX';
@@ -244,16 +247,16 @@ EOF
 		}
 		$o{Listen} = 1024;
 		my $prev = umask 0000;
-		my $s = eval { $sock_pkg->new(%o) };
-		warn "error binding $l: $! ($@)\n" unless $s;
+		my $s = eval { $sock_pkg->new(%o) } or
+			warn "error binding $l: $! ($@)\n";
 		umask $prev;
-		if ($s) {
-			$s->blocking(0);
-			my $k = sockname($s);
-			warn "# bound $scheme://$k\n";
-			$listener_names->{$k} = $s;
-			push @listeners, $s;
-		}
+		$s // next;
+		$s->blocking(0);
+		my $sockname = sockname($s);
+		warn "# bound $scheme://$sockname\n";
+		$xnetd->{$sockname} //= load_mod($scheme);
+		$listener_names->{$sockname} = $s;
+		push @listeners, $s;
 	}
 
 	# cert/key options in @cfg_listen takes precedence when inheriting,
