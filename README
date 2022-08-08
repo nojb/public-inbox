@@ -117,16 +117,16 @@ on git@vger.kernel.org).
 The archives are readable via IMAP, NNTP or HTTP:
 
 	nntps://news.public-inbox.org/inbox.comp.mail.public-inbox.meta
-	imaps://news.public-inbox.org/inbox.comp.mail.public-inbox.meta.0
+	imaps://;AUTH=ANONYMOUS@public-inbox.org/inbox.comp.mail.public-inbox.meta.0
 	https://public-inbox.org/meta/
 
-AUTH=ANONYMOUS is supported for IMAP, but any username + password works
+AUTH=ANONYMOUS is recommended for IMAP, but any username + password works
 
 And as Tor hidden services:
 
 	http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/
 	nntp://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/inbox.comp.mail.public-inbox.meta
-	imap://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/inbox.comp.mail.public-inbox.meta.0
+	imap://;AUTH=ANONYMOUS@4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/inbox.comp.mail.public-inbox.meta.0
 
 You may also clone all messages via git:
 
