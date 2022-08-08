@@ -138,6 +138,7 @@ sub login_success ($$) {
 sub auth_challenge_ok ($) {
 	my ($self) = @_;
 	my $tag = delete($self->{-login_tag}) or return;
+	$self->{anon} = 1;
 	login_success($self, $tag);
 }
 
@@ -588,10 +589,9 @@ sub fetch_blob_cb { # called by git->cat_async via ibx_async_cat
 		$smsg->{blob} eq $oid or die "BUG: $smsg->{blob} != $oid";
 	}
 	my $pre;
-	if (!$self->{wbuf} && (my $nxt = $msgs->[0])) {
-		$pre = ibx_async_prefetch($ibx, $nxt->{blob},
+	($self->{anon} && !$self->{wbuf} && $msgs->[0]) and
+		$pre = ibx_async_prefetch($ibx, $msgs->[0]->{blob},
 					\&fetch_blob_cb, $fetch_arg);
-	}
 	fetch_run_ops($self, $smsg, $bref, $ops, $partial);
 	$pre ? $self->dflush : $self->requeue_once;
 }
