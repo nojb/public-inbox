@@ -69,19 +69,18 @@ sub ibx_async_cat ($$$$) {
 }
 
 # this is safe to call inside $cb, but not guaranteed to enqueue
-# returns true if successful, undef if not.
+# returns true if successful, undef if not.  For fairness, we only
+# prefetch if there's no in-flight requests.
 sub ibx_async_prefetch {
 	my ($ibx, $oid, $cb, $arg) = @_;
 	my $git = $ibx->git;
 	if (!defined($ibx->{topdir}) && $GCF2C) {
-		if (!$GCF2C->{wbuf}) {
+		if (!@{$GCF2C->{inflight} // []}) {
 			$oid .= " $git->{git_dir}\n";
 			return $GCF2C->gcf2_async(\$oid, $cb, $arg); # true
 		}
 	} elsif ($git->{async_cat} && (my $inflight = $git->{inflight})) {
-		# we could use MAX_INFLIGHT here w/o the halving,
-		# but lets not allow one client to monopolize a git process
-		if (@$inflight < int(PublicInbox::Git::MAX_INFLIGHT/2)) {
+		if (!@$inflight) {
 			print { $git->{out} } $oid, "\n" or
 						$git->fail("write error: $!");
 			return push(@$inflight, $oid, $cb, $arg);
