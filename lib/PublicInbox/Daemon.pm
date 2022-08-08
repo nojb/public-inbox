@@ -179,10 +179,7 @@ EOF
 		die "--pid-file cannot end with '.oldbin'\n";
 	}
 	@listeners = inherit($listener_names);
-
-	# allow socket-activation users to set certs once and not
-	# have to configure each socket:
-	my @inherited_names = keys(%$listener_names) if defined($default_cert);
+	my @inherited_names = keys(%$listener_names);
 
 	# ignore daemonize when inheriting
 	$daemonize = undef if scalar @listeners;
@@ -191,20 +188,18 @@ EOF
 		$default_listen // die "no listeners specified\n";
 		push @cfg_listen, $default_listen
 	}
-
+	my ($default_scheme) = (($default_listen // '') =~ m!\A([^:]+)://!);
 	foreach my $l (@cfg_listen) {
 		my $orig = $l;
 		my ($scheme, $port, $opt);
-
 		$l =~ s!\A([a-z0-9]+)://!! and $scheme = $1;
-		(!$scheme && ($default_listen // '') =~ m!\A([^:]+)://!) and
-			$scheme = $1;
+		$scheme //= $default_scheme;
 		if ($l =~ /\A(?:\[[^\]]+\]|[^:]+):([0-9]+)/) {
 			$port = $1 + 0;
 			$scheme //= $KNOWN_TLS{$port} // $KNOWN_STARTTLS{$port};
 		}
-		$scheme or die "unable to determine URL scheme of $orig\n";
-		if (!defined($port) && index($l, '/') != 0) { # unix socket
+		$scheme // die "unable to determine URL scheme of $orig\n";
+		if (!defined($port) && index($l, '/') != 0) { # AF_UNIX socket
 			$port = $SCHEME2PORT{$scheme} //
 				die "no port in listen=$orig\n";
 			$l =~ s!\A([^/]+)!$1:$port! or
@@ -263,21 +258,28 @@ EOF
 
 	# cert/key options in @cfg_listen takes precedence when inheriting,
 	# but map well-known inherited ports if --listen isn't specified
-	# at all
-	for my $sockname (@inherited_names) {
-		$sockname =~ /:([0-9]+)\z/ or next;
-		if (my $scheme = $KNOWN_TLS{$1}) {
-			$xnetd->{$sockname} //= load_mod($scheme);
-			$tls_opt{"$scheme://$sockname"} ||= accept_tls_opt('');
-		} elsif (($scheme = $KNOWN_STARTTLS{$1})) {
-			$xnetd->{$sockname} //= load_mod($scheme);
-			$tls_opt{"$scheme://$sockname"} ||= accept_tls_opt('');
-			$tls_opt{''} ||= accept_tls_opt('');
+	# at all.  This allows socket-activation users to set certs once
+	# and not have to configure each socket:
+	if (defined $default_cert) {
+		my ($stls) = (($default_scheme // '') =~ /\A(pop3|nntp|imap)/);
+		for my $x (@inherited_names) {
+			$x =~ /:([0-9]+)\z/ or next; # no TLS for AF_UNIX
+			if (my $scheme = $KNOWN_TLS{$1}) {
+				$xnetd->{$x} //= load_mod($scheme);
+				$tls_opt{"$scheme://$x"} ||= accept_tls_opt('');
+			} elsif (($scheme = $KNOWN_STARTTLS{$1})) {
+				$xnetd->{$x} //= load_mod($scheme);
+				$tls_opt{"$scheme://$x"} ||= accept_tls_opt('');
+			} elsif (defined $stls) {
+				$tls_opt{"$stls://$x"} ||= accept_tls_opt('');
+			}
 		}
 	}
-	my @d;
-	while (my ($k, $v) = each %tls_opt) { push(@d, $k) if !defined($v) }
-	delete @tls_opt{@d};
+	if (defined $default_scheme) {
+		for my $x (@inherited_names) {
+			$xnetd->{$x} //= load_mod($default_scheme);
+		}
+	}
 	die "No listeners bound\n" unless @listeners;
 }
 
@@ -671,14 +673,14 @@ sub daemon_loop ($) {
 	};
 	my %post_accept;
 	while (my ($k, $ctx_opt) = each %tls_opt) {
-		my $l = $k;
-		$l =~ s!\A([^:]+)://!!;
-		my $scheme = $1 // '';
-		my $xn = $xnetd->{$l} // $xnetd->{''};
+		$ctx_opt // next;
+		my ($scheme, $l) = split(m!://!, $k, 2);
+		my $xn = $xnetd->{$l} // die "BUG: no xnetd for $k";
 		$xn->{tlsd}->{ssl_ctx_opt} //= $ctx_opt;
 		$scheme =~ m!\A(?:https|imaps|nntps|pop3s)! and
 			$post_accept{$l} = tls_cb(@$xn{qw(post_accept tlsd)});
 	}
+	undef %tls_opt;
 	my $sig = {
 		HUP => $refresh,
 		INT => \&worker_quit,
@@ -706,7 +708,7 @@ sub daemon_loop ($) {
 	@listeners = map {;
 		my $l = sockname($_);
 		my $tls_cb = $post_accept{$l};
-		my $xn = $xnetd->{$l} // $xnetd->{''};
+		my $xn = $xnetd->{$l} // die "BUG: no xnetd for $l";
 
 		# NNTPS, HTTPS, HTTP, IMAPS and POP3S are client-first traffic
 		# IMAP, NNTP and POP3 are server-first
@@ -720,13 +722,7 @@ sub daemon_loop ($) {
 
 sub run {
 	my ($default_listen) = @_;
-	my $xnetd = {};
-	if ($default_listen) {
-		$default_listen =~ /\A(http|imap|nntp|pop3)/ or
-			die "BUG: $default_listen";
-		$xnetd->{''} = load_mod($1);
-	}
-	daemon_prepare($default_listen, $xnetd);
+	daemon_prepare($default_listen, my $xnetd = {});
 	my $for_destroy = daemonize();
 
 	# localize GCF2C for tests:
