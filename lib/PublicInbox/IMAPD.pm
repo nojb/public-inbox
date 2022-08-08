@@ -87,4 +87,11 @@ sub idler_start {
 	$_[0]->{idler} //= PublicInbox::InboxIdle->new($_[0]->{pi_cfg});
 }
 
+sub event_step { # called vai requeue for low-priority IMAP clients
+	my ($self) = @_;
+	my $imap = shift(@{$self->{-authed_q}}) // return;
+	PublicInbox::DS::requeue($self) if scalar(@{$self->{-authed_q}});
+	$imap->event_step; # PublicInbox::IMAP::event_step
+}
+
 1;

@@ -688,7 +688,7 @@ sub requeue_once {
 	# but only after all pending writes are done.
 	# autovivify wbuf.  wbuf may be populated by $cb,
 	# no need to rearm if so: (push returns new size of array)
-	requeue($self) if push(@{$self->{wbuf}}, \&long_step) == 1;
+	$self->requeue if push(@{$self->{wbuf}}, \&long_step) == 1;
 }
 
 sub long_response ($$;@) {

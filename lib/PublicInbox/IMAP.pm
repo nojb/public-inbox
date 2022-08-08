@@ -575,6 +575,16 @@ sub fetch_run_ops {
 	$self->msg_more(")\r\n");
 }
 
+sub requeue { # overrides PublicInbox::DS::requeue
+	my ($self) = @_;
+	if ($self->{anon}) { # AUTH=ANONYMOUS gets high priority
+		$self->SUPER::requeue;
+	} else { # low priority
+		push(@{$self->{imapd}->{-authed_q}}, $self) == 1 and
+			PublicInbox::DS::requeue($self->{imapd});
+	}
+}
+
 sub fetch_blob_cb { # called by git->cat_async via ibx_async_cat
 	my ($bref, $oid, $type, $size, $fetch_arg) = @_;
 	my ($self, undef, $msgs, $range_info, $ops, $partial) = @$fetch_arg;
