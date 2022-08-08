@@ -44,7 +44,6 @@ sub _refresh_ibx { # pi_cfg->each_inbox cb
 		PublicInbox::IMAP::ensure_slices_exist($imapd, $ibx);
 		# preload to avoid fragmentation:
 		$ibx->description;
-		$ibx->base_url;
 		# ensure dummies are selectable:
 		do {
 			$dummies->{$ngname} = $dummy;

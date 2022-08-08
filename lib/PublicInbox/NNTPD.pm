@@ -45,7 +45,6 @@ sub refresh_groups {
 			# only valid if msgmap and over works
 			# preload to avoid fragmentation:
 			$ibx->description;
-			$ibx->base_url;
 		} else {
 			delete $groups->{$ngname};
 			# Note: don't be tempted to delete more for memory
