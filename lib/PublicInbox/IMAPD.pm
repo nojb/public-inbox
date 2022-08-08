@@ -23,7 +23,7 @@ sub new {
 	}, $class;
 }
 
-sub imapd_refresh_ibx { # pi_cfg->each_inbox cb
+sub _refresh_ibx { # pi_cfg->each_inbox cb
 	my ($ibx, $imapd, $cache, $dummies) = @_;
 	my $ngname = $ibx->{newsgroup} // return;
 
@@ -56,27 +56,32 @@ sub imapd_refresh_ibx { # pi_cfg->each_inbox cb
 sub refresh_groups {
 	my ($self, $sig) = @_;
 	my $pi_cfg = PublicInbox::Config->new;
-	my $mailboxes = $self->{mailboxes} = {};
-	my $cache = eval { $pi_cfg->ALL->misc->nntpd_cache_load } // {};
-	my $dummies = {};
-	$pi_cfg->each_inbox(\&imapd_refresh_ibx, $self, $cache, $dummies);
-	%$dummies = (%$dummies, %$mailboxes);
-	$mailboxes = $self->{mailboxes} = $dummies;
-	@{$self->{mailboxlist}} = map { $_->[2] }
-		sort { $a->[0] cmp $b->[0] || $a->[1] <=> $b->[1] }
-		map {
-			my $u = $_; # capitalize "INBOX" for user-familiarity
-			$u =~ s/\Ainbox(\.|\z)/INBOX$1/i;
-			if ($mailboxes->{$_} == $dummy) {
-				[ $u, -1,
-				  qq[* LIST (\\HasChildren) "." $u\r\n]]
-			} else {
-				$u =~ /\A(.+)\.([0-9]+)\z/ or
-					die "BUG: `$u' has no slice digit(s)";
-				[ $1, $2 + 0,
-				  qq[* LIST (\\HasNoChildren) "." $u\r\n] ]
-			}
-		} keys %$mailboxes;
+	$self->{mailboxes} = $pi_cfg->{-imap_mailboxes} // do {
+		my $mailboxes = $self->{mailboxes} = {};
+		my $cache = eval { $pi_cfg->ALL->misc->nntpd_cache_load } // {};
+		my $dummies = {};
+		$pi_cfg->each_inbox(\&_refresh_ibx, $self, $cache, $dummies);
+		%$mailboxes = (%$dummies, %$mailboxes);
+		@{$pi_cfg->{-imap_mailboxlist}} = map { $_->[2] }
+			sort { $a->[0] cmp $b->[0] || $a->[1] <=> $b->[1] }
+			map {
+				# capitalize "INBOX" for user-familiarity
+				my $u = $_;
+				$u =~ s/\Ainbox(\.|\z)/INBOX$1/i;
+				if ($mailboxes->{$_} == $dummy) {
+					[ $u, -1,
+					  qq[* LIST (\\HasChildren) "." $u\r\n]]
+				} else {
+					$u =~ /\A(.+)\.([0-9]+)\z/ or die
+"BUG: `$u' has no slice digit(s)";
+					[ $1, $2 + 0, '* LIST '.
+					  qq[(\\HasNoChildren) "." $u\r\n] ]
+				}
+			} keys %$mailboxes;
+		$pi_cfg->{-imap_mailboxes} = $mailboxes;
+	};
+	$self->{mailboxlist} = $pi_cfg->{-imap_mailboxlist} //
+			die 'BUG: no mailboxlist';
 	$self->{pi_cfg} = $pi_cfg;
 	if (my $idler = $self->{idler}) {
 		$idler->refresh($pi_cfg);
