@@ -301,6 +301,27 @@ sub close {
 	$self->SUPER::close;
 }
 
+# must be called inside a state_dbh transaction with flock held
+sub __cleanup_state {
+	my ($self, $txn_id) = @_;
+	my $user_id = $self->{user_id} // die 'BUG: no {user_id}';
+	$self->{pop3d}->{-state_dbh}->prepare_cached(<<'')->execute($txn_id);
+DELETE FROM deletes WHERE txn_id = ? AND uid_dele = -1
+
+	my $sth = $self->{pop3d}->{-state_dbh}->prepare_cached(<<'');
+SELECT COUNT(*) FROM deletes WHERE user_id = ?
+
+	$sth->execute($user_id);
+	my $nr = $sth->fetchrow_array;
+	if ($nr == 0) {
+		$sth = $self->{pop3d}->{-state_dbh}->prepare_cached(<<'');
+DELETE FROM users WHERE user_id = ?
+
+		$sth->execute($user_id);
+	}
+	$nr;
+}
+
 sub cmd_quit {
 	my ($self) = @_;
 	if (defined(my $txn_id = $self->{txn_id})) {
@@ -308,23 +329,25 @@ sub cmd_quit {
 		if (my $exp = delete $self->{expire}) {
 			mark_dele($self, $_) for unpack('S*', $exp);
 		}
+		my $keep = 1;
 		my $dbh = $self->{pop3d}->{-state_dbh};
 		my $lk = $self->{pop3d}->lock_for_scope;
-		my $sth;
 		$dbh->begin_work;
 
-		if (defined $self->{txn_max_uid}) {
-			$sth = $dbh->prepare_cached(<<'');
+		if (defined(my $max = $self->{txn_max_uid})) {
+			$dbh->prepare_cached(<<'')->execute($max, $txn_id, $max)
 UPDATE deletes SET uid_dele = ? WHERE txn_id = ? AND uid_dele < ?
 
-			$sth->execute($self->{txn_max_uid}, $txn_id,
-					$self->{txn_max_uid});
+		} else {
+			$keep = $self->__cleanup_state($txn_id);
 		}
-		$sth = $dbh->prepare_cached(<<'');
+		$dbh->prepare_cached(<<'')->execute(time, $user_id) if $keep;
 UPDATE users SET last_seen = ? WHERE user_id = ?
 
-		$sth->execute(time, $user_id);
 		$dbh->commit;
+		# we MUST do txn_id F_UNLCK here inside ->lock_for_scope:
+		$self->{did_quit} = 1;
+		$self->{pop3d}->unlock_mailbox($self);
 	}
 	$self->write(\"+OK public-inbox POP3 server signing off\r\n");
 	$self->close;

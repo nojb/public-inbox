@@ -60,6 +60,14 @@ my $oldc = Net::POP3->new(@old_args);
 my $locked_mb = ('e'x32)."\@$group";
 ok($oldc->apop("$locked_mb.0", 'anonymous'), 'APOP to old');
 
+my $dbh = DBI->connect("dbi:SQLite:dbname=$tmpdir/p3state/db.sqlite3",'','', {
+	AutoCommit => 1,
+	RaiseError => 1,
+	PrintError => 0,
+	sqlite_use_immediate_transaction => 1,
+	sqlite_see_if_its_a_number => 1,
+});
+
 { # locking within the same process
 	my $x = Net::POP3->new(@old_args);
 	ok(!$x->apop("$locked_mb.0", 'anonymous'), 'APOP lock failure');
@@ -146,11 +154,26 @@ for my $args (
 		ok(!$np3->apop($mailbox, 'anonymous'), "APOP $mailbox reject");
 		ok($np3->quit, "QUIT after APOP fail $mailbox");
 	}
+
+	# we do connect+QUIT bumps to try ensuring non-QUIT disconnects
+	# get processed below:
 	for my $mailbox ($group, "$group.0") {
 		my $u = ('f'x32)."\@$mailbox";
+		undef $np3;
+		ok(Net::POP3->new(@np3_args)->quit, 'connect+QUIT bump');
 		$np3 = Net::POP3->new(@np3_args);
+		my $n0 = $dbh->selectrow_array('SELECT COUNT(*) FROM deletes');
+		my $u0 = $dbh->selectrow_array('SELECT COUNT(*) FROM users');
 		ok($np3->user($u), "UUID\@$mailbox accept");
 		ok($np3->pass('anonymous'), 'pass works');
+		my $n1 = $dbh->selectrow_array('SELECT COUNT(*) FROM deletes');
+		is($n1 - $n0, 1, 'deletes bumped while connected');
+		ok($np3->quit, 'client QUIT');
+
+		$n1 = $dbh->selectrow_array('SELECT COUNT(*) FROM deletes');
+		is($n1, $n0, 'deletes row gone on no-op after QUIT');
+		my $u1 = $dbh->selectrow_array('SELECT COUNT(*) FROM users');
+		is($u1, $u0, 'users row gone on no-op after QUIT');
 
 		$np3 = Net::POP3->new(@np3_args);
 		ok($np3->user($u), "UUID\@$mailbox accept");
@@ -163,9 +186,32 @@ for my $args (
 		ok($_ > 0, 'bytes in LIST result') for values %$list;
 		like($_, qr/\A[a-z0-9]{40,}\z/,
 			'blob IDs in UIDL result') for values %$uidl;
+		ok($np3->quit, 'QUIT after LIST+UIDL');
+		$n1 = $dbh->selectrow_array('SELECT COUNT(*) FROM deletes');
+		is($n1, $n0, 'deletes row gone on no-op after LIST+UIDL');
+		$n0 = $n1;
+
+		$np3 = Net::POP3->new(@np3_args);
+		ok($np3->user($u), "UUID\@$mailbox accept");
+		ok($np3->pass('anonymous'), 'pass works');
+		undef $np3; # QUIT-less disconnect
+		ok(Net::POP3->new(@np3_args)->quit, 'connect+QUIT bump');
+
+		$u1 = $dbh->selectrow_array('SELECT COUNT(*) FROM users');
+		is($u1, $u0, 'users row gone on QUIT-less disconnect');
+		$n1 = $dbh->selectrow_array('SELECT COUNT(*) FROM deletes');
+		is($n1, $n0, 'deletes row gone on QUIT-less disconnect');
+		$n0 = $n1;
 
 		$np3 = Net::POP3->new(@np3_args);
 		ok(!$np3->apop($u, 'anonumuss'), 'APOP wrong pass reject');
+		$n1 = $dbh->selectrow_array('SELECT COUNT(*) FROM deletes');
+		is($n1, $n0, 'deletes row not bumped w/ wrong pass');
+		undef $np3; # QUIT-less disconnect
+		ok(Net::POP3->new(@np3_args)->quit, 'connect+QUIT bump');
+
+		$n1 = $dbh->selectrow_array('SELECT COUNT(*) FROM deletes');
+		is($n1, $n0, 'deletes row not bumped w/ wrong pass');
 
 		$np3 = Net::POP3->new(@np3_args);
 		ok($np3->apop($u, 'anonymous'), "APOP UUID\@$mailbox");

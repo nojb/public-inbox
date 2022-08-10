@@ -245,6 +245,12 @@ SELECT txn_id,uid_dele FROM deletes WHERE user_id = ? AND mailbox_id = ?
 sub unlock_mailbox {
 	my ($self, $pop3) = @_;
 	my $txn_id = delete($pop3->{txn_id}) // return;
+	if (!$pop3->{did_quit}) { # deal with QUIT-less disconnects
+		my $lk = $self->lock_for_scope;
+		$self->{-state_dbh}->begin_work;
+		$pop3->__cleanup_state($txn_id);
+		$self->{-state_dbh}->commit;
+	}
 	delete $self->{txn_locks}->{$txn_id}; # same worker
 
 	# other workers
