@@ -297,8 +297,8 @@ EOM
 POP3 access is available:
   $urls
 
-The password is: anonymous
-The username is: \$(uuidgen)\@$ctx->{ibx}->{newsgroup}
+The POP3 password is: anonymous
+The POP3 username is: \$(uuidgen)\@$ctx->{ibx}->{newsgroup}
 where \$(uuidgen) in the output of the `uuidgen' command on your system.
 The UUID in the username functions as a private cookie (don't share it).
 Idle accounts will expire periodically.
