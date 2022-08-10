@@ -276,10 +276,12 @@ sub _add_non_http_urls ($$) {
 	$ctx->{ibx}->can('nntp_url') or return; # TODO extindex can have IMAP
 	my $urls = $ctx->{ibx}->imap_url($ctx);
 	if (@$urls) {
-		$$txt .= "\nIMAP subfolder(s) are available under:";
-		$$txt .= "\n  " . join("\n  ", @$urls);
+		$urls = join("\n  ", @$urls);
+		$urls =~ s!://([^/@]+)/!://;AUTH=ANONYMOUS\@$1/!sg;
 		$$txt .= <<EOM
 
+IMAP subfolder(s) are available under:
+  $urls
   # each subfolder (starting with `0') holds 50K messages at most
 EOM
 	}
