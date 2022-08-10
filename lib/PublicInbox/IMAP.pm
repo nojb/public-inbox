@@ -1165,17 +1165,11 @@ sub process_line ($$) {
 	my $err = $@;
 	if ($err && $self->{sock}) {
 		$l =~ s/\r?\n//s;
-		err($self, 'error from: %s (%s)', $l, $err);
+		warn("error from: $l ($err)\n");
 		$tag //= '*';
-		$res = "$tag BAD program fault - command not performed\r\n";
+		$res = \"$tag BAD program fault - command not performed\r\n";
 	}
-	return 0 unless defined $res;
-	$self->write($res);
-}
-
-sub err ($$;@) {
-	my ($self, $fmt, @args) = @_;
-	printf { $self->{imapd}->{err} } $fmt."\n", @args;
+	defined($res) ? $self->write($res) : 0;
 }
 
 sub out ($$;@) {

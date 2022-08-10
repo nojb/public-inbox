@@ -46,7 +46,7 @@ sub enable {
 	my ($class, $self) = @_;
 	my ($in, $err) = Compress::Raw::Zlib::Inflate->new(%IN_OPT);
 	if ($err != Z_OK) {
-		$self->err("Inflate->new failed: $err");
+		warn("Inflate->new failed: $err\n");
 		return;
 	}
 	bless $self, $class;

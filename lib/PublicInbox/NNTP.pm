@@ -72,9 +72,8 @@ sub process_line ($$) {
 	my $res = eval { $req->($self, @args) };
 	my $err = $@;
 	if ($err && $self->{sock}) {
-		local $/ = "\n";
-		chomp($l);
-		err($self, 'error from: %s (%s)', $l, $err);
+		$l =~ s/\r?\n//s;
+		warn("error from: $l ($err)\n");
 		$res = \"503 program fault - command not performed\r\n";
 	}
 	defined($res) ? $self->write($res) : 0;
@@ -943,11 +942,6 @@ sub cmd_xpath ($$) {
 	}
 	return \"430 no such article on server\r\n" unless @paths;
 	'223 '.join(' ', sort(@paths))."\r\n";
-}
-
-sub err ($$;@) {
-	my ($self, $fmt, @args) = @_;
-	printf { $self->{nntpd}->{err} } $fmt."\n", @args;
 }
 
 sub out ($$;@) {

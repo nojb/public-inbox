@@ -45,11 +45,6 @@ use constant {
 
 # XXX FIXME: duplicated stuff from NNTP.pm and IMAP.pm
 
-sub err ($$;@) {
-	my ($self, $fmt, @args) = @_;
-	printf { $self->{pop3d}->{err} } $fmt."\n", @args;
-}
-
 sub out ($$;@) {
 	my ($self, $fmt, @args) = @_;
 	printf { $self->{pop3d}->{out} } $fmt."\n", @args;
@@ -364,8 +359,8 @@ sub process_line ($$) {
 		\"-ERR command not recognized\r\n";
 	my $err = $@;
 	if ($err && $self->{sock}) {
-		chomp($l);
-		err($self, 'error from: %s (%s)', $l, $err);
+		$l =~ s/\r?\n//s;
+		warn("error from: $l ($err)\n");
 		$res = \"-ERR program fault - command not performed\r\n";
 	}
 	defined($res) ? $self->write($res) : 0;

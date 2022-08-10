@@ -660,8 +660,8 @@ sub long_step {
 	if ($@ || !$self->{sock}) { # something bad happened...
 		delete $self->{long_cb};
 		my $elapsed = now() - $t0;
-		$@ and $self->err("%s during long response[$fd] - %0.6f",
-				    $@, $elapsed);
+		$@ and warn("$@ during long response[$fd] - ",
+				sprintf('%0.6f', $elapsed),"\n");
 		$self->out(" deferred[$fd] aborted - %0.6f", $elapsed);
 		$self->close;
 	} elsif ($more) { # $self->{wbuf}:
