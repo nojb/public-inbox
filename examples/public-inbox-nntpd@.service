@@ -7,8 +7,8 @@
 
 [Unit]
 Description = public-inbox NNTP server %i
-Wants = public-inbox-nntpd.socket public-inbox-nntps.socket
-After = public-inbox-nntpd.socket public-inbox-nntps.socket
+Wants = public-inbox-nntpd.socket
+After = public-inbox-nntpd.socket
 
 [Service]
 Environment = PI_CONFIG=/home/pi/.public-inbox/config \
@@ -27,7 +27,7 @@ StandardError = syslog
 # simultaneous services
 NonBlocking = true
 
-Sockets = public-inbox-nntpd.socket public-inbox-nntps.socket
+Sockets = public-inbox-nntpd.socket
 
 KillSignal = SIGQUIT
 User = nobody

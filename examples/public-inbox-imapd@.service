@@ -7,10 +7,8 @@
 
 [Unit]
 Description = public-inbox-imapd IMAP server %i
-Wants = public-inbox-imapd.socket public-inbox-imaps.socket \
-public-inbox-imap-onion.socket
-After = public-inbox-imapd.socket public-inbox-imaps.socket \
-public-inbox-imap-onion.socket
+Wants = public-inbox-imapd.socket
+After = public-inbox-imapd.socket
 
 [Service]
 Environment = PI_CONFIG=/home/pi/.public-inbox/config \
@@ -29,8 +27,7 @@ StandardError = syslog
 # simultaneous services
 NonBlocking = true
 
-Sockets = public-inbox-imapd.socket public-inbox-imaps.socket \
-public-inbox-imap-onion.socket
+Sockets = public-inbox-imapd.socket
 
 KillSignal = SIGQUIT
 User = nobody

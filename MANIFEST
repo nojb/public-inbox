@@ -134,13 +134,10 @@ examples/nginx_proxy
 examples/public-inbox-config
 examples/public-inbox-httpd.socket
 examples/public-inbox-httpd@.service
-examples/public-inbox-imap-onion.socket
 examples/public-inbox-imapd.socket
 examples/public-inbox-imapd@.service
-examples/public-inbox-imaps.socket
 examples/public-inbox-nntpd.socket
 examples/public-inbox-nntpd@.service
-examples/public-inbox-nntps.socket
 examples/public-inbox-watch.service
 examples/public-inbox.psgi
 examples/unsubscribe-milter.socket

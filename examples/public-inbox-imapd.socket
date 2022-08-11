@@ -1,11 +1,23 @@
 # ==> /etc/systemd/system/public-inbox-imapd.socket <==
+# This contains 5 sockets for an public-inbox-imapd instance.
+# The TCP ports are well-known ports registered in /etc/services.
+# The /run/imapd.onion.sock entry is meant for the Tor hidden service
+# enabled by the following line in the torrc(5) file:
+#   HiddenServicePort 143 unix:/run/imapd.onion.sock
 [Unit]
-Description = public-inbox-imapd socket
+Description = public-inbox-imapd sockets
 
 [Socket]
 ListenStream = 0.0.0.0:143
+ListenStream = 0.0.0.0:993
+ListenStream = /run/imapd.onion.sock
+
+# Separating IPv4 from IPv6 listeners makes for nicer output
+# of IPv4 addresses in various reporting/monitoring tools
 BindIPv6Only = ipv6-only
 ListenStream = [::]:143
+ListenStream = [::]:993
+
 Service = public-inbox-imapd@1.service
 
 [Install]

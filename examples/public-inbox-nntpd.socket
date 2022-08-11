@@ -1,9 +1,23 @@
 # ==> /etc/systemd/system/public-inbox-nntpd.socket <==
+# This contains 5 sockets for an public-inbox-nntpd instance.
+# The TCP ports are well-known ports registered in /etc/services.
+# The /run/nntpd.onion.sock entry is meant for the Tor hidden service
+# enabled by the following line in the torrc(5) file:
+#   HiddenServicePort 119 unix:/run/nntpd.onion.sock
 [Unit]
-Description = public-inbox-nntpd socket
+Description = public-inbox-nntpd sockets
 
 [Socket]
-ListenStream = 119
+ListenStream = 0.0.0.0:119
+ListenStream = 0.0.0.0:563
+ListenStream = /run/nntpd.onion.sock
+
+# Separating IPv4 from IPv6 listeners makes for nicer output
+# of IPv4 addresses in various reporting/monitoring tools
+BindIPv6Only = ipv6-only
+ListenStream = [::]:119
+ListenStream = [::]:563
+
 Service = public-inbox-nntpd@1.service
 
 [Install]
