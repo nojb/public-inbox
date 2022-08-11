@@ -68,7 +68,7 @@ sub get_text {
 	}
 	$txt = '<pre>' . $l->linkify_2($txt) . '</pre>';
 	$txt =~ s!\bPOP3\b!<a\nid=pop3>POP3</a>!;
-	$txt =~ s!\bNewsgroups\b!<a\nid=nntp>Newsgroups</a>!;
+	$txt =~ s!\b(Newsgroups?)\b!<a\nid=nntp>$1</a>!;
 	$txt =~ s!\bIMAP\b!<a\nid=imap>IMAP</a>!;
 	PublicInbox::WwwStream::html_oneshot($ctx, $code, \$txt);
 }
