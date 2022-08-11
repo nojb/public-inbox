@@ -206,7 +206,7 @@ if ($^O eq "linux") {
         $u64_mod_8        = 1;
         $SYS_signalfd4 = 484;
 	$SFD_CLOEXEC = 010000000;
-    } elsif ($machine eq 'aarch64' || $machine eq 'loongarch64') {
+    } elsif ($machine =~ /\A(?:loong)?aarch64\z/ || $machine eq 'riscv64') {
         $SYS_epoll_create = 20;  # (sys_epoll_create1)
         $SYS_epoll_ctl    = 21;
         $SYS_epoll_wait   = 22;  # (sys_epoll_pwait)
