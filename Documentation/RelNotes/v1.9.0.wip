@@ -1,0 +1,51 @@
+From: Eric Wong <e@80x24.org>
+To: meta@public-inbox.org
+Subject: [WIP] public-inbox 1.9
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Disposition: inline
+
+Major bugfixes:
+
+  * lei no longer deadlocks from inotify/EVFILT_VNODE handling
+
+  * IMAP server fairness improved to avoid excessive blob prefetch
+
+New features:
+
+  * POP3 server support added, use either public-inbox-pop3d or
+    the new public-inbox-netd superserver
+
+  * public-inbox-netd superserver supporting any combination of HTTP,
+    IMAP, POP3, and NNTP services; simplifying management and allowing
+    more sharing of memory used for various data structures.
+
+  * public-inbox-httpd and -netd support per-listener .psgi files
+
+  * SIGHUP reloads TLS certs and keys in addition to config and .psgi files
+
+Search improvements:
+
+  These will require --reindex with public-inbox-index and/or
+  public-inbox-extindex for public inboxes.
+
+  * patchid: prefix search support added to WWW and lei for
+    "git patch-id --stable" support
+
+  * text inside base-85 binary patches are no longer indexed
+    to avoid false positives
+
+Performance improvements:
+
+  * IMAP server startup is faster with many mailboxes when using
+    "public-inbox-extindex --all"
+
+  * NNTP group listings are also faster with many inboxes when
+    using "public-inbox-extindex --all"
+
+  * various small opcode and memory usage reductions
+
+Please report bugs via plain-text mail to: meta@public-inbox.org
+
+See archives at https://public-inbox.org/meta/ for all history.
+See https://public-inbox.org/TODO for what the future holds.
