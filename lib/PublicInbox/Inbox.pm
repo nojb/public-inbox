@@ -285,9 +285,9 @@ sub pop3_url {
 		my $group = $self->{newsgroup};
 		my @urls;
 		($ps && $group) and
-			@urls = map { m!\Apops?://! ? $_ : "pop://$_" } @$ps;
+			@urls = map { m!\Apop3?s?://! ? $_ : "pop3://$_" } @$ps;
 		if (my $mi = $self->{'pop3mirror'}) {
-			my @m = map { m!\Apops?://! ? $_ : "pop://$_" } @$mi;
+			my @m = map { m!\Apop3?s?://! ? $_ : "pop3://$_" } @$mi;
 			my %seen; # List::Util::uniq requires Perl 5.26+
 			@urls = grep { !$seen{$_}++ } (@urls, @m);
 		}
