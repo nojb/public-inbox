@@ -122,10 +122,6 @@ devel/README
 devel/syscall-list
 examples/README
 examples/README.unsubscribe
-examples/apache2_cgi.conf
-examples/apache2_perl.conf
-examples/apache2_perl_old.conf
-examples/cgi-webrick.rb
 examples/cgit-commit-filter.lua
 examples/cgit-wwwhighlight-filter.lua
 examples/cgit.psgi

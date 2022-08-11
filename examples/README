@@ -9,10 +9,6 @@ For PSGI/Plack (HTTP) servers
 -----------------------------
 public-inbox.psgi - starting point for PSGI/Plack users in production and dev
 
-For Apache2 users
------------------
-apache2_perl.conf - intended to be the basis of a production config
-
 Contact
 -------
 Please send any related feedback to public-inbox: meta@public-inbox.org
