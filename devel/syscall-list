@@ -28,7 +28,10 @@ __DATA__
 #define _GNU_SOURCE
 #include <sys/syscall.h>
 #include <sys/ioctl.h>
+#ifdef __linux__
 #include <linux/fs.h>
+#endif
+#include <sys/types.h>
 #include <unistd.h>
 #include <stdio.h>
 
@@ -60,6 +63,7 @@ int main(void)
 	D(SYS_renameat2);
 #endif
 #endif /* Linux, any other OSes with stable syscalls? */
-	printf("size_t=%zu off_t=%zu\n", sizeof(size_t), sizeof(off_t));
+	printf("size_t=%zu off_t=%zu pid_t=%zu\n",
+		 sizeof(size_t), sizeof(off_t), sizeof(pid_t));
 	return 0;
 }
