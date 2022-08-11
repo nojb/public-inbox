@@ -31,9 +31,9 @@ processes to take advantage of multiple CPUs.
 
 =over
 
-=item -l [PROTO://]ADDRESS[?opt1=val1,opt2=val2]
+=item -l [PROTOCOL://]ADDRESS[?opt1=val1,opt2=val2]
 
-=item --listen [PROTO://]ADDRESS[?opt1=val1,opt2=val2]
+=item --listen [PROTOCOL://]ADDRESS[?opt1=val1,opt2=val2]
 
 This takes an absolute path to a Unix socket or HOST:PORT
 to listen on.  For example, to listen to TCP connections on

@@ -86,7 +86,7 @@ reconstructed from patch emails.
 
 =item --no-torsocks
 
-=item --proxy=PROTO://HOST[:PORT]
+=item --proxy=PROTOCOL://HOST[:PORT]
 
 =back
 

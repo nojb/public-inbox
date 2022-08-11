@@ -50,12 +50,12 @@ See common options in L<public-inbox-daemon(8)/OPTIONS>.
 
 =over
 
-=item -l PROTO://ADDRESS/?cert=/path/to/cert,key=/path/to/key
+=item -l PROTOCOL://ADDRESS/?cert=/path/to/cert,key=/path/to/key
 
-=item --listen PROTO://ADDRESS/?cert=/path/to/cert,key=/path/to/key
+=item --listen PROTOCOL://ADDRESS/?cert=/path/to/cert,key=/path/to/key
 
 In addition to the normal C<-l>/C<--listen> switch described in
-L<public-inbox-daemon(8)>, the C<PROTO> prefix (e.g. C<pop3://> or
+L<public-inbox-daemon(8)>, the C<PROTOCOL> prefix (e.g. C<pop3://> or
 C<pop3s://>) may be specified to force a given protocol.
 
 For STARTTLS and POP3S support, the C<cert> and C<key> may be specified

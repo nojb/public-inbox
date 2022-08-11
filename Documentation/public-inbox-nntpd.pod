@@ -26,9 +26,9 @@ are supported and documented below.
 
 =over
 
-=item -l PROTO://ADDRESS/?cert=/path/to/cert,key=/path/to/key
+=item -l PROTOCOL://ADDRESS/?cert=/path/to/cert,key=/path/to/key
 
-=item --listen PROTO://ADDRESS/?cert=/path/to/cert,key=/path/to/key
+=item --listen PROTOCOL://ADDRESS/?cert=/path/to/cert,key=/path/to/key
 
 In addition to the normal C<-l>/C<--listen> switch described in
 L<public-inbox-daemon(8)>, the protocol prefix (e.g. C<nntp://> or

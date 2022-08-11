@@ -104,7 +104,7 @@ The options below, described in L<lei-q(1)>, are also supported.
 
 =item --torsocks=auto|no|yes, --no-torsocks
 
-=item --proxy=PROTO://HOST[:PORT]
+=item --proxy=PROTOCOL://HOST[:PORT]
 
 =back
 

@@ -25,9 +25,9 @@ See common options in L<public-inbox-daemon(8)/OPTIONS>.
 
 =over
 
-=item -l PROTO://ADDRESS/?cert=/path/to/cert,key=/path/to/key
+=item -l PROTOCOL://ADDRESS/?cert=/path/to/cert,key=/path/to/key
 
-=item --listen PROTO://ADDRESS/?cert=/path/to/cert,key=/path/to/key
+=item --listen PROTOCOL://ADDRESS/?cert=/path/to/cert,key=/path/to/key
 
 =item -l http://ADDRESS/?env.PI_CONFIG=/path/to/cfg,psgi=/path/to/app.psgi
 
