@@ -14,7 +14,7 @@ use PublicInbox::Syscall;
 use File::Temp 0.19 (); # 0.19 for ->newdir
 use Fcntl qw(F_SETLK F_UNLCK F_WRLCK SEEK_SET);
 my @FLOCK;
-if ($^O eq 'linux' || $^O eq 'freebsd') {
+if ($^O eq 'linux' || $^O =~ /bsd/) {
 	require Config;
 	my $off_t;
 	my $sz = $Config::Config{lseeksize};
@@ -27,7 +27,7 @@ if ($^O eq 'linux' || $^O eq 'freebsd') {
 		if ($^O eq 'linux') {
 			@FLOCK = ("ss\@8$off_t$off_t\@32",
 				qw(l_type l_whence l_start l_len));
-		} elsif ($^O eq 'freebsd') {
+		} elsif ($^O =~ /bsd/) {
 			@FLOCK = ("${off_t}${off_t}lss\@256",
 				qw(l_start l_len l_pid l_type l_whence));
 		}
