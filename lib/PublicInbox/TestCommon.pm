@@ -136,7 +136,7 @@ sub require_mods {
 			push @mods, qw(Parse::RecDescent DBD::SQLite
 					Email::Address::XS||Mail::Address);
 			next;
-		} elsif ($mod eq '-nntpd') {
+		} elsif ($mod eq '-nntpd' || $mod eq 'v2') {
 			push @mods, qw(DBD::SQLite);
 			next;
 		}
