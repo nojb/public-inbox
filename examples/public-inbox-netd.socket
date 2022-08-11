@@ -1,0 +1,45 @@
+# ==> /etc/systemd/system/public-inbox-netd.socket <==
+# This contains all the services that public-inbox-netd can run;
+# allowing it to replace (or run in parallel to) any existing -httpd,
+# -imapd, -nntpd, or -pop3d instances.
+#
+# The TCP ports are well-known ports registered in /etc/services.
+# The /run/*.sock entries are meant for the Tor hidden service
+# enabled by the following lines in the torrc(5) file:
+#   HiddenServicePort 110 unix:/run/pop3.sock
+#   HiddenServicePort 119 unix:/run/nntp.sock
+#   HiddenServicePort 143 unix:/run/imap.sock
+[Unit]
+Description = public-inbox-netd sockets
+
+[Socket]
+# for tor (see torrc(5))
+ListenStream = /run/imap.sock
+ListenStream = /run/pop3.sock
+ListenStream = /run/nntp.sock
+
+# this is for varnish:
+ListenStream = 127.0.0.1:280
+
+# public facing
+ListenStream = 0.0.0.0:110
+ListenStream = 0.0.0.0:119
+ListenStream = 0.0.0.0:143
+ListenStream = 0.0.0.0:563
+ListenStream = 0.0.0.0:993
+ListenStream = 0.0.0.0:995
+
+# Separating IPv4 from IPv6 listeners makes for nicer output
+# of IPv4 addresses in various reporting/monitoring tools
+BindIPv6Only = ipv6-only
+ListenStream = [::]:110
+ListenStream = [::]:119
+ListenStream = [::]:143
+ListenStream = [::]:563
+ListenStream = [::]:993
+ListenStream = [::]:995
+
+Service = public-inbox-netd@1.service
+
+[Install]
+WantedBy = sockets.target

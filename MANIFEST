@@ -136,6 +136,8 @@ examples/public-inbox-httpd.socket
 examples/public-inbox-httpd@.service
 examples/public-inbox-imapd.socket
 examples/public-inbox-imapd@.service
+examples/public-inbox-netd.socket
+examples/public-inbox-netd@.service
 examples/public-inbox-nntpd.socket
 examples/public-inbox-nntpd@.service
 examples/public-inbox-watch.service

@@ -1,4 +1,7 @@
 # ==> /etc/systemd/system/public-inbox-nntpd@.service <==
+# Consider looking at public-inbox-netd@.service instead of this file
+# to simplify management when serving multiple protocols.
+#
 # Since SIGUSR2 upgrades do not work under systemd, this service file
 # allows starting two simultaneous services during upgrade time
 # (e.g. public-inbox-nntpd@1 public-inbox-nntpd@2) with the intention

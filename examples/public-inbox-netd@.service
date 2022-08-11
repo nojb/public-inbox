@@ -1,0 +1,60 @@
+# ==> /etc/systemd/system/public-inbox-netd@.service <==
+# Since SIGUSR2 upgrades do not work under systemd, this service file
+# allows starting two simultaneous services during upgrade time
+# (e.g. public-inbox-netd@1 public-inbox-netd@2) with the intention
+# that they take turns running in-between upgrades.  This should
+# allow upgrading without downtime.
+# For servers expecting visitors from multiple timezones, TZ=UTC
+# is needed to ensure a consistent approxidate experience with search.
+[Unit]
+Description = public-inbox-netd server %i
+Wants = public-inbox-netd.socket
+After = public-inbox-netd.socket
+
+[Service]
+Environment = PI_CONFIG=/home/pi/.public-inbox/config \
+PATH=/usr/local/bin:/usr/bin:/bin \
+TZ=UTC \
+PERL_INLINE_DIRECTORY=/tmp/.netd-inline
+
+LimitNOFILE = 30000
+LimitCORE = infinity
+ExecStartPre = /bin/mkdir -p -m 1777 /tmp/.netd-inline
+
+# The '-l' args below map each socket in public-inbox-netd.socket to
+# the appropriate IANA service name:
+ExecStart = /usr/local/bin/public-inbox-netd -W0 \
+-1 /var/log/netd/stdout.out.log \
+--cert /etc/ssl/certs/news.example.com.pem \
+--key /etc/ssl/private/news.example.com.key
+-l imap:///run/imap.sock?out=/var/log/netd/imap.out,err=/var/log/netd/imap.err \
+-l nntp:///run/nntp.sock?out=/var/log/netd/nntp.out,err=/var/log/netd/nntp.err \
+-l pop3:///run/pop3.sock?out=/var/log/netd/pop3.out,err=/var/log/netd/pop3.err \
+-l imap://0.0.0.0/?out=/var/log/netd/imap.out,err=/var/log/netd/imap.err \
+-l nntp://0.0.0.0/?out=/var/log/netd/nntp.out,err=/var/log/netd/nntp.err \
+-l pop3://0.0.0.0/?out=/var/log/netd/pop3.out,err=/var/log/netd/pop3.err \
+-l imap://[::]/?out=/var/log/netd/imap.out,err=/var/log/netd/imap.err \
+-l nntp://[::]/?out=/var/log/netd/nntp.out,err=/var/log/netd/nntp.err \
+-l pop3://[::]/?out=/var/log/netd/pop3.out,err=/var/log/netd/pop3.err \
+-l imaps://0.0.0.0/?out=/var/log/netd/imap.out,err=/var/log/netd/imap.err \
+-l nntps://0.0.0.0/?out=/var/log/netd/nntp.out,err=/var/log/netd/nntp.err \
+-l pop3s://0.0.0.0/?out=/var/log/netd/pop3.out,err=/var/log/netd/pop3.err \
+-l imaps://[::]/?out=/var/log/netd/imap.out,err=/var/log/netd/imap.err \
+-l nntps://[::]/?out=/var/log/netd/nntp.out,err=/var/log/netd/nntp.err \
+-l pop3s://[::]/?out=/var/log/netd/pop3.out,err=/var/log/netd/pop3.err \
+-l http://127.0.0.1:280/?psgi=/etc/public.psgi,err=/var/log/netd/http.err
+
+# NonBlocking is REQUIRED to avoid a race condition if running
+# simultaneous services
+NonBlocking = true
+
+Sockets = public-inbox-netd.socket
+KillSignal = SIGQUIT
+User = news
+Group = ssl-cert
+ExecReload = /bin/kill -HUP $MAINPID
+TimeoutStopSec = 30
+KillMode = process
+
+[Install]
+WantedBy = multi-user.target

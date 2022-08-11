@@ -1,4 +1,7 @@
 # ==> /etc/systemd/system/public-inbox-httpd.socket <==
+# Consider looking at public-inbox-netd.socket instead of this file
+# to simplify management when serving multiple protocols.
+
 [Unit]
 Description = public-inbox-httpd socket
 

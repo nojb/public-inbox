@@ -1,4 +1,7 @@
 # ==> /etc/systemd/system/public-inbox-imapd.socket <==
+# Consider looking at public-inbox-netd.socket instead of this file
+# to simplify management when serving multiple protocols.
+#
 # This contains 5 sockets for an public-inbox-imapd instance.
 # The TCP ports are well-known ports registered in /etc/services.
 # The /run/imapd.onion.sock entry is meant for the Tor hidden service
