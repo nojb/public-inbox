@@ -303,7 +303,7 @@ sub __cleanup_state {
 	$self->{pop3d}->{-state_dbh}->prepare_cached(<<'')->execute($txn_id);
 DELETE FROM deletes WHERE txn_id = ? AND uid_dele = -1
 
-	my $sth = $self->{pop3d}->{-state_dbh}->prepare_cached(<<'');
+	my $sth = $self->{pop3d}->{-state_dbh}->prepare_cached(<<'', undef, 1);
 SELECT COUNT(*) FROM deletes WHERE user_id = ?
 
 	$sth->execute($user_id);
