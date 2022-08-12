@@ -149,32 +149,32 @@ SELECT num,ddd FROM over WHERE num >= ? AND num <= ?
 ORDER BY num ASC
 
 	$sth->execute($beg, $end);
-	do {
-		$m = $sth->fetchall_arrayref({}, 1000);
+	my $tot = 0;
+	while (defined($m = $sth->fetchall_arrayref({}, 1000))) {
 		for my $x (@$m) {
 			PublicInbox::Over::load_from_row($x);
 			push(@cache, $x->{num}, $x->{bytes} + 0, $x->{blob});
 			undef $x; # saves ~1.5M memory w/ 50k messages
+			$tot += $cache[-2];
 		}
-	} while (scalar(@$m) && ($beg = $cache[-3] + 1));
-	\@cache;
+	}
+	$self->{total_bytes} = $tot;
+	$self->{cache} = \@cache;
 }
 
 sub cmd_stat {
 	my ($self) = @_;
 	my $err; $err = need_txn($self) and return $err;
-	my $cache = $self->{cache} //= _stat_cache($self);
-	my $tot = 0;
-	for (my $i = 1; $i < scalar(@$cache); $i += 3) { $tot += $cache->[$i] }
+	my $cache = $self->{cache} // _stat_cache($self);
 	my $nr = @$cache / 3 - ($self->{nr_dele} // 0);
-	"+OK $nr $tot\r\n";
+	"+OK $nr $self->{total_bytes}\r\n";
 }
 
 # for LIST and UIDL
 sub _list {
 	my ($desc, $idx, $self, $msn) = @_;
 	my $err; $err = need_txn($self) and return $err;
-	my $cache = $self->{cache} //= _stat_cache($self);
+	my $cache = $self->{cache} // _stat_cache($self);
 	if (defined $msn) {
 		my $base_off = ($msn - 1) * 3;
 		my $val = $cache->[$base_off + $idx] //
@@ -204,8 +204,9 @@ sub mark_dele ($$) {
 	my $old = $self->{txn_max_uid} //= $uid;
 	$self->{txn_max_uid} = $uid if $uid > $old;
 
+	$self->{total_bytes} -= $cache->[$base_off + 1];
 	$cache->[$base_off] = undef; # clobber UID
-	$cache->[$base_off + 1] = 0; # zero bytes (simplifies cmd_stat)
+	$cache->[$base_off + 1] = undef; # clobber bytes
 	$cache->[$base_off + 2] = undef; # clobber oidhex
 	++$self->{nr_dele};
 }
@@ -247,7 +248,7 @@ sub cmd_retr {
 	return \"-ERR lines must be a non-negative number\r\n" if
 			(defined($top_nr) && $top_nr !~ /\A[0-9]+\z/);
 	my $err; $err = need_txn($self) and return $err;
-	my $cache = $self->{cache} //= _stat_cache($self);
+	my $cache = $self->{cache} // _stat_cache($self);
 	my $off = $msn - 1;
 	my $hex = $cache->[$off * 3 + 2] // return \"-ERR no such message\r\n";
 	${ibx_async_cat($self->{ibx}, $hex, \&retr_cb,
@@ -267,7 +268,7 @@ sub cmd_rset {
 sub cmd_dele {
 	my ($self, $msn) = @_;
 	my $err; $err = need_txn($self) and return $err;
-	$self->{cache} //= _stat_cache($self);
+	$self->{cache} // _stat_cache($self);
 	$msn =~ /\A[1-9][0-9]*\z/ or return \"-ERR no such message\r\n";
 	mark_dele($self, $msn - 1) ? \"+OK\r\n" : \"-ERR no such message\r\n";
 }
