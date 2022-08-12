@@ -233,7 +233,7 @@ sub retr_cb { # called by git->cat_async via ibx_async_cat
 		my @tmp = split(/^/m, $bdy);
 		$hdr .= join('', splice(@tmp, 0, $top_nr));
 	} elsif (exists $self->{expire}) {
-		$self->{expire} .= pack('S', $off + 1);
+		$self->{expire} .= pack('S', $off);
 	}
 	$$bref =~ s/^\./../gms;
 	$$bref .= substr($$bref, -2, 2) eq "\r\n" ? ".\r\n" : "\r\n.\r\n";
