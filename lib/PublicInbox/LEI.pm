@@ -1520,13 +1520,10 @@ sub sto_done_request {
 	return unless $lei->{sto};
 	local $current_lei = $lei;
 	my $sock = $wq ? $wq->{lei_sock} : undef;
-	eval {
-		if ($sock //= $lei->{sock}) { # issue, async wait
-			$lei->{sto}->wq_io_do('done', [ $sock ]);
-		} else { # forcibly wait
-			my $wait = $lei->{sto}->wq_do('done');
-		}
-	};
+	$sock //= $lei->{sock};
+	my @io;
+	push(@io, $sock) if $sock; # async wait iff possible
+	eval { $lei->{sto}->wq_io_do('done', \@io) };
 	warn($@) if $@;
 }
 
