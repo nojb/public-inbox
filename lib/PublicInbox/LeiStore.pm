@@ -255,13 +255,13 @@ sub remove_eml_vmd { # remove just the VMD
 
 sub _lms_rw ($) { # it is important to have eidx processes open before lms
 	my ($self) = @_;
-	my ($eidx, $tl) = eidx_init($self);
-	$self->{lms} //= do {
+	$self->{lms} // do {
 		require PublicInbox::LeiMailSync;
+		my ($eidx, $tl) = eidx_init($self);
 		my $f = "$self->{priv_eidx}->{topdir}/mail_sync.sqlite3";
 		my $lms = PublicInbox::LeiMailSync->new($f);
 		$lms->lms_write_prepare;
-		$lms;
+		$self->{lms} = $lms;
 	};
 }
 
