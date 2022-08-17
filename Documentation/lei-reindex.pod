@@ -1,0 +1,47 @@
+=head1 NAME
+
+lei-reindex - reindex messages already in lei/store
+
+=head1 SYNOPSIS
+
+lei reindex [OPTIONS]
+
+=head1 DESCRIPTION
+
+Forces a re-index of all messages previously-indexed by L<lei-import(1)>
+or L<lei-index(1)>.  This can be used for in-place upgrades and bugfixes
+while other processes are querying the store.  Keep in mind this roughly
+doubles the size of the already-large Xapian database.
+
+It does not re-index messages in externals, using the C<--reindex>
+switch of L<public-inbox-index(1)> or L<public-inbox-extindex(1)> is
+needed for that.
+
+=head1 OPTIONS
+
+=over
+
+=item -q
+
+=item --quiet
+
+Suppress feedback messages.
+
+=back
+
+=head1 CONTACT
+
+Feedback welcome via plain-text mail to L<mailto:meta@public-inbox.org>
+
+The mail archives are hosted at L<https://public-inbox.org/meta/> and
+L<http://4uok3hntl7oi7b4uf4rtfwefqeexfzil2w6kgk2jn5z2f764irre7byd.onion/meta/>
+
+=head1 COPYRIGHT
+
+Copyright all contributors L<mailto:meta@public-inbox.org>
+
+License: AGPL-3.0+ L<https://www.gnu.org/licenses/agpl-3.0.txt>
+
+=head1 SEE ALSO
+
+L<lei-index(1)>, L<lei-import(1)>

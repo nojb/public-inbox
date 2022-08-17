@@ -56,6 +56,7 @@ Documentation/lei-p2q.pod
 Documentation/lei-q.pod
 Documentation/lei-rediff.pod
 Documentation/lei-refresh-mail-sync.pod
+Documentation/lei-reindex.pod
 Documentation/lei-rm-watch.pod
 Documentation/lei-rm.pod
 Documentation/lei-security.pod
@@ -256,6 +257,7 @@ lib/PublicInbox/LeiPmdir.pm
 lib/PublicInbox/LeiQuery.pm
 lib/PublicInbox/LeiRediff.pm
 lib/PublicInbox/LeiRefreshMailSync.pm
+lib/PublicInbox/LeiReindex.pm
 lib/PublicInbox/LeiRemote.pm
 lib/PublicInbox/LeiRm.pm
 lib/PublicInbox/LeiRmWatch.pm

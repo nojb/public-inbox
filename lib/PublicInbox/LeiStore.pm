@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Local storage (cache/memo) for lei(1), suitable for personal/private
@@ -333,6 +333,36 @@ sub _docids_and_maybe_kw ($$) {
 		else { @$kw{keys %$tmp} = values(%$tmp) };
 	}
 	($docids, [ sort keys %$kw ]);
+}
+
+sub _reindex_1 { # git->cat_async callback
+	my ($bref, $hex, $type, $size, $smsg) = @_;
+	my ($self, $eidx, $tl) = delete @$smsg{qw(-self -eidx -tl)};
+	$bref //= _lms_rw($self)->local_blob($hex, 1);
+	if ($bref) {
+		my $eml = PublicInbox::Eml->new($bref);
+		$smsg->{-merge_vmd} = 1; # preserve existing keywords
+		$eidx->idx_shard($smsg->{num})->index_eml($eml, $smsg);
+	} else {
+		warn("E: $type $hex\n");
+	}
+}
+
+sub reindex_art {
+	my ($self, $art) = @_;
+	my ($eidx, $tl) = eidx_init($self);
+	my $smsg = $eidx->{oidx}->get_art($art) // return;
+	return if $smsg->{bytes} == 0; # external-only message
+	@$smsg{qw(-self -eidx -tl)} = ($self, $eidx, $tl);
+	$eidx->git->cat_async($smsg->{blob} // die("no blob (#$art)"),
+				\&_reindex_1, $smsg);
+}
+
+sub reindex_done {
+	my ($self) = @_;
+	my ($eidx, $tl) = eidx_init($self);
+	$eidx->git->async_wait_all;
+	# ->done to be called via sto_done_request
 }
 
 sub add_eml {

@@ -253,6 +253,8 @@ our %CMD = ( # sorted in order of importance/use:
 'forget-watch' => [ '{WATCH_NUMBER|--prune}', 'stop and forget a watch',
 	qw(prune), @c_opt ],
 
+'reindex' => [ '', 'reindex all locally-indexed messages', @c_opt ],
+
 'index' => [ 'LOCATION...', 'one-time index from URL or filesystem',
 	qw(in-format|F=s kw! offset=i recursive|r exclude=s include|I=s
 	verbose|v+ incremental!), @net_opt, # mainly for --proxy=
