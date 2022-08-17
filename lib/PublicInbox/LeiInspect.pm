@@ -1,4 +1,4 @@
-# Copyright (C) 2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # "lei inspect" general purpose inspector for stuff in SQLite and
@@ -235,7 +235,8 @@ sub inspect_argv { # via wq_do
 	$lei->{1}->autoflush(0);
 	$lei->out('[') if $multi;
 	while (defined(my $x = shift @$argv)) {
-		inspect1($lei, $x, scalar(@$argv)) or return;
+		eval { inspect1($lei, $x, scalar(@$argv)) or return };
+		warn "E: $@\n" if $@;
 	}
 	$lei->out(']') if $multi;
 }
