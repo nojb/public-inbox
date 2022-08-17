@@ -453,7 +453,7 @@ sub eml2doc ($$$;$) {
 	index_ids($self, $doc, $eml, $mids);
 
 	# by default, we maintain compatibility with v1.5.0 and earlier
-	# by writing to docdata.glass, users who never exect to downgrade can
+	# by writing to docdata.glass, users who never expect to downgrade can
 	# use --skip-docdata
 	if (!$self->{-skip_docdata}) {
 		# WWW doesn't need {to} or {cc}, only NNTP
