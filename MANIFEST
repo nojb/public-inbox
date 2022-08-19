@@ -477,6 +477,7 @@ t/lei-q-remote-import.t
 t/lei-q-save.t
 t/lei-q-thread.t
 t/lei-refresh-mail-sync.t
+t/lei-reindex.t
 t/lei-sigpipe.t
 t/lei-tag.t
 t/lei-up.t

@@ -1,5 +1,5 @@
 #!perl -w
-# Copyright (C) 2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict; use v5.10.1; use PublicInbox::TestCommon;
 use File::Spec;
@@ -85,6 +85,10 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	lei_ok qw(q m:multipart-html-sucks@11);
 	is_deeply(json_utf8->decode($lei_out)->[0]->{'kw'},
 		['seen'], 'keyword set');
+	lei_ok 'reindex';
+	lei_ok qw(q m:multipart-html-sucks@11);
+	is_deeply(json_utf8->decode($lei_out)->[0]->{'kw'},
+		['seen'], 'keyword still set after reindex');
 
 	$srv->{nntpd} and
 		lei_ok('index', "nntp://$srv->{nntp_host_port}/t.v2");
@@ -104,6 +108,12 @@ test_lei({ tmpdir => $tmpdir }, sub {
 	my $t = xqx(['git', "--git-dir=$store_path/ALL.git",
 			qw(cat-file -t), $res_b->{blob}]);
 	is($t, "blob\n", 'got blob');
+
+	lei_ok('reindex');
+	lei_ok qw(q m:multipart-html-sucks@11);
+	$res_a = json_utf8->decode($lei_out)->[0];
+	is_deeply($res_a->{'kw'}, ['seen'],
+		'keywords still set after reindex');
 });
 
 done_testing;
