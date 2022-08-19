@@ -115,8 +115,10 @@ sub populate {
 		$self->{$f} = $val if $val ne '';
 	}
 	$sync //= {};
-	$self->{-ds} = [ my @ds = msg_datestamp($hdr, $sync->{autime}) ];
-	$self->{-ts} = [ my @ts = msg_timestamp($hdr, $sync->{cotime}) ];
+	my @ds = msg_datestamp($hdr, $sync->{autime} // $self->{ds});
+	my @ts = msg_timestamp($hdr, $sync->{cotime} // $self->{ts});
+	$self->{-ds} = \@ds;
+	$self->{-ts} = \@ts;
 	$self->{ds} //= $ds[0]; # no zone
 	$self->{ts} //= $ts[0];
 	$self->{mid} //= mids($hdr)->[0];
