@@ -344,6 +344,15 @@ sub _reindex_1 { # git->cat_async callback
 		my $eml = PublicInbox::Eml->new($bref);
 		$smsg->{-merge_vmd} = 1; # preserve existing keywords
 		$eidx->idx_shard($smsg->{num})->index_eml($eml, $smsg);
+	} elsif ($type eq 'missing') {
+		# pre-release/buggy lei may've indexed external-only msgs,
+		# try to correct that, here
+		warn("E: missing $hex, culling (ancient lei artifact?)\n");
+		$smsg->{to} = $smsg->{cc} = $smsg->{from} = '';
+		$smsg->{bytes} = 0;
+		$eidx->{oidx}->update_blob($smsg, '');
+		my $eml = PublicInbox::Eml->new("\r\n\r\n");
+		$eidx->idx_shard($smsg->{num})->index_eml($eml, $smsg);
 	} else {
 		warn("E: $type $hex\n");
 	}
