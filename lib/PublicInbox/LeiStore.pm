@@ -337,7 +337,8 @@ sub _docids_and_maybe_kw ($$) {
 
 sub _reindex_1 { # git->cat_async callback
 	my ($bref, $hex, $type, $size, $smsg) = @_;
-	my ($self, $eidx, $tl) = delete @$smsg{qw(-self -eidx -tl)};
+	my $self = delete $smsg->{-sto};
+	my ($eidx, $tl) = eidx_init($self);
 	$bref //= _lms_rw($self)->local_blob($hex, 1);
 	if ($bref) {
 		my $eml = PublicInbox::Eml->new($bref);
@@ -353,7 +354,7 @@ sub reindex_art {
 	my ($eidx, $tl) = eidx_init($self);
 	my $smsg = $eidx->{oidx}->get_art($art) // return;
 	return if $smsg->{bytes} == 0; # external-only message
-	@$smsg{qw(-self -eidx -tl)} = ($self, $eidx, $tl);
+	$smsg->{-sto} = $self;
 	$eidx->git->cat_async($smsg->{blob} // die("no blob (#$art)"),
 				\&_reindex_1, $smsg);
 }
