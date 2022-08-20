@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # git fast-import-based ssoma-mda MDA replacement
@@ -103,7 +103,7 @@ sub _check_path ($$$$) {
 	return if $tip eq '';
 	print $w "ls $tip $path\n" or wfail;
 	local $/ = "\n";
-	defined(my $info = <$r>) or die "EOF from fast-import: $!";
+	my $info = <$r> // die "EOF from fast-import: $!";
 	$info =~ /\Amissing / ? undef : $info;
 }
 
@@ -111,22 +111,21 @@ sub _cat_blob ($$$) {
 	my ($r, $w, $oid) = @_;
 	print $w "cat-blob $oid\n" or wfail;
 	local $/ = "\n";
-	my $info = <$r>;
-	defined $info or die "EOF from fast-import / cat-blob: $!";
+	my $info = <$r> // die "EOF from fast-import / cat-blob: $!";
 	$info =~ /\A[a-f0-9]{40,} blob ([0-9]+)\n\z/ or return;
 	my $left = $1;
 	my $offset = 0;
 	my $buf = '';
 	my $n;
 	while ($left > 0) {
-		$n = read($r, $buf, $left, $offset);
-		defined($n) or die "read cat-blob failed: $!";
+		$n = read($r, $buf, $left, $offset) //
+			die "read cat-blob failed: $!";
 		$n == 0 and die 'fast-export (cat-blob) died';
 		$left -= $n;
 		$offset += $n;
 	}
-	$n = read($r, my $lf, 1);
-	defined($n) or die "read final byte of cat-blob failed: $!";
+	$n = read($r, my $lf, 1) //
+		die "read final byte of cat-blob failed: $!";
 	die "bad read on final byte: <$lf>" if $lf ne "\n";
 
 	# fixup some bugginess in old versions:
@@ -148,10 +147,8 @@ sub check_remove_v1 {
 	my $oid = $1;
 	my $msg = _cat_blob($r, $w, $oid) or die "BUG: cat-blob $1 failed";
 	my $cur = PublicInbox::Eml->new($msg);
-	my $cur_s = $cur->header('Subject');
-	$cur_s = '' unless defined $cur_s;
-	my $cur_m = $mime->header('Subject');
-	$cur_m = '' unless defined $cur_m;
+	my $cur_s = $cur->header('Subject') // '';
+	my $cur_m = $mime->header('Subject') // '';
 	if ($cur_s ne $cur_m || norm_body($cur) ne norm_body($mime)) {
 		return ('MISMATCH', $cur);
 	}
@@ -219,7 +216,7 @@ sub get_mark {
 	die "not active\n" unless $self->{in};
 	my ($r, $w) = $self->gfi_start;
 	print $w "get-mark $mark\n" or wfail;
-	defined(my $oid = <$r>) or die "get-mark failed, need git 2.6.0+\n";
+	my $oid = <$r> // die "get-mark failed, need git 2.6.0+\n";
 	chomp($oid);
 	$oid;
 }
