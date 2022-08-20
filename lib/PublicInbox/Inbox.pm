@@ -431,4 +431,6 @@ sub mailboxid { # rfc 8474, 8620, 8621
 		sprintf('-%x', uidvalidity($self) // 0)
 }
 
+sub thing_type { 'public inbox' }
+
 1;

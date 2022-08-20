@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # HTML body stream for which yields getline+close methods for
@@ -86,17 +86,17 @@ sub coderepos ($) {
 	my $cr = $ctx->{ibx}->{coderepo} // return ();
 	my $cfg = $ctx->{www}->{pi_cfg};
 	my $upfx = ($ctx->{-upfx} // ''). '../';
-	my @ret;
+	my $pfx = $ctx->{base_url} //= $ctx->base_url;
+	my $up = $upfx =~ tr!/!/!;
+	$pfx =~ s!/[^/]+\z!/! for (1..$up);
+	my @ret = ('<a id=code>' .
+		'Code repositories for project(s) associated with this '.
+		$ctx->{ibx}->thing_type . "\n");
 	for my $cr_name (@$cr) {
-		$ret[0] //= <<EOF;
-<a id=code>Code repositories for project(s) associated with this inbox:
-EOF
 		my $urls = $cfg->get_all("coderepo.$cr_name.cgiturl");
 		if ($urls) {
 			for (@$urls) {
-				# relative or absolute URL?, prefix relative
-				# "foo.git" with appropriate number of "../"
-				my $u = m!\A(?:[a-z\+]+:)?//! ? $_ : $upfx.$_;
+				my $u = m!\A(?:[a-z\+]+:)?//! ? $_ : $pfx.$_;
 				$u = ascii_html(prurl($ctx->{env}, $u));
 				$ret[0] .= qq(\n\t<a\nhref="$u">$u</a>);
 			}

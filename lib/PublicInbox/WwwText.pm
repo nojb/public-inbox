@@ -246,20 +246,12 @@ sub coderepos_raw ($$) {
 	my ($ctx, $top_url) = @_;
 	my $cr = $ctx->{ibx}->{coderepo} // return ();
 	my $cfg = $ctx->{www}->{pi_cfg};
-	my @ret;
+	my @ret = ('Code repositories for project(s) associated with this '.
+		$ctx->{ibx}->thing_type . "\n");
 	for my $cr_name (@$cr) {
-		$ret[0] //= do {
-			my $thing = $ctx->{ibx}->can('cloneurl') ?
-				'public inbox' : 'external index';
-			<<EOF;
-Code repositories for project(s) associated with this $thing
-EOF
-		};
 		my $urls = $cfg->get_all("coderepo.$cr_name.cgiturl");
 		if ($urls) {
 			for (@$urls) {
-				# relative or absolute URL?, prefix relative
-				# "foo.git" with appropriate number of "../"
 				my $u = m!\A(?:[a-z\+]+:)?//!i ? $_ :
 					$top_url.$_;
 				$ret[0] .= "\n\t" . prurl($ctx->{env}, $u);

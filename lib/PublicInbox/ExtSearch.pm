@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # Read-only external (detached) index for cross inbox search.
@@ -116,6 +116,8 @@ sub search {
 	PublicInbox::Inbox::_cleanup_later($_[0]);
 	$_[0];
 }
+
+sub thing_type { 'external index' }
 
 no warnings 'once';
 *base_url = \&PublicInbox::Inbox::base_url;
