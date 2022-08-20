@@ -1192,7 +1192,7 @@ sub pagination_footer ($$) {
 		$next = $next ? "$next | " : '             | ';
 		$prev .= qq[ | <a\nhref="$latest">latest</a>];
 	}
-	"<hr><pre>page: $next$prev</pre>";
+	($next || $prev) ? \"<hr><pre>page: $next$prev</pre>" : \'';
 }
 
 sub paginate_recent ($$) {
@@ -1243,11 +1243,8 @@ sub paginate_recent ($$) {
 sub index_topics {
 	my ($ctx) = @_;
 	my $msgs = paginate_recent($ctx, 200); # 200 is our window
-	if (@$msgs) {
-		walk_thread(thread_results($ctx, $msgs), $ctx, \&acc_topic);
-	}
-	html_oneshot($ctx, dump_topics($ctx), \pagination_footer($ctx, '.'));
-
+	walk_thread(thread_results($ctx, $msgs), $ctx, \&acc_topic) if @$msgs;
+	html_oneshot($ctx, dump_topics($ctx), pagination_footer($ctx, '.'));
 }
 
 sub thread_adj_level {
