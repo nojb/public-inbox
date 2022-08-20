@@ -5,9 +5,18 @@ MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 Content-Disposition: inline
 
+Upgrading:
+
+  lei users need to "lei daemon-kill" after installation to load
+  new code.  Normal daemons (read-only, and public-inbox-watch)
+  will also need restarts, of course, but there's no
+  backwards-incompatible data format changes so rolling back to
+  older versions is harmless.
+
 Major bugfixes:
 
-  * lei no longer deadlocks from inotify/EVFILT_VNODE handling
+  * lei no longer freezes from inotify/EVFILT_VNODE handling,
+    user interrupts (Ctrl-C), nor excessive errors/warnings
 
   * IMAP server fairness improved to avoid excessive blob prefetch
 
@@ -24,6 +33,9 @@ New features:
 
   * SIGHUP reloads TLS certs and keys in addition to config and .psgi files
 
+  * "lei reindex" command for lei users to update personal index
+    in ~/.local/share/lei/store for search improvements below:
+
 Search improvements:
 
   These will require --reindex with public-inbox-index and/or
@@ -34,6 +46,9 @@ Search improvements:
 
   * text inside base-85 binary patches are no longer indexed
     to avoid false positives
+
+  * for lei users, "lei reindex" now exists and is required
+    to take advantage of aforementioned indexing changes
 
 Performance improvements:
 
