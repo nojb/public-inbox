@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 package PublicInbox::MboxGz;
 use strict;
@@ -22,7 +22,6 @@ sub async_next ($) {
 sub mbox_gz {
 	my ($self, $cb, $fn) = @_;
 	$self->{cb} = $cb;
-	$self->{base_url} = $self->{ibx}->base_url($self->{env});
 	$self->{gz} = PublicInbox::GzipFilter::gzip_or_die();
 	$fn = to_filename($fn // '') // 'no-subject';
 	# http://www.iana.org/assignments/media-types/application/gzip

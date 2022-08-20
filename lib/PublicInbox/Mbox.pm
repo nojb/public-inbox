@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # Streaming interface for mboxrd HTTP responses
@@ -82,7 +82,6 @@ sub no_over_raw ($) {
 # /$INBOX/$MESSAGE_ID/raw
 sub emit_raw {
 	my ($ctx) = @_;
-	$ctx->{base_url} = $ctx->{ibx}->base_url($ctx->{env});
 	my $over = $ctx->{ibx}->over or return no_over_raw($ctx);
 	my ($id, $prev);
 	my $mip = $ctx->{next_arg} = [ $ctx->{mid}, \$id, \$prev ];
