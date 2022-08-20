@@ -1005,7 +1005,7 @@ sub fetch_compile ($) {
 	# stabilize partial order for consistency and ease-of-debugging:
 	if (scalar keys %partial) {
 		$need |= NEED_BLOB;
-		$r[2] = [ map { [ $_, @{$partial{$_}} ] } sort keys %partial ];
+		@{$r[2]} = map { [ $_, @{$partial{$_}} ] } sort keys %partial;
 	}
 
 	push @op, $OP_EML_NEW if ($need & (EML_HDR|EML_BDY));
@@ -1028,7 +1028,7 @@ sub fetch_compile ($) {
 
 	# r[1] = [ $key1, $cb1, $key2, $cb2, ... ]
 	use sort 'stable'; # makes output more consistent
-	$r[1] = [ map { ($_->[2], $_->[1]) } sort { $a->[0] <=> $b->[0] } @op ];
+	@{$r[1]} = map { ($_->[2], $_->[1]) } sort { $a->[0] <=> $b->[0] } @op;
 	@r;
 }
 
