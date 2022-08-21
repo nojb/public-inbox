@@ -1,9 +1,11 @@
 From: Eric Wong <e@80x24.org>
 To: meta@public-inbox.org
-Subject: [WIP] public-inbox 1.9
+Subject: [ANNOUNCE] public-inbox 1.9.0
+Date: Sun, 21 Aug 2022 02:36:59 +0000
 MIME-Version: 1.0
 Content-Type: text/plain; charset=utf-8
 Content-Disposition: inline
+Message-ID: <2022-08-21T023659Z-public-inbox-1.9.0-rele@sed>
 
 Upgrading:
 

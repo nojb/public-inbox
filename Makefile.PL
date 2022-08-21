@@ -11,7 +11,8 @@ my $v = {};
 my $t = {};
 
 # do not sort
-my @RELEASES = qw(v1.8.0 v1.7.0 v1.6.1 v1.6.0 v1.5.0 v1.4.0 v1.3.0 v1.2.0
+my @RELEASES = qw(v1.9.0
+	v1.8.0 v1.7.0 v1.6.1 v1.6.0 v1.5.0 v1.4.0 v1.3.0 v1.2.0
 	v1.1.0-pre1 v1.0.0);
 
 $v->{news_deps} = [ map { "Documentation/RelNotes/$_.eml" } @RELEASES ];
