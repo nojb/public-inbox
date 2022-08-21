@@ -23,7 +23,7 @@ use PublicInbox::WwwStatic qw(r path_info_raw);
 use PublicInbox::Eml;
 
 # TODO: consider a routing tree now that we have more endpoints:
-our $INBOX_RE = qr!\A/([\w\-][\w\.\-]*)!;
+our $INBOX_RE = qr!\A/([\w\-][\w\.\-\+]*)!;
 our $MID_RE = qr!([^/]+)!;
 our $END_RE = qr!(T/|t/|t\.mbox(?:\.gz)?|t\.atom|raw|)!;
 our $ATTACH_RE = qr!([0-9][0-9\.]*)-($PublicInbox::Hval::FN)!;
