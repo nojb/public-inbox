@@ -114,13 +114,12 @@ sub solve_result {
 	}
 	$log = do { local $/; <$log> };
 
-	my $ref = ref($res);
 	my $l = PublicInbox::Linkify->new;
 	$log = '<pre>debug log:</pre><hr /><pre>' .
 		$l->to_html($log) . '</pre>';
 
 	$res or return html_page($ctx, 404, \$log);
-	$ref eq 'ARRAY' or return html_page($ctx, 500, \$log);
+	ref($res) eq 'ARRAY' or return html_page($ctx, 500, \$log);
 
 	my ($git, $oid, $type, $size, $di) = @$res;
 	return show_other($ctx, $res, \$log, $fn) if $type ne 'blob';
