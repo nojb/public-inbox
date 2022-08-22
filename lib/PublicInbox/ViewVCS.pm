@@ -144,7 +144,7 @@ committer $co$patchid
 <b>$s</b>\n
 EOM
 	$ctx->zmore($bdy);
-	open $fh, '<', "$tmp/p" or die "open $tmp/p: $!";
+	open $fh, '<:utf8', "$tmp/p" or die "open $tmp/p: $!";
 	if (-s $fh > $MAX_SIZE) {
 		$ctx->zmore("---\n patch is too large to show\n");
 	} else { # prepare flush_diff:
@@ -171,8 +171,10 @@ sub show_commit ($$$$) {
 	# a patch embedded inside the commit message body doesn't get fed
 	# to patch-id:
 	my $cmd = [ '/bin/sh', '-c',
-		"git show '$SHOW_FMT' -z --no-notes --no-patch $oid >h && ".
-		"git show --pretty=format:%n -M --stat -p $oid >p && ".
+		"git show --encoding=UTF-8 '$SHOW_FMT'".
+		" -z --no-notes --no-patch $oid >h && ".
+		'git show --encoding=UTF-8 --pretty=format:%n -M'.
+		" --stat -p $oid >p && ".
 		"git patch-id --stable <p" ];
 	my $xenv = { GIT_DIR => $git->{git_dir} };
 	my $tmp = File::Temp->newdir("show-$oid-XXXX", TMPDIR => 1);

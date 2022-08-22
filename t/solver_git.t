@@ -1,5 +1,5 @@
 #!perl -w
-# Copyright (C) 2019-2021 all contributors <meta@public-inbox.org>
+# Copyright (C)  all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use v5.10.1;
@@ -294,6 +294,11 @@ EOF
 			is($res->content, "\0" x $size,
 				"$label content matches");
 		}
+		my $utf8 = 'e022d3377fd2c50fd9931bf96394728958a90bf3';
+		$res = $cb->(GET("/$name/$utf8/s/"));
+		is($res->code, 200, 'shows commit w/ utf8.eml');
+		like($res->content, qr/El&#233;anor/,
+				'UTF-8 commit shown properly');
 	};
 	test_psgi(sub { $www->call(@_) }, $client);
 	SKIP: {
