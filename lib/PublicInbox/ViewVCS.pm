@@ -2,7 +2,6 @@
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # show any VCS object, similar to "git show"
-# FIXME: we only show blobs for now
 #
 # This can use a "solver" to reconstruct blobs based on git
 # patches (with abbreviated OIDs in the header).  However, the
@@ -16,10 +15,12 @@
 package PublicInbox::ViewVCS;
 use strict;
 use v5.10.1;
+use File::Temp 0.19 (); # newdir
 use PublicInbox::SolverGit;
 use PublicInbox::WwwStream qw(html_oneshot);
 use PublicInbox::Linkify;
 use PublicInbox::Tmpfile;
+use PublicInbox::ViewDiff qw(flush_diff);
 use PublicInbox::Hval qw(ascii_html to_filename);
 my $hl = eval {
 	require PublicInbox::HlMod;
@@ -29,6 +30,8 @@ my $hl = eval {
 my %QP_MAP = ( A => 'oid_a', a => 'path_a', b => 'path_b' );
 our $MAX_SIZE = 1024 * 1024; # TODO: configurable
 my $BIN_DETECT = 8000; # same as git
+my $SHOW_FMT = '--pretty=format:'.join('%n', '%H', '%T', '%P', '%s',
+	'%an <%ae>%x09%ai', '%cn <%ce>%x09%ci', '%b%x00');
 
 sub html_page ($$$) {
 	my ($ctx, $code, $strref) = @_;
@@ -88,6 +91,99 @@ sub show_other_result ($$) {
 	html_page($ctx, 200, $bref);
 }
 
+sub show_commit_result ($$) {
+	my ($bref, $ctx) = @_;
+	my ($qsp_err, $logref, $tmp) = @$ctx{qw(-qsp_err -logref -tmp)};
+	if ($qsp_err) {
+		$$logref .= "git show/patch-id error:$qsp_err";
+		return html_page($ctx, 500, $logref);
+	}
+	my $upfx = $ctx->{-upfx} = '../../'; # from "/$INBOX/$OID/s/"
+	my $patchid = (split(/ /, $$bref))[0]; # ignore commit
+	if (defined $patchid) {
+		$ctx->{-q_value_html} = "patchid:$patchid";
+		$patchid = "\n  patchid $patchid";
+	} else {
+		$patchid = '';
+	}
+	my $l = $ctx->{-linkify} = PublicInbox::Linkify->new;
+	open my $fh, '<:utf8', "$tmp/h" or die "open $tmp/h: $!";
+	chop(my $buf = do { local $/ = "\0"; <$fh> });
+	my ($H, $T, $P, $s, $au, $co, $bdy) = split(/\n/, $buf, 7);
+	chomp $bdy;
+	# try to keep author and committer dates lined up
+	my $x = length($au) - length($co);
+	if ($x > 0) {
+		$x = ' ' x $x;
+		$co =~ s/\t/$x\t/;
+	} elsif ($x < 0) {
+		$x = ' ' x (-$x);
+		$au =~ s/\t/$x\t/;
+	}
+	$_ = ascii_html($_) for ($au, $co);
+	$_ = $l->to_html($_) for ($s, $bdy);
+	$ctx->{-title_html} = $s;
+	my @p = split(/ /, $P);
+	if (@p == 1) {
+		$P = qq(\n   parent <a href="$upfx$P/s/">$P</a>);
+	} elsif (@p > 1) {
+		$P = qq(\n  parents <a href="$upfx$p[0]/s/">$p[0]</a>\n);
+		shift @p;
+		$P .= qq(          <a href="$upfx$_/s/">$_</a>\n) for @p;
+		chop $P;
+	} else { # root commit
+		$P = ' (root commit)';
+	}
+	PublicInbox::WwwStream::html_init($ctx);
+	$ctx->zmore(<<EOM);
+<pre>   commit $H$P
+     tree <a href="$upfx$T/s/">$T</a>
+   author $au
+committer $co$patchid
+
+<b>$s</b>\n
+EOM
+	$ctx->zmore($bdy);
+	open $fh, '<', "$tmp/p" or die "open $tmp/p: $!";
+	if (-s $fh > $MAX_SIZE) {
+		$ctx->zmore("---\n patch is too large to show\n");
+	} else { # prepare flush_diff:
+		$buf = '';
+		$ctx->{obuf} = \$buf;
+		$ctx->{-apfx} = $ctx->{-spfx} = $upfx;
+		$ctx->{-anchors} = {};
+		$bdy = '';
+		read($fh, $bdy, -s _);
+		$bdy =~ s/\r?\n/\n/gs;
+		flush_diff($ctx, \$bdy);
+		$ctx->zmore($buf);
+	}
+	$x = $ctx->zflush($ctx->_html_end);
+	my $res_hdr = delete $ctx->{-res_hdr};
+	push @$res_hdr, 'Content-Length', length($x);
+	delete($ctx->{env}->{'qspawn.wcb'})->([200, $res_hdr, [$x]]);
+}
+
+sub show_commit ($$$$) {
+	my ($ctx, $res, $logref, $fn) = @_;
+	my ($git, $oid) = @$res;
+	# patch-id needs two passes, and we use the initial show to ensure
+	# a patch embedded inside the commit message body doesn't get fed
+	# to patch-id:
+	my $cmd = [ '/bin/sh', '-c',
+		"git show '$SHOW_FMT' -z --no-notes --no-patch $oid >h && ".
+		"git show --pretty=format:%n -M --stat -p $oid >p && ".
+		"git patch-id --stable <p" ];
+	my $xenv = { GIT_DIR => $git->{git_dir} };
+	my $tmp = File::Temp->newdir("show-$oid-XXXX", TMPDIR => 1);
+	my $qsp = PublicInbox::Qspawn->new($cmd, $xenv, { -C => "$tmp" });
+	$qsp->{qsp_err} = \($ctx->{-qsp_err} = '');
+	$ctx->{-logref} = $logref;
+	$ctx->{-tmp} = $tmp;
+	$ctx->{env}->{'qspawn.wcb'} = delete $ctx->{-wcb};
+	$qsp->psgi_qx($ctx->{env}, undef, \&show_commit_result, $ctx);
+}
+
 sub show_other ($$$$) {
 	my ($ctx, $res, $logref, $fn) = @_;
 	my ($git, $oid, $type, $size) = @$res;
@@ -122,6 +218,7 @@ sub solve_result {
 	ref($res) eq 'ARRAY' or return html_page($ctx, 500, \$log);
 
 	my ($git, $oid, $type, $size, $di) = @$res;
+	return show_commit($ctx, $res, \$log, $fn) if $type eq 'commit';
 	return show_other($ctx, $res, \$log, $fn) if $type ne 'blob';
 	my $path = to_filename($di->{path_b} // $hints->{path_b} // 'blob');
 	my $raw_link = "(<a\nhref=$path>raw</a>)";

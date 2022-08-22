@@ -201,4 +201,13 @@ sub aresponse {
 	$ctx->psgi_response($code, $res_hdr);
 }
 
+sub html_init {
+	my ($ctx) = @_;
+	$ctx->{base_url} = base_url($ctx);
+	my $h = $ctx->{-res_hdr} = ['Content-Type', 'text/html; charset=UTF-8'];
+	$ctx->{gz} = PublicInbox::GzipFilter::gz_or_noop($h, $ctx->{env});
+	bless $ctx, __PACKAGE__;
+	$ctx->zmore(html_top($ctx));
+}
+
 1;
