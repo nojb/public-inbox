@@ -303,7 +303,8 @@ sub get_text {
 sub get_vcs_object ($$$;$) {
 	my ($ctx, $inbox, $oid, $filename) = @_;
 	my $r404 = invalid_inbox($ctx, $inbox);
-	return $r404 if $r404 || !$ctx->{www}->{pi_cfg}->repo_objs($ctx->{ibx});
+	return $r404 if $r404;
+	return r(404) if !$ctx->{www}->{pi_cfg}->repo_objs($ctx->{ibx});
 	require PublicInbox::ViewVCS;
 	PublicInbox::ViewVCS::show($ctx, $oid, $filename);
 }
