@@ -132,7 +132,7 @@ sub start ($$$) {
 
 sub psgi_qx_init_cb {
 	my ($self) = @_;
-	my $async = delete $self->{async};
+	my $async = delete $self->{async}; # PublicInbox::HTTPD::Async
 	my ($r, $buf);
 	my $qx_fh = $self->{qx_fh};
 reread:
@@ -227,11 +227,10 @@ sub psgi_return_init_cb {
 		PublicInbox::GzipFilter::qsp_maybe($r->[1], $env);
 
 	my $wcb = delete $env->{'qspawn.wcb'};
-	my $async = delete $self->{async};
+	my $async = delete $self->{async}; # PublicInbox::HTTPD::Async
 	if (scalar(@$r) == 3) { # error
-		if ($async) {
-			# calls rpipe->close && ->event_step
-			$async->close;
+		if ($async) { # calls rpipe->close && ->event_step
+			$async->close; # PublicInbox::HTTPD::Async::close
 		} else {
 			$self->{rpipe}->close;
 			event_step($self);
@@ -255,9 +254,9 @@ sub psgi_return_init_cb {
 
 sub psgi_return_start { # may run later, much later...
 	my ($self) = @_;
-	if (my $async = $self->{psgi_env}->{'pi-httpd.async'}) {
+	if (my $cb = $self->{psgi_env}->{'pi-httpd.async'}) {
 		# PublicInbox::HTTPD::Async->new(rpipe, $cb, $cb_arg, $end_obj)
-		$self->{async} = $async->($self->{rpipe},
+		$self->{async} = $cb->($self->{rpipe},
 					\&psgi_return_init_cb, $self, $self);
 	} else { # generic PSGI
 		psgi_return_init_cb($self) while $self->{parse_hdr};

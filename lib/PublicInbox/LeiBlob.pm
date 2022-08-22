@@ -1,4 +1,4 @@
-# Copyright (C) 2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # "lei blob $OID" command
@@ -70,7 +70,7 @@ sub do_solve_blob { # via wq_do
 			} @$git_dirs ],
 		user_cb => \&solver_user_cb,
 		uarg => $self,
-		# -cur_di, -qsp, -msg => temporary fields for Qspawn callbacks
+		# -cur_di, -msg => temporary fields for Qspawn callbacks
 		inboxes => [ $self->{lxs}->locals, @rmt ],
 	}, 'PublicInbox::SolverGit';
 	local $PublicInbox::DS::in_loop = 0; # waitpid synchronously
