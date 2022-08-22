@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # Like most Perl modules in public-inbox, this is internal and
@@ -26,6 +26,7 @@
 
 package PublicInbox::Qspawn;
 use strict;
+use v5.10.1;
 use PublicInbox::Spawn qw(popen_rd);
 use PublicInbox::GzipFilter;
 
@@ -38,6 +39,7 @@ my $def_limiter;
 # $cmd is the command to spawn
 # $cmd_env is the environ for the child process (not PSGI env)
 # $opt can include redirects and perhaps other process spawning options
+# {qsp_err} is an optional error buffer callers may access themselves
 sub new ($$$;) {
 	my ($class, $cmd, $cmd_env, $opt) = @_;
 	bless { args => [ $cmd, $cmd_env, $opt ] }, $class;
@@ -93,18 +95,18 @@ sub finalize ($$) {
 	}
 
 	if ($err) {
-		if (defined $self->{err}) {
-			$self->{err} .= "; $err";
-		} else {
-			$self->{err} = $err;
+		utf8::decode($err);
+		if (my $dst = $self->{qsp_err}) {
+			$$dst .= $$dst ? " $err" : "; $err";
 		}
-		if ($env && $self->{cmd}) {
-			warn join(' ', @{$self->{cmd}}) . ": $err";
-		}
+		warn "@{$self->{cmd}}: $err" if $self->{cmd};
 	}
 	if ($qx_cb) {
 		eval { $qx_cb->($qx_buf, $qx_arg) };
-	} elsif (my $wcb = delete $env->{'qspawn.wcb'}) {
+		return unless $@;
+		warn "E: $@"; # hope qspawn.wcb can handle it
+	}
+	if (my $wcb = delete $env->{'qspawn.wcb'}) {
 		# have we started writing, yet?
 		require PublicInbox::WwwStatic;
 		$wcb->(PublicInbox::WwwStatic::r(500));

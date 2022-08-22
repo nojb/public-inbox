@@ -1,6 +1,6 @@
-# Copyright (C) 2016-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-use strict;
+use v5.12;
 use Test::More;
 use_ok 'PublicInbox::Qspawn';
 
@@ -20,12 +20,13 @@ use_ok 'PublicInbox::Qspawn';
 sub finish_err ($) {
 	my ($qsp) = @_;
 	$qsp->finish;
-	$qsp->{err};
+	$qsp->{qsp_err} && ${$qsp->{qsp_err}};
 }
 
 my $limiter = PublicInbox::Qspawn::Limiter->new(1);
 {
 	my $x = PublicInbox::Qspawn->new([qw(true)]);
+	$x->{qsp_err} = \(my $err = '');
 	my $run = 0;
 	$x->start($limiter, sub {
 		my ($self) = @_;
@@ -37,7 +38,9 @@ my $limiter = PublicInbox::Qspawn::Limiter->new(1);
 }
 
 {
+	my @err; local $SIG{__WARN__} = sub { push @err, @_ };
 	my $x = PublicInbox::Qspawn->new([qw(false)]);
+	$x->{qsp_err} = \(my $err = '');
 	my $run = 0;
 	$x->start($limiter, sub {
 		my ($self) = @_;
@@ -47,10 +50,13 @@ my $limiter = PublicInbox::Qspawn::Limiter->new(1);
 		$run = 1;
 	});
 	is($run, 1, 'callback ran alright');
+	ok(scalar @err, 'got warning');
 }
 
 foreach my $cmd ([qw(sleep 1)], [qw(sh -c), 'sleep 1; false']) {
+	my @err; local $SIG{__WARN__} = sub { push @err, @_ };
 	my $s = PublicInbox::Qspawn->new($cmd);
+	$s->{qsp_err} = \(my $err = '');
 	my @run;
 	$s->start($limiter, sub {
 		my ($self) = @_;
@@ -70,8 +76,10 @@ foreach my $cmd ([qw(sleep 1)], [qw(sh -c), 'sleep 1; false']) {
 
 	if ($cmd->[-1] =~ /false\z/) {
 		ok(finish_err($s), 'got error on false after sleep');
+		ok(scalar @err, 'got warning');
 	} else {
 		ok(!finish_err($s), 'no error on sleep');
+		is_deeply([], \@err, 'no warnings');
 	}
 	ok(!finish_err($_->[0]), "true $_->[1] succeeded") foreach @t;
 	is_deeply([qw(sleep 0 1 2)], \@run, 'ran in order');

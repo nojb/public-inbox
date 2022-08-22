@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # show any VCS object, similar to "git show"
@@ -76,10 +76,9 @@ sub stream_large_blob ($$$$) {
 
 sub show_other_result ($$) {
 	my ($bref, $ctx) = @_;
-	my ($qsp, $logref) = delete @$ctx{qw(-qsp -logref)};
-	if (my $err = $qsp->{err}) {
-		utf8::decode($$err);
-		$$logref .= "git show error: $err";
+	my ($qsp_err, $logref) = delete @$ctx{qw(-qsp_err -logref)};
+	if ($qsp_err) {
+		$$logref .= "git show error:$qsp_err";
 		return html_page($ctx, 500, $logref);
 	}
 	my $l = PublicInbox::Linkify->new;
@@ -99,10 +98,9 @@ sub show_other ($$$$) {
 	my $cmd = ['git', "--git-dir=$git->{git_dir}",
 		qw(show --encoding=UTF-8 --no-color --no-abbrev), $oid ];
 	my $qsp = PublicInbox::Qspawn->new($cmd);
-	my $env = $ctx->{env};
-	$ctx->{-qsp} = $qsp;
+	$qsp->{qsp_err} = \($ctx->{-qsp_err} = '');
 	$ctx->{-logref} = $logref;
-	$qsp->psgi_qx($env, undef, \&show_other_result, $ctx);
+	$qsp->psgi_qx($ctx->{env}, undef, \&show_other_result, $ctx);
 }
 
 # user_cb for SolverGit, called as: user_cb->($result_or_error, $uarg)

@@ -242,10 +242,8 @@ sub find_smsgs ($$$) {
 
 sub update_index_result ($$) {
 	my ($bref, $self) = @_;
-	my ($qsp, $msg) = delete @$self{qw(-qsp -msg)};
-	if (my $err = $qsp->{err}) {
-		ERR($self, "git update-index error: $err");
-	}
+	my ($qsp_err, $msg) = delete @$self{qw(-qsp_err -msg)};
+	ERR($self, "git update-index error:$qsp_err") if $qsp_err;
 	dbg($self, $msg);
 	next_step($self); # onto do_git_apply
 }
@@ -278,7 +276,7 @@ sub prepare_index ($) {
 	my $cmd = [ qw(git update-index -z --index-info) ];
 	my $qsp = PublicInbox::Qspawn->new($cmd, $self->{git_env}, $rdr);
 	$path_a = git_quote($path_a);
-	$self->{-qsp} = $qsp;
+	$qsp->{qsp_err} = \($self->{-qsp_err} = '');
 	$self->{-msg} = "index prepared:\n$mode_a $oid_full\t$path_a";
 	$qsp->psgi_qx($self->{psgi_env}, undef, \&update_index_result, $self);
 }
@@ -405,10 +403,8 @@ sub mark_found ($$$) {
 
 sub parse_ls_files ($$) {
 	my ($self, $bref) = @_;
-	my ($qsp, $di) = delete @$self{qw(-qsp -cur_di)};
-	if (my $err = $qsp->{err}) {
-		die "git ls-files error: $err";
-	}
+	my ($qsp_err, $di) = delete @$self{qw(-qsp_err -cur_di)};
+	die "git ls-files error:$qsp_err" if $qsp_err;
 
 	my ($line, @extra) = split(/\0/, $$bref);
 	scalar(@extra) and die "BUG: extra files in index: <",
@@ -456,11 +452,11 @@ sub skip_identical ($$$) {
 
 sub apply_result ($$) {
 	my ($bref, $self) = @_;
-	my ($qsp, $di) = delete @$self{qw(-qsp -cur_di)};
+	my ($qsp_err, $di) = delete @$self{qw(-qsp_err -cur_di)};
 	dbg($self, $$bref);
 	my $patches = $self->{patches};
-	if (my $err = $qsp->{err}) {
-		my $msg = "git apply error: $err";
+	if ($qsp_err) {
+		my $msg = "git apply error:$qsp_err";
 		my $nxt = $patches->[0];
 		if ($nxt && oids_same_ish($nxt->{oid_b}, $di->{oid_b})) {
 			dbg($self, $msg);
@@ -474,9 +470,9 @@ sub apply_result ($$) {
 	}
 
 	my @cmd = qw(git ls-files -s -z);
-	$qsp = PublicInbox::Qspawn->new(\@cmd, $self->{git_env});
+	my $qsp = PublicInbox::Qspawn->new(\@cmd, $self->{git_env});
 	$self->{-cur_di} = $di;
-	$self->{-qsp} = $qsp;
+	$qsp->{qsp_err} = \($self->{-qsp_err} = '');
 	$qsp->psgi_qx($self->{psgi_env}, undef, \&ls_files_result, $self);
 }
 
@@ -508,7 +504,7 @@ sub do_git_apply ($) {
 	my $opt = { 2 => 1, -C => $dn, quiet => 1 };
 	my $qsp = PublicInbox::Qspawn->new(\@cmd, $self->{git_env}, $opt);
 	$self->{-cur_di} = $di;
-	$self->{-qsp} = $qsp;
+	$qsp->{qsp_err} = \($self->{-qsp_err} = '');
 	$qsp->psgi_qx($self->{psgi_env}, undef, \&apply_result, $self);
 }
 
@@ -660,7 +656,7 @@ sub new {
 		gits => $ibx->{-repo_objs},
 		user_cb => $user_cb,
 		uarg => $uarg,
-		# -cur_di, -qsp, -msg => temporary fields for Qspawn callbacks
+		# -cur_di, -qsp_err, -msg => temp fields for Qspawn callbacks
 
 		# TODO: config option for searching related inboxes
 		inboxes => [ $ibx ],
