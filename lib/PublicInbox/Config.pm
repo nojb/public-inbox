@@ -402,7 +402,7 @@ sub repo_objs {
 			push @repo_objs, $repo if $repo;
 		}
 		if (scalar @repo_objs) {
-			$ibxish ->{-repo_objs} = \@repo_objs;
+			$ibxish->{-repo_objs} = \@repo_objs;
 		} else {
 			delete $ibxish->{coderepo};
 		}
