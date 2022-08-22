@@ -1,8 +1,7 @@
 #!perl -w
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
-use strict;
-use Test::More;
+use v5.12;
 use PublicInbox::TestCommon;
 use PublicInbox::Config; # this relies on PI_CONFIG // ~/.public-inbox/config
 my @psgi = qw(HTTP::Request::Common Plack::Test URI::Escape Plack::Builder);
@@ -41,8 +40,8 @@ my $client = sub {
 		my $res = $cb->(GET($url));
 		is($res->code, 200, $url);
 		next if $res->code == 200;
-		# diag $res->content;
 		diag "$url failed";
+		diag $res->content;
 	}
 };
 
