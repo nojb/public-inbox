@@ -47,7 +47,7 @@ sub event_step {
 
 sub ibx_async_cat ($$$$) {
 	my ($ibx, $oid, $cb, $arg) = @_;
-	my $git = $ibx->git;
+	my $git = $ibx->{git} // $ibx->git;
 	# {topdir} means ExtSearch (likely [extindex "all"]) with potentially
 	# 100K alternates.  git(1) has a proposed patch for 100K alternates:
 	# <https://lore.kernel.org/git/20210624005806.12079-1-e@80x24.org/>
