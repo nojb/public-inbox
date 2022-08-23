@@ -32,7 +32,7 @@ my $hl = eval {
 my %QP_MAP = ( A => 'oid_a', a => 'path_a', b => 'path_b' );
 our $MAX_SIZE = 1024 * 1024; # TODO: configurable
 my $BIN_DETECT = 8000; # same as git
-my $SHOW_FMT = '--pretty=format:'.join('%n', '%H', '%T', '%P', '%s',
+my $SHOW_FMT = '--pretty=format:'.join('%n', '%H', '%T', '%P', '%p', '%s',
 	'%an <%ae>%x09%ai', '%cn <%ce>%x09%ci', '%b%x00');
 
 sub html_page ($$$) {
@@ -93,6 +93,17 @@ sub show_other_result ($$) {
 	html_page($ctx, 200, $bref);
 }
 
+sub cmt_title { # git->cat_async callback
+	my ($bref, $oid, $type, $size, $pt) = @_;
+	utf8::decode($$bref);
+	if ($$bref =~ /\r?\n\r?\n([^\r\n]+)\r?\n?/) {
+		push @$pt, $1;
+		ascii_html($pt->[-1]);
+	} else {
+		push @$pt, ''; # need a placeholder if blank commit
+	}
+}
+
 sub show_commit_result ($$) {
 	my ($bref, $ctx) = @_;
 	my ($qsp_err, $logref, $tmp) = @$ctx{qw(-qsp_err -logref -tmp)};
@@ -106,7 +117,7 @@ sub show_commit_result ($$) {
 	my $l = $ctx->{-linkify} = PublicInbox::Linkify->new;
 	open my $fh, '<:utf8', "$tmp/h" or die "open $tmp/h: $!";
 	chop(my $buf = do { local $/ = "\0"; <$fh> });
-	my ($H, $T, $P, $s, $au, $co, $bdy) = split(/\n/, $buf, 7);
+	my ($H, $T, $P, $p, $s, $au, $co, $bdy) = split(/\n/, $buf, 8);
 	chomp $bdy;
 	# try to keep author and committer dates lined up
 	my $x = length($au) - length($co);
@@ -120,13 +131,19 @@ sub show_commit_result ($$) {
 	$_ = ascii_html($_) for ($au, $co);
 	$_ = $l->to_html($_) for ($s, $bdy);
 	$ctx->{-title_html} = $s;
-	my @p = split(/ /, $P);
-	if (@p == 1) {
-		$P = qq(\n   parent <a href="$upfx$P/s/">$P</a>);
-	} elsif (@p > 1) {
-		$P = qq(\n  parents <a href="$upfx$p[0]/s/">$p[0]</a>\n);
-		shift @p;
-		$P .= qq(          <a href="$upfx$_/s/">$_</a>\n) for @p;
+	my @P = split(/ /, $P);
+	my @p = split(/ /, $p); # abbreviated
+	my @pt;
+	my $git = delete $ctx->{code_git};
+	$git->cat_async($_, \&cmt_title, \@pt) for @P;
+	$git->cat_async_wait;
+	$_ = qq(<a href="$upfx$_/s/">).shift(@p).'</a> '.shift(@pt) for @P;
+	if (@P == 1) {
+		$P = qq(\n   parent $P[0]);
+	} elsif (@P > 1) {
+		$P = qq(\n  parents $P[0]\n);
+		shift @P;
+		$P .= qq(          $_\n) for @P;
 		chop $P;
 	} else { # root commit
 		$P = ' (root commit)';
@@ -206,6 +223,7 @@ sub show_commit ($$$$) {
 	$ctx->{-logref} = $logref;
 	$ctx->{-tmp} = $tmp;
 	$ctx->{env}->{'qspawn.wcb'} = delete $ctx->{-wcb};
+	$ctx->{code_git} = $git;
 	$qsp->psgi_qx($ctx->{env}, undef, \&show_commit_result, $ctx);
 }
 
