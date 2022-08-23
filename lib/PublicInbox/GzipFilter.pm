@@ -139,19 +139,22 @@ sub write {
 sub zmore {
 	my $self = $_[0]; # $_[1] => input
 	http_out($self);
-	my $err = $self->{gz}->deflate($_[1], $self->{zbuf});
-	die "gzip->deflate: $err" if $err != Z_OK;
+	my $err;
+	for (1..$#_) {
+		$err = $self->{gz}->deflate($_[$_], $self->{zbuf});
+		die "gzip->deflate: $err" if $err != Z_OK;
+	}
 	undef;
 }
 
 # flushes and returns the final bit of gzipped data
-sub zflush ($;$) {
-	my $self = $_[0]; # $_[1] => final input (optional)
+sub zflush ($;@) {
+	my $self = $_[0]; # $_[1..Inf] => final input (optional)
 	my $zbuf = delete $self->{zbuf};
 	my $gz = delete $self->{gz};
 	my $err;
-	if (defined $_[1]) { # it's a bug iff $gz is undef w/ $_[1]
-		$err = $gz->deflate($_[1], $zbuf);
+	for (1..$#_) { # it's a bug iff $gz is undef w/ $_[1..]
+		$err = $gz->deflate($_[$_], $zbuf);
 		die "gzip->deflate: $err" if $err != Z_OK;
 	}
 	$gz // return ''; # not a bug, recursing on DS->write failure
