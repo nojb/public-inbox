@@ -7,6 +7,7 @@ package PublicInbox::View;
 use strict;
 use v5.10.1;
 use List::Util qw(max);
+use Text::Wrap qw(wrap); # stdlib, we need Perl 5.6+ for $huge
 use PublicInbox::MsgTime qw(msg_datestamp);
 use PublicInbox::Hval qw(ascii_html obfuscate_addrs prurl mid_href
 			ts2str fmt_ts);
@@ -246,6 +247,7 @@ sub eml_entry {
 
 	# scan through all parts, looking for displayable text
 	$ctx->{mhref} = $mhref;
+	$ctx->{end_id} = "e$id";
 	$ctx->{obuf} = \$rv;
 	$eml->each_part(\&add_text_body, $ctx, 1);
 	delete $ctx->{obuf};
@@ -255,6 +257,9 @@ sub eml_entry {
 		"<a\nhref=\"$mhref\">permalink</a>" .
 		" <a\nhref=\"${mhref}raw\">raw</a>" .
 		" <a\nhref=\"${mhref}#R\">reply</a>";
+
+	delete($ctx->{-qry}) and
+		$rv .= qq[ <a\nhref="${mhref}#related">related</a>];
 
 	my $hr;
 	if (defined(my $pct = $smsg->{pct})) { # used by SearchView.pm
@@ -820,15 +825,38 @@ sub _parent_headers {
 # returns a string buffer
 sub html_footer {
 	my ($ctx, $hdr) = @_;
-	my $ibx = $ctx->{ibx};
 	my $upfx = '../';
 	my $skel;
 	my $rv = '<pre>';
-	if ($ibx->over) {
+	my $related;
+	my $qry = delete $ctx->{-qry};
+	if ($qry && $ctx->{ibx}->isrch) {
+		my $q = ''; # search for either ancestor or descendent patches
+		for (@{$qry->{dfpre}}, @{$qry->{dfpost}}) {
+			chop if length > 7; # include 1 abbrev "older" patches
+			$q .= "dfblob:$_ ";
+		}
+		chop $q; # omit trailing SP
+		local $Text::Wrap::columns = COLS;
+		local $Text::Wrap::huge = 'overflow';
+		$q = wrap('', '', $q);
+		my $rows = ($q =~ tr/\n/\n/) + 1;
+		$q = ascii_html($q);
+		$related = <<EOM;
+<form id=related
+action=$upfx
+><pre>find likely ancestor, descendant, or conflicting patches:
+<textarea name=q cols=${\COLS} rows=$rows>$q</textarea>
+<input type=submit value=search
+/>\t(<a href=${upfx}_/text/help/>help</a>)</pre></form>
+EOM
+	}
+	if ($ctx->{ibx}->over) {
 		my $t = ts2str($ctx->{-t_max});
 		my $t_fmt = fmt_ts($ctx->{-t_max});
-		$skel .= <<EOF;
-	other threads:[<a
+		my $fallback = $related ? "\t" : "<a id=related>\t</a>";
+		$skel = <<EOF;
+${fallback}other threads:[<a
 href="$upfx?t=$t">~$t_fmt UTC</a>|<a
 href="$upfx">newest</a>]
 EOF
@@ -869,6 +897,7 @@ EOF
 	$rv .= qq(<a\nhref="#R">reply</a>);
 	$rv .= $skel;
 	$rv .= '</pre>';
+	$rv .= $related // '';
 	$rv .= msg_reply($ctx, $hdr);
 }
 

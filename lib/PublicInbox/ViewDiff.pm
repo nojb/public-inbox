@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # used by PublicInbox::View
@@ -141,13 +141,16 @@ sub diff_header ($$$) {
 
 	# no need to capture oid_a and oid_b on add/delete,
 	# we just linkify OIDs directly via s///e in conditional
-	if (($$x =~ s/$NULL_TO_BLOB/$1 . oid($dctx, $spfx, $2)/e) ||
-		($$x =~ s/$BLOB_TO_NULL/
-			'index ' . oid($dctx, $spfx, $1) . $2/e)) {
+	if ($$x =~ s/$NULL_TO_BLOB/$1 . oid($dctx, $spfx, $2)/e) {
+		push @{$ctx->{-qry}->{dfpost}}, $2;
+	} elsif ($$x =~ s/$BLOB_TO_NULL/'index '.oid($dctx, $spfx, $1).$2/e) {
+		push @{$ctx->{-qry}->{dfpre}}, $1;
 	} elsif ($$x =~ $BLOB_TO_BLOB) {
 		# modification-only, not add/delete:
 		# linkify hunk headers later using oid_a and oid_b
 		@$dctx{qw(oid_a oid_b)} = ($1, $2);
+		push @{$ctx->{-qry}->{dfpre}}, $1;
+		push @{$ctx->{-qry}->{dfpost}}, $2;
 	} else {
 		warn "BUG? <$$x> had no ^index line";
 	}
@@ -172,9 +175,16 @@ sub diff_before_or_after ($$) {
 			# ok, looks like a diffstat, go line-by-line:
 			for my $l (split(/^/m, $y)) {
 				if ($l =~ /^ (.+)( +\| .*\z)/s) {
-					anchor0($dst, $ctx, $1, $2) and next;
+					anchor0($dst, $ctx, $1, $2) or
+						$$dst .= $linkify->to_html($l);
+				} elsif ($l =~ s/^( [0-9]+ files? )changed,//) {
+					$$dst .= $1;
+					my $end = $ctx->{end_id} // 'related';
+					$$dst .= "<a href=#$end>changed</a>,";
+					$$dst .= ascii_html($l);
+				} else {
+					$$dst .= $linkify->to_html($l);
 				}
-				$$dst .= $linkify->to_html($l);
 			}
 		} else { # commit message, notes, etc
 			$$dst .= $linkify->to_html($y);

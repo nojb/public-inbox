@@ -21,6 +21,8 @@ use PublicInbox::WwwStream qw(html_oneshot);
 use PublicInbox::Linkify;
 use PublicInbox::Tmpfile;
 use PublicInbox::ViewDiff qw(flush_diff);
+use PublicInbox::View;
+use Text::Wrap qw(wrap);
 use PublicInbox::Hval qw(ascii_html to_filename);
 my $hl = eval {
 	require PublicInbox::HlMod;
@@ -157,6 +159,32 @@ EOM
 		$bdy =~ s/\r?\n/\n/gs;
 		flush_diff($ctx, \$bdy);
 		$ctx->zmore($buf);
+		undef $buf;
+		# TODO: should there be another textarea which attempts to
+		# search for the exact email which was applied to make this
+		# commit?
+		if (my $qry = delete $ctx->{-qry}) {
+			my $q = '';
+			for (@{$qry->{dfpost}}, @{$qry->{dfpre}}) {
+				# keep blobs as short as reasonable, emails
+				# are going to be older than what's in git
+				substr($_, 7, 64, '');
+				$q .= "dfblob:$_ ";
+			}
+			chop $q; # no trailing SP
+			local $Text::Wrap::columns = PublicInbox::View::COLS;
+			local $Text::Wrap::huge = 'overflow';
+			$q = wrap('', '', $q);
+			my $rows = ($q =~ tr/\n/\n/) + 1;
+			$q = ascii_html($q);
+			$ctx->zmore(<<EOM);
+<hr><form action=$upfx
+id=related><pre>find related emails, including ancestors/descendants/conflicts
+<textarea name=q cols=${\PublicInbox::View::COLS} rows=$rows>$q</textarea>
+<input type=submit value=search
+/>\t(<a href=${upfx}_/text/help/>help</a>)</pre></form>
+EOM
+		}
 	}
 	$x = $ctx->zflush($ctx->_html_end);
 	my $res_hdr = delete $ctx->{-res_hdr};
