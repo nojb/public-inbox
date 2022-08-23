@@ -17,6 +17,7 @@ use strict;
 use v5.10.1;
 use File::Temp 0.19 (); # newdir
 use PublicInbox::SolverGit;
+use PublicInbox::GitAsyncCat;
 use PublicInbox::WwwStream qw(html_oneshot);
 use PublicInbox::Linkify;
 use PublicInbox::Tmpfile;
@@ -32,7 +33,7 @@ my $hl = eval {
 my %QP_MAP = ( A => 'oid_a', a => 'path_a', b => 'path_b' );
 our $MAX_SIZE = 1024 * 1024; # TODO: configurable
 my $BIN_DETECT = 8000; # same as git
-my $SHOW_FMT = '--pretty=format:'.join('%n', '%H', '%T', '%P', '%p', '%s',
+my $SHOW_FMT = '--pretty=format:'.join('%n', '%P', '%p', '%H', '%T', '%s',
 	'%an <%ae>  %ai', '%cn <%ce>  %ci', '%b%x00');
 
 sub html_page ($$$) {
@@ -94,32 +95,49 @@ sub show_other_result ($$) {
 }
 
 sub cmt_title { # git->cat_async callback
-	my ($bref, $oid, $type, $size, $pt) = @_;
+	my ($bref, $oid, $type, $size, $ctx) = @_;
 	utf8::decode($$bref);
-	if ($$bref =~ /\r?\n\r?\n([^\r\n]+)\r?\n?/) {
-		push @$pt, $1;
-		ascii_html($pt->[-1]);
-	} else {
-		push @$pt, ''; # need a placeholder if blank commit
-	}
+	my $title = $$bref =~ /\r?\n\r?\n([^\r\n]+)\r?\n?/ ? $1 : '';
+	push(@{$ctx->{-cmt_pt}} , ascii_html($title)) == @{$ctx->{-cmt_P}} and
+		cmt_finalize($ctx);
 }
 
-sub show_commit_result ($$) {
+sub show_commit_start { # ->psgi_qx callback
 	my ($bref, $ctx) = @_;
-	my ($qsp_err, $logref, $tmp) = @$ctx{qw(-qsp_err -logref -tmp)};
+	my ($qsp_err, $logref) = delete @$ctx{qw(-qsp_err -logref)};
 	if ($qsp_err) {
 		$$logref .= "git show/patch-id error:$qsp_err";
 		return html_page($ctx, 500, $logref);
 	}
-	my $upfx = $ctx->{-upfx} = '../../'; # from "/$INBOX/$OID/s/"
 	my $patchid = (split(/ /, $$bref))[0]; # ignore commit
 	$ctx->{-q_value_html} = "patchid:$patchid" if defined $patchid;
-	my $l = $ctx->{-linkify} = PublicInbox::Linkify->new;
-	open my $fh, '<:utf8', "$tmp/h" or die "open $tmp/h: $!";
+	open my $fh, '<:utf8', "$ctx->{-tmp}/h" or
+		die "open $ctx->{-tmp}/h: $!";
 	chop(my $buf = do { local $/ = "\0"; <$fh> });
-	my ($H, $T, $P, $p, $s, $au, $co, $bdy) = split(/\n/, $buf, 8);
-	chomp $bdy;
+	chomp $buf;
+	my ($P, $p);
+	($P, $p, @$ctx{qw(cmt_H cmt_T cmt_s cmt_au cmt_co cmt_b)})
+		= split(/\n/, $buf, 8);
+	return cmt_finalize($ctx) if !$P;
+	@{$ctx->{-cmt_P}} = split(/ /, $P);
+	@{$ctx->{-cmt_p}} = split(/ /, $p); # abbreviated
+	if ($ctx->{env}->{'pi-httpd.async'}) {
+		for (@{$ctx->{-cmt_P}}) {
+			ibx_async_cat($ctx, $_, \&cmt_title, $ctx);
+		}
+	} else { # synchronous
+		for (@{$ctx->{-cmt_P}}) {
+			$ctx->{git}->cat_async($_, \&cmt_title, $ctx);
+		}
+		$ctx->{git}->cat_async_wait;
+	}
+}
+
+sub cmt_finalize {
+	my ($ctx) = @_;
+	$ctx->{-linkify} = PublicInbox::Linkify->new;
 	# try to keep author and committer dates lined up
+	my ($au, $co) = delete @$ctx{qw(cmt_au cmt_co)};
 	my $x = length($au) - length($co);
 	if ($x > 0) {
 		$x = ' ' x $x;
@@ -129,49 +147,46 @@ sub show_commit_result ($$) {
 		$au =~ s/>/>$x/;
 	}
 	$_ = ascii_html($_) for ($au, $co);
-	$_ = $l->to_html($_) for ($s, $bdy);
+	my $s = $ctx->{-linkify}->to_html(delete $ctx->{cmt_s});
 	$ctx->{-title_html} = $s;
-	my @P = split(/ /, $P);
-	my @p = split(/ /, $p); # abbreviated
-	my @pt;
-	my $git = delete $ctx->{code_git};
-	$git->cat_async($_, \&cmt_title, \@pt) for @P;
-	$git->cat_async_wait;
-	$_ = qq(<a href="$upfx$_/s/">).shift(@p).'</a> '.shift(@pt) for @P;
-	if (@P == 1) {
-		$P = qq(\n   parent $P[0]);
-	} elsif (@P > 1) {
-		$P = qq(\n  parents $P[0]\n);
-		shift @P;
-		$P .= qq(          $_\n) for @P;
-		chop $P;
-	} else { # root commit
-		$P = ' (root commit)';
+	my $upfx = $ctx->{-upfx} = '../../'; # from "/$INBOX/$OID/s/"
+	my ($P, $p, $pt) = delete @$ctx{qw(-cmt_P -cmt_p -cmt_pt)};
+	$_ = qq(<a href="$upfx$_/s/">).shift(@$p).'</a> '.shift(@$pt) for @$P;
+	if (@$P == 1) {
+		$x = qq(\n   parent $P->[0]);
+	} elsif (@$P > 1) {
+		$x = qq(\n  parents $P->[0]\n);
+		shift @$P;
+		$x .= qq(          $_\n) for @$P;
+		chop $x;
+	} else {
+		$x = ' (root commit)';
 	}
 	PublicInbox::WwwStream::html_init($ctx);
 	$ctx->zmore(<<EOM);
-<pre>   commit $H$P
-     tree <a href="$upfx$T/s/">$T</a>
+<pre>   commit $ctx->{cmt_H}$x
+     tree <a href="$upfx$ctx->{cmt_T}/s/">$ctx->{cmt_T}</a>
    author $au
 committer $co
 
-<b>$s</b>\n
+<b>$s</b>
 EOM
-	$ctx->zmore($bdy);
-	open $fh, '<:utf8', "$tmp/p" or die "open $tmp/p: $!";
+	$x = delete $ctx->{cmt_b};
+	$ctx->zmore("\n", $ctx->{-linkify}->to_html($x)) if length($x);
+	undef $x;
+	open my $fh, '<:utf8', "$ctx->{-tmp}/p" or
+		die "open $ctx->{-tmp}/p: $!";
 	if (-s $fh > $MAX_SIZE) {
 		$ctx->zmore("---\n patch is too large to show\n");
 	} else { # prepare flush_diff:
-		$buf = '';
-		$ctx->{obuf} = \$buf;
+		$ctx->{obuf} = \$x;
 		$ctx->{-apfx} = $ctx->{-spfx} = $upfx;
-		$bdy = '';
-		read($fh, $bdy, -s _);
+		read($fh, my $bdy, -s _);
 		$bdy =~ s/\r?\n/\n/gs;
 		$ctx->{-anchors} = {} if $bdy =~ /^diff --git /sm;
-		flush_diff($ctx, \$bdy);
-		$ctx->zmore($buf);
-		undef $buf;
+		flush_diff($ctx, \$bdy); # undefs $bdy
+		$ctx->zmore($x);
+		undef $x;
 		# TODO: should there be another textarea which attempts to
 		# search for the exact email which was applied to make this
 		# commit?
@@ -223,8 +238,8 @@ sub show_commit ($$$$) {
 	$ctx->{-logref} = $logref;
 	$ctx->{-tmp} = $tmp;
 	$ctx->{env}->{'qspawn.wcb'} = delete $ctx->{-wcb};
-	$ctx->{code_git} = $git;
-	$qsp->psgi_qx($ctx->{env}, undef, \&show_commit_result, $ctx);
+	$ctx->{git} = $git;
+	$qsp->psgi_qx($ctx->{env}, undef, \&show_commit_start, $ctx);
 }
 
 sub show_other ($$$$) {
