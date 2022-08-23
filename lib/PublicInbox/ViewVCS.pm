@@ -153,10 +153,10 @@ EOM
 		$buf = '';
 		$ctx->{obuf} = \$buf;
 		$ctx->{-apfx} = $ctx->{-spfx} = $upfx;
-		$ctx->{-anchors} = {};
 		$bdy = '';
 		read($fh, $bdy, -s _);
 		$bdy =~ s/\r?\n/\n/gs;
+		$ctx->{-anchors} = {} if $bdy =~ /^diff --git /sm;
 		flush_diff($ctx, \$bdy);
 		$ctx->zmore($buf);
 		undef $buf;

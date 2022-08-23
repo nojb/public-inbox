@@ -166,29 +166,26 @@ sub diff_before_or_after ($$) {
 	my ($ctx, $x) = @_;
 	my $linkify = $ctx->{-linkify};
 	my $dst = $ctx->{obuf};
-	my $anchors = exists($ctx->{-anchors}) ? 1 : 0;
-	for my $y (split(/(^---\n)/sm, $$x)) {
-		if ($y =~ /\A---\n\z/s) {
-			$$dst .= "---\n"; # all HTML is "\r\n" => "\n"
-			$anchors |= 2;
-		} elsif ($anchors == 3 && $y =~ /^ [0-9]+ files? changed, /sm) {
-			# ok, looks like a diffstat, go line-by-line:
-			for my $l (split(/^/m, $y)) {
-				if ($l =~ /^ (.+)( +\| .*\z)/s) {
-					anchor0($dst, $ctx, $1, $2) or
-						$$dst .= $linkify->to_html($l);
-				} elsif ($l =~ s/^( [0-9]+ files? )changed,//) {
-					$$dst .= $1;
-					my $end = $ctx->{end_id} // 'related';
-					$$dst .= "<a href=#$end>changed</a>,";
-					$$dst .= ascii_html($l);
-				} else {
-					$$dst .= $linkify->to_html($l);
-				}
-			}
-		} else { # commit message, notes, etc
-			$$dst .= $linkify->to_html($y);
+	if (exists $ctx->{-anchors} && $$x =~ /\A(.*?) # likely "---\n"
+			# diffstat lines:
+			((?:^\x20(?:[^\n]+?)(?:\x20+\|\x20[^\n]*\n))+)
+			(\x20[0-9]+\x20files?\x20)changed,([^\n]+\n)
+			(.*?)\z/msx) { # notes, commit message, etc
+		undef $$x;
+		my @x = ($5, $4, $3, $2, $1);
+		$$dst .= $linkify->to_html(pop @x); # uninteresting prefix
+		for my $l (split(/^/m, pop(@x))) { # per-file diffstat lines
+			$l =~ /^ (.+)( +\| .*\z)/s and
+				anchor0($dst, $ctx, $1, $2) and next;
+			$$dst .= $linkify->to_html($l);
 		}
+		$$dst .= $x[2]; # $3 /^ \d+ files? /
+		my $end = $ctx->{end_id} // 'related';
+		$$dst .= "<a href=#$end>changed</a>,";
+		$$dst .= ascii_html($x[1]); # $4: insertions/deletions
+		$$dst .= $linkify->to_html($x[0]); # notes, commit message, etc
+	} else {
+		$$dst .= $linkify->to_html($$x);
 	}
 }
 
