@@ -33,7 +33,7 @@ my %QP_MAP = ( A => 'oid_a', a => 'path_a', b => 'path_b' );
 our $MAX_SIZE = 1024 * 1024; # TODO: configurable
 my $BIN_DETECT = 8000; # same as git
 my $SHOW_FMT = '--pretty=format:'.join('%n', '%H', '%T', '%P', '%p', '%s',
-	'%an <%ae>%x09%ai', '%cn <%ce>%x09%ci', '%b%x00');
+	'%an <%ae>  %ai', '%cn <%ce>  %ci', '%b%x00');
 
 sub html_page ($$$) {
 	my ($ctx, $code, $strref) = @_;
@@ -123,10 +123,10 @@ sub show_commit_result ($$) {
 	my $x = length($au) - length($co);
 	if ($x > 0) {
 		$x = ' ' x $x;
-		$co =~ s/\t/$x\t/;
+		$co =~ s/>/>$x/;
 	} elsif ($x < 0) {
 		$x = ' ' x (-$x);
-		$au =~ s/\t/$x\t/;
+		$au =~ s/>/>$x/;
 	}
 	$_ = ascii_html($_) for ($au, $co);
 	$_ = $l->to_html($_) for ($s, $bdy);
