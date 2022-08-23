@@ -102,12 +102,7 @@ sub show_commit_result ($$) {
 	}
 	my $upfx = $ctx->{-upfx} = '../../'; # from "/$INBOX/$OID/s/"
 	my $patchid = (split(/ /, $$bref))[0]; # ignore commit
-	if (defined $patchid) {
-		$ctx->{-q_value_html} = "patchid:$patchid";
-		$patchid = "\n  patchid $patchid";
-	} else {
-		$patchid = '';
-	}
+	$ctx->{-q_value_html} = "patchid:$patchid" if defined $patchid;
 	my $l = $ctx->{-linkify} = PublicInbox::Linkify->new;
 	open my $fh, '<:utf8', "$tmp/h" or die "open $tmp/h: $!";
 	chop(my $buf = do { local $/ = "\0"; <$fh> });
@@ -141,7 +136,7 @@ sub show_commit_result ($$) {
 <pre>   commit $H$P
      tree <a href="$upfx$T/s/">$T</a>
    author $au
-committer $co$patchid
+committer $co
 
 <b>$s</b>\n
 EOM
