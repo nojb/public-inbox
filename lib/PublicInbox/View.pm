@@ -845,7 +845,8 @@ sub html_footer {
 		$related = <<EOM;
 <form id=related
 action=$upfx
-><pre>find likely ancestor, descendant, or conflicting patches:
+><pre>find likely ancestor, descendant, or conflicting patches for <a
+href=#t>this message</a>:
 <textarea name=q cols=${\COLS} rows=$rows>$q</textarea>
 <input type=submit value=search
 />\t(<a href=${upfx}_/text/help/>help</a>)</pre></form>
