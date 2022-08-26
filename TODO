@@ -111,6 +111,13 @@ all need to be considered for everything we introduce)
 * improve performance and avoid head-of-line blocking on slow storage
   (done for most git blob retrievals, Xapian needs work)
 
+* allow optional use of separate Xapian worker process to implement
+  timeouts and avoid head-of-line blocking problems.  Consider
+  just-ahead-of-time builds to take advantage of custom date parsers
+  (approxidate) and other features not available to Perl bindings.
+
+* integrate git approxidate parsing into Xapian w/o spawning git
+
 * HTTP(S) search API (likely JMAP, but GraphQL could be an option)
   It should support git-specific prefixes (dfpre:, dfpost:, dfn:, etc)
   as extensions.  If JMAP, it should have HTTP(S) analogues to
