@@ -740,14 +740,18 @@ sub test_httpd ($$;$) {
 		$env->{$_} or BAIL_OUT "$_ unset";
 	}
 	SKIP: {
-		require_mods(qw(Plack::Test::ExternalServer), $skip // 1);
+		require_mods(qw(Plack::Test::ExternalServer LWP::UserAgent),
+				$skip // 1);
 		my $sock = tcp_server() or die;
 		my ($out, $err) = map { "$env->{TMPDIR}/std$_.log" } qw(out err);
 		my $cmd = [ qw(-httpd -W0), "--stdout=$out", "--stderr=$err" ];
 		my $td = start_script($cmd, $env, { 3 => $sock });
 		my ($h, $p) = tcp_host_port($sock);
 		local $ENV{PLACK_TEST_EXTERNALSERVER_URI} = "http://$h:$p";
-		Plack::Test::ExternalServer::test_psgi(client => $client);
+		my $ua = LWP::UserAgent->new;
+		$ua->max_redirect(0);
+		Plack::Test::ExternalServer::test_psgi(client => $client,
+							ua => $ua);
 		$td->join('TERM');
 		open my $fh, '<', $err or BAIL_OUT $!;
 		my $e = do { local $/; <$fh> };

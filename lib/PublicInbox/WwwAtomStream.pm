@@ -38,6 +38,7 @@ sub async_next ($) {
 sub async_eml { # for async_blob_cb
 	my ($ctx, $eml) = @_;
 	my $smsg = delete $ctx->{smsg};
+	$smsg->{mid} // $smsg->populate($eml);
 	$ctx->write(feed_entry($ctx, $smsg, $eml));
 }
 

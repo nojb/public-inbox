@@ -51,7 +51,10 @@ sub new_html_i {
 	my ($ctx, $eml) = @_;
 	$ctx->zmore($ctx->html_top) if exists $ctx->{-html_tip};
 
-	$eml and return PublicInbox::View::eml_entry($ctx, $eml);
+	if ($eml) {
+		$ctx->{smsg}->populate($eml) if !$ctx->{ibx}->{over};
+		return PublicInbox::View::eml_entry($ctx, $eml);
+	}
 	my $smsg = shift @{$ctx->{msgs}} or
 		$ctx->zmore(PublicInbox::View::pagination_footer(
 						$ctx, './new.html'));
