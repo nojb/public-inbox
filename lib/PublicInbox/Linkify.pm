@@ -1,4 +1,4 @@
-# Copyright (C) 2014-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # two-step linkification.
@@ -11,7 +11,7 @@
 # Maybe this could be done more efficiently...
 package PublicInbox::Linkify;
 use strict;
-use warnings;
+use v5.10.1;
 use Digest::SHA qw/sha1_hex/;
 use PublicInbox::Hval qw(ascii_html mid_href);
 use PublicInbox::MID qw($MID_EXTRACT);
@@ -68,23 +68,22 @@ sub linkify_1 {
 		# salt this, as this could be exploited to show
 		# links in the HTML which don't show up in the raw mail.
 		my $key = sha1_hex($url . $SALT);
-
+		$key =~ tr/0-9/A-J/; # no digits for YAML highlight
 		$_[0]->{$key} = $url;
-		$beg . 'PI-LINK-'. $key . $end;
+		$beg . 'LINKIFY' . $key . $end;
 	^geo;
 	$_[1];
 }
 
 sub linkify_2 {
-	# Added "PI-LINK-" prefix to avoid false-positives on git commits
-	$_[1] =~ s!\bPI-LINK-([a-f0-9]{40})\b!
+	# Added "LINKIFY" prefix to avoid false-positives on git commits
+	$_[1] =~ s!\bLINKIFY([a-fA-J]{40})\b!
 		my $key = $1;
 		my $url = $_[0]->{$key};
 		if (defined $url) {
 			"<a\nhref=\"$url\">$url</a>";
-		} else {
-			# false positive or somebody tried to mess with us
-			$key;
+		} else { # false positive or somebody tried to mess with us
+			'LINKIFY'.$key;
 		}
 	!ge;
 	$_[1];
@@ -102,20 +101,20 @@ sub linkify_mids {
 		# salt this, as this could be exploited to show
 		# links in the HTML which don't show up in the raw mail.
 		my $key = sha1_hex($html . $SALT);
+		$key =~ tr/0-9/A-J/;
 		my $repl = qq(&lt;<a\nhref="$pfx/$href/">$html</a>&gt;);
 		$repl .= qq{ (<a\nhref="$pfx/$href/raw">raw</a>)} if $raw;
 		$self->{$key} = $repl;
-		'PI-LINK-'. $key;
+		'LINKIFY'.$key;
 		!ge;
 	$$str = ascii_html($$str);
-	$$str =~ s!\bPI-LINK-([a-f0-9]{40})\b!
+	$$str =~ s!\bLINKIFY([a-fA-J]{40})\b!
 		my $key = $1;
 		my $repl = $_[0]->{$key};
 		if (defined $repl) {
 			$repl;
-		} else {
-			# false positive or somebody tried to mess with us
-			$key;
+		} else { # false positive or somebody tried to mess with us
+			'LINKIFY'.$key;
 		}
 	!ge;
 }

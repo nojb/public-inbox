@@ -144,4 +144,9 @@ href="http://www.$hc.example.com/">http://www.$hc.example.com/</a>};
 	is($s, $expect, 'IDN message escaped properly');
 }
 
+{
+	my $false_positive = 'LINKIFY'.('A' x 40);
+	is(PublicInbox::Linkify->new->to_html($false_positive),
+		$false_positive, 'false-positive left as-is');
+}
 done_testing();
