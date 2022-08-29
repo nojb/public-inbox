@@ -21,7 +21,7 @@ use PublicInbox::GitAsyncCat;
 use PublicInbox::WwwStream qw(html_oneshot);
 use PublicInbox::Linkify;
 use PublicInbox::Tmpfile;
-use PublicInbox::ViewDiff qw(flush_diff);
+use PublicInbox::ViewDiff qw(flush_diff uri_escape_path);
 use PublicInbox::View;
 use PublicInbox::Eml;
 use Text::Wrap qw(wrap);
@@ -36,6 +36,14 @@ our $MAX_SIZE = 1024 * 1024; # TODO: configurable
 my $BIN_DETECT = 8000; # same as git
 my $SHOW_FMT = '--pretty=format:'.join('%n', '%P', '%p', '%H', '%T', '%s', '%f',
 	'%an <%ae>  %ai', '%cn <%ce>  %ci', '%b%x00');
+
+my %GIT_MODE = (
+	'100644' => ' ', # blob
+	'100755' => 'x', # executable blob
+	'040000' => 'd', # tree
+	'120000' => 'l', # symlink
+	'160000' => 'g', # commit (gitlink)
+);
 
 sub html_page ($$;@) {
 	my ($ctx, $code) = @_[0, 1];
@@ -57,7 +65,7 @@ sub dbg_log ($) {
 		return '<pre>debug log read error</pre>';
 	};
 	$ctx->{-linkify} //= PublicInbox::Linkify->new;
-	'<pre>debug log:</pre><hr /><pre>'.
+	"<hr><pre>debug log:\n\n".
 		$ctx->{-linkify}->to_html($log).'</pre>';
 }
 
@@ -95,7 +103,7 @@ sub stream_large_blob ($$) {
 	$qsp->psgi_return($env, undef, \&stream_blob_parse_hdr, $ctx);
 }
 
-sub show_other_result ($$) { # tag, tree, ...
+sub show_other_result ($$) { # tag
 	my ($bref, $ctx) = @_;
 	if (my $qsp_err = delete $ctx->{-qsp_err}) {
 		return html_page($ctx, 500, dbg_log($ctx) .
@@ -296,12 +304,84 @@ sub show_other ($$) {
 	my ($ctx, $res) = @_;
 	my ($git, $oid, $type, $size) = @$res;
 	$size > $MAX_SIZE and return html_page($ctx, 200,
-				"$oid is too big to show\n". dbg_log($ctx));
+		ascii_html($type)." $oid is too big to show\n". dbg_log($ctx));
 	my $cmd = ['git', "--git-dir=$git->{git_dir}",
 		qw(show --encoding=UTF-8 --no-color --no-abbrev), $oid ];
 	my $qsp = PublicInbox::Qspawn->new($cmd);
 	$qsp->{qsp_err} = \($ctx->{-qsp_err} = '');
 	$qsp->psgi_qx($ctx->{env}, undef, \&show_other_result, $ctx);
+}
+
+sub show_tree_result ($$) {
+	my ($bref, $ctx) = @_;
+	if (my $qsp_err = delete $ctx->{-qsp_err}) {
+		return html_page($ctx, 500, dbg_log($ctx) .
+				"git ls-tree -z error:$qsp_err");
+	}
+	my @ent = split(/\0/, $$bref);
+	my $qp = delete $ctx->{qp};
+	my $l = $ctx->{-linkify} //= PublicInbox::Linkify->new;
+	my $pfx = $qp->{b};
+	$$bref = "<pre><a href=#tree>tree</a> $ctx->{tree_oid}";
+	if (defined $pfx) {
+		my $x = ascii_html($pfx);
+		$pfx .= '/';
+		$$bref .= qq(  <a href=#path>path</a>: $x</a>\n);
+	} else {
+		$pfx = '';
+		$$bref .= qq[  (<a href=#path>path</a> unknown)\n];
+	}
+	my ($x, $m, $t, $oid, $sz, $f, $n);
+	$$bref .= "\n	size	name";
+	for (@ent) {
+		($x, $f) = split(/\t/, $_, 2);
+		undef $_;
+		($m, $t, $oid, $sz) = split(/ +/, $x, 4);
+		$m = $GIT_MODE{$m} // '?';
+		utf8::decode($f);
+		$n = ascii_html($f);
+		if ($m eq 'g') { # gitlink submodule commit
+			$$bref .= "\ng\t\t$n @ <a\nhref=#g>commit</a>$oid";
+			next;
+		}
+		my $q = 'b='.ascii_html(uri_escape_path($pfx.$f));
+		if ($m eq 'd') { $n .= '/' }
+		elsif ($m eq 'x') { $n = "<b>$n</b>" }
+		elsif ($m eq 'l') { $n = "<i>$n</i>" }
+		$$bref .= qq(\n$m\t$sz\t<a\nhref="../../$oid/s/?$q">$n</a>);
+	}
+	$$bref .= dbg_log($ctx);
+	$$bref .= <<EOM;
+<pre>glossary
+--------
+<dfn
+id=tree>Tree</dfn> objects belong to commits or other tree objects.  Trees may
+reference blobs, sub-trees, or commits of submodules.
+
+<dfn
+id=path>Path</dfn> names are stored in tree objects, but trees do not know
+their own path name.  A tree's path name comes from their parent tree,
+or it is the root tree referenced by a commit object.  Thus, this web UI
+relies on the `b=' URI parameter as a hint to display the path name.
+
+<dfn title="submodule commit"
+id=g>Commit</dfn> objects may be stored in trees to reference submodules.</pre>
+EOM
+	chop $$bref;
+	html_page($ctx, 200, $$bref);
+}
+
+sub show_tree ($$) {
+	my ($ctx, $res) = @_;
+	my ($git, $oid, undef, $size) = @$res;
+	$size > $MAX_SIZE and return html_page($ctx, 200,
+			"tree $oid is too big to show\n". dbg_log($ctx));
+	my $cmd = [ 'git', "--git-dir=$git->{git_dir}",
+		qw(ls-tree -z -l --no-abbrev), $oid ];
+	my $qsp = PublicInbox::Qspawn->new($cmd);
+	$ctx->{tree_oid} = $oid;
+	$qsp->{qsp_err} = \($ctx->{-qsp_err} = '');
+	$qsp->psgi_qx($ctx->{env}, undef, \&show_tree_result, $ctx);
 }
 
 # user_cb for SolverGit, called as: user_cb->($result_or_error, $uarg)
@@ -313,6 +393,7 @@ sub solve_result {
 
 	my ($git, $oid, $type, $size, $di) = @$res;
 	return show_commit($ctx, $res) if $type eq 'commit';
+	return show_tree($ctx, $res) if $type eq 'tree';
 	return show_other($ctx, $res) if $type ne 'blob';
 	my $path = to_filename($di->{path_b} // $hints->{path_b} // 'blob');
 	my $raw_link = "(<a\nhref=$path>raw</a>)";
