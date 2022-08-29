@@ -155,7 +155,7 @@ my $c1 = sub {
 	is(200, $res->code, "success for $path");
 	my $html = $res->content;
 	like($html, qr!<title>hihi - Me</title>!, 'HTML returned');
-	like($html, qr!<a\nhref="raw"!s, 'raw link present');
+	like($html, qr!<a\nhref=raw!s, 'raw link present');
 	like($html, qr!&gt; quoted text!s, 'quoted text inline');
 
 	$path .= 'f/';

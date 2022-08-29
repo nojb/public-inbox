@@ -38,7 +38,7 @@ sub msg_page_i {
 				: $ctx->gone('over');
 		$ctx->{mhref} = ($ctx->{nr} || $ctx->{smsg}) ?
 				"../${\mid_href($smsg->{mid})}/" : '';
-		my $obuf = $ctx->{obuf} = _msg_page_prepare_obuf($eml, $ctx);
+		my $obuf = _msg_page_prepare_obuf($eml, $ctx);
 		if (length($$obuf)) {
 			multipart_text_as_html($eml, $ctx);
 			$$obuf .= '</pre><hr>';
@@ -58,7 +58,7 @@ sub no_over_html ($) {
 	my $eml = PublicInbox::Eml->new($bref);
 	$ctx->{mhref} = '';
 	PublicInbox::WwwStream::init($ctx);
-	my $obuf = $ctx->{obuf} = _msg_page_prepare_obuf($eml, $ctx);
+	my $obuf = _msg_page_prepare_obuf($eml, $ctx);
 	if (length($$obuf)) {
 		multipart_text_as_html($eml, $ctx);
 		$$obuf .= '</pre><hr>';
@@ -661,9 +661,9 @@ sub add_text_body { # callback for each_part
 
 sub _msg_page_prepare_obuf {
 	my ($eml, $ctx) = @_;
-	my $over = $ctx->{ibx}->over;
+	my $have_over = !!$ctx->{ibx}->over;
 	my $obfs_ibx = $ctx->{-obfs_ibx};
-	my $rv = '';
+	$ctx->{obuf} = \(my $rv = '');
 	my $mids = mids_for_index($eml);
 	my $nr = $ctx->{nr}++;
 	if ($nr) { # unlikely
@@ -672,14 +672,13 @@ sub _msg_page_prepare_obuf {
 			return \$rv;
 		}
 		$rv .=
-"<pre>WARNING: multiple messages have this Message-ID\n</pre>";
-		$rv .= '<pre>';
+"<pre>WARNING: multiple messages have this Message-ID\n</pre><pre>";
 	} else {
 		$ctx->{first_hdr} = $eml->header_obj;
 		$ctx->{chash} = content_hash($eml) if $ctx->{smsg}; # reused MID
 		$rv .= "<pre\nid=b>"; # anchor for body start
 	}
-	$ctx->{-upfx} = '../' if $over;
+	$ctx->{-upfx} = '../' if $have_over;
 	my @title; # (Subject[0], From[0])
 	for my $v ($eml->header('From')) {
 		my @n = PublicInbox::Address::names($v);
@@ -704,7 +703,7 @@ sub _msg_page_prepare_obuf {
 		my $v = ascii_html(shift @subj);
 		obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx;
 		$rv .= 'Subject: ';
-		$rv .= $over ? qq(<a\nhref="#r"\nid=t>$v</a>\n) : "$v\n";
+		$rv .= $have_over ? qq(<a\nhref="#r"\nid=t>$v</a>\n) : "$v\n";
 		$title[0] = $v;
 		for $v (@subj) { # multi-Subject message :<
 			$v = ascii_html($v);
@@ -712,7 +711,7 @@ sub _msg_page_prepare_obuf {
 			$rv .= "Subject: $v\n";
 		}
 	} else { # dummy anchor for thread skeleton at bottom of page
-		$rv .= qq(<a\nhref="#r"\nid=t></a>) if $over;
+		$rv .= qq(<a\nhref="#r"\nid=t></a>) if $have_over;
 		$title[0] = '(no subject)';
 	}
 	for my $v ($eml->header('Date')) {
@@ -724,22 +723,22 @@ sub _msg_page_prepare_obuf {
 		$ctx->{-title_html} = join(' - ', @title);
 		$rv = $ctx->html_top . $rv;
 	}
+
+	$ctx->{-linkify} //= PublicInbox::Linkify->new;
 	if (scalar(@$mids) == 1) { # common case
 		my $mhtml = ascii_html($mids->[0]);
-		$rv .= "Message-ID: &lt;$mhtml&gt; ";
-		$rv .= "(<a\nhref=\"raw\">raw</a>)\n";
+		$rv .= qq[Message-ID: &lt;$mhtml&gt; (<a href="raw">raw</a>)\n];
 	} else {
 		# X-Alt-Message-ID can happen if a message is injected from
 		# public-inbox-nntpd because of multiple Message-ID headers.
-		my $lnk = PublicInbox::Linkify->new;
 		my $s = '';
 		for my $h (qw(Message-ID X-Alt-Message-ID)) {
 			$s .= "$h: $_\n" for ($eml->header_raw($h));
 		}
-		$lnk->linkify_mids('..', \$s, 1);
+		$ctx->{-linkify}->linkify_mids('..', \$s, 1);
 		$rv .= $s;
 	}
-	$rv .= _parent_headers($eml, $over);
+	_parent_headers($ctx, $eml);
 	$rv .= "\n";
 	\$rv;
 }
@@ -792,35 +791,35 @@ sub thread_skel ($$$) {
 }
 
 sub _parent_headers {
-	my ($hdr, $over) = @_;
-	my $rv = '';
+	my ($ctx, $hdr) = @_;
 	my @irt = $hdr->header_raw('In-Reply-To');
 	my $refs;
 	if (@irt) {
-		my $lnk = PublicInbox::Linkify->new;
-		$rv .= "In-Reply-To: $_\n" for @irt;
-		$lnk->linkify_mids('..', \$rv);
+		my $s = '';
+		$s .= "In-Reply-To: $_\n" for @irt;
+		$ctx->{-linkify}->linkify_mids('..', \$s);
+		${$ctx->{obuf}} .= $s;
 	} else {
 		$refs = references($hdr);
 		my $irt = pop @$refs;
 		if (defined $irt) {
 			my $html = ascii_html($irt);
 			my $href = mid_href($irt);
-			$rv .= "In-Reply-To: &lt;";
-			$rv .= "<a\nhref=\"../$href/\">$html</a>&gt;\n";
+			${$ctx->{obuf}} .= <<EOM;
+In-Reply-To: &lt;<a\nhref="../$href/">$html</a>&gt;
+EOM
 		}
 	}
 
 	# do not display References: if search is present,
 	# we show the thread skeleton at the bottom, instead.
-	return $rv if $over;
+	return if $ctx->{ibx}->over;
 
 	$refs //= references($hdr);
 	if (@$refs) {
-		@$refs = map { linkify_ref_no_over($_) } @$refs;
-		$rv .= 'References: '. join("\n\t", @$refs) . "\n";
+		$_ = linkify_ref_no_over($_) for @$refs;
+		${$ctx->{obuf}} .= 'References: '. join("\n\t", @$refs) . "\n";
 	}
-	$rv;
 }
 
 # returns a string buffer
