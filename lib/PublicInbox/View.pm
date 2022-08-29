@@ -1188,9 +1188,9 @@ sub dump_topics {
 
 		my $s = "<a\nhref=\"$href/T/$anchor\">$top_subj</a>\n" .
 			" $ds UTC $n\n";
-		for (my $i = 0; $i < scalar(@extra); $i += 2) {
-			my $level = $extra[$i];
-			my $subj = $extra[$i + 1]; # already normalized
+		while (@extra) {
+			my $level = shift @extra;
+			my $subj = shift @extra; # already normalized
 			$mid = delete $seen->{$subj};
 			my @subj = split(/ /, $subj);
 			my @next_prev = @subj; # full copy
