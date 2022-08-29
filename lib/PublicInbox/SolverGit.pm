@@ -106,6 +106,11 @@ sub solve_existing ($$) {
 	scalar(@$try);
 }
 
+sub _tmp {
+	$_[0]->{tmp} //=
+		File::Temp->newdir("solver.$_[0]->{oid_want}-XXXX", TMPDIR => 1);
+}
+
 sub extract_diff ($$) {
 	my ($p, $arg) = @_;
 	my ($self, $want, $smsg) = @$arg;
@@ -193,8 +198,8 @@ sub extract_diff ($$) {
 
 	my $path = ++$self->{tot};
 	$di->{n} = $path;
-	open(my $tmp, '>:utf8', $self->{tmp}->dirname . "/$path") or
-		die "open(tmp): $!";
+	my $f = _tmp($self)->dirname."/$path";
+	open(my $tmp, '>:utf8', $f) or die "open($f): $!";
 	print $tmp $di->{hdr_lines}, $patch or die "print(tmp): $!";
 	close $tmp or die "close(tmp): $!";
 
@@ -284,8 +289,7 @@ sub prepare_index ($) {
 # pure Perl "git init"
 sub do_git_init ($) {
 	my ($self) = @_;
-	my $dir = $self->{tmp}->dirname;
-	my $git_dir = "$dir/git";
+	my $git_dir = _tmp($self)->dirname.'/git';
 
 	foreach ('', qw(objects refs objects/info refs/heads)) {
 		mkdir("$git_dir/$_") or die "mkdir $_: $!";
@@ -478,7 +482,6 @@ sub apply_result ($$) {
 
 sub do_git_apply ($) {
 	my ($self) = @_;
-	my $dn = $self->{tmp}->dirname;
 	my $patches = $self->{patches};
 
 	# we need --ignore-whitespace because some patches are CRLF
@@ -501,7 +504,7 @@ sub do_git_apply ($) {
 	} while (@$patches && $len < $ARG_SIZE_MAX &&
 		 !oids_same_ish($patches->[0]->{oid_b}, $prv_oid_b));
 
-	my $opt = { 2 => 1, -C => $dn, quiet => 1 };
+	my $opt = { 2 => 1, -C => _tmp($self)->dirname, quiet => 1 };
 	my $qsp = PublicInbox::Qspawn->new(\@cmd, $self->{git_env}, $opt);
 	$self->{-cur_di} = $di;
 	$qsp->{qsp_err} = \($self->{-qsp_err} = '');
@@ -683,7 +686,6 @@ sub solve ($$$$$) {
 	$self->{todo} = [ { %$hints, oid_b => $oid_want } ];
 	$self->{patches} = []; # [ $di, $di, ... ]
 	$self->{found} = {}; # { abbr => [ ::Git, oid, type, size, $di ] }
-	$self->{tmp} = File::Temp->newdir("solver.$oid_want-XXXX", TMPDIR => 1);
 
 	dbg($self, "solving $oid_want ...");
 	if (my $async = $env->{'pi-httpd.async'}) {
