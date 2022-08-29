@@ -23,6 +23,7 @@ use PublicInbox::Linkify;
 use PublicInbox::Tmpfile;
 use PublicInbox::ViewDiff qw(flush_diff);
 use PublicInbox::View;
+use PublicInbox::Eml;
 use Text::Wrap qw(wrap);
 use PublicInbox::Hval qw(ascii_html to_filename);
 my $hl = eval {
@@ -33,7 +34,7 @@ my $hl = eval {
 my %QP_MAP = ( A => 'oid_a', a => 'path_a', b => 'path_b' );
 our $MAX_SIZE = 1024 * 1024; # TODO: configurable
 my $BIN_DETECT = 8000; # same as git
-my $SHOW_FMT = '--pretty=format:'.join('%n', '%P', '%p', '%H', '%T', '%s',
+my $SHOW_FMT = '--pretty=format:'.join('%n', '%P', '%p', '%H', '%T', '%s', '%f',
 	'%an <%ae>  %ai', '%cn <%ce>  %ci', '%b%x00');
 
 sub html_page ($$;@) {
@@ -127,8 +128,8 @@ sub show_commit_start { # ->psgi_qx callback
 	chop(my $buf = do { local $/ = "\0"; <$fh> });
 	chomp $buf;
 	my ($P, $p);
-	($P, $p, @$ctx{qw(cmt_H cmt_T cmt_s cmt_au cmt_co cmt_b)})
-		= split(/\n/, $buf, 8);
+	($P, $p, @$ctx{qw(cmt_H cmt_T cmt_s cmt_f cmt_au cmt_co cmt_b)})
+		= split(/\n/, $buf, 9);
 	return cmt_finalize($ctx) if !$P;
 	@{$ctx->{-cmt_P}} = split(/ /, $P);
 	@{$ctx->{-cmt_p}} = split(/ /, $p); # abbreviated
@@ -164,7 +165,8 @@ sub cmt_finalize {
 	my ($P, $p, $pt) = delete @$ctx{qw(-cmt_P -cmt_p -cmt_pt)};
 	$_ = qq(<a href="$upfx$_/s/">).shift(@$p).'</a> '.shift(@$pt) for @$P;
 	if (@$P == 1) {
-		$x = qq(\n   parent $P->[0]);
+		$x = qq{ (<a
+href="$ctx->{cmt_f}.patch">patch</a>)\n   parent $P->[0]};
 	} elsif (@$P > 1) {
 		$x = qq(\n  parents $P->[0]\n);
 		shift @$P;
@@ -230,8 +232,41 @@ EOM
 	delete($ctx->{env}->{'qspawn.wcb'})->([200, $res_hdr, [$x]]);
 }
 
+sub stream_patch_parse_hdr { # {parse_hdr} for Qspawn
+	my ($r, $bref, $ctx) = @_;
+	if (!defined $r) { # sysread error
+		html_page($ctx, 500, dbg_log($ctx));
+	} elsif (index($$bref, "\n\n") >= 0) {
+		my $eml = bless { hdr => $bref }, 'PublicInbox::Eml';
+		my $fn = to_filename($eml->header('Subject') // '');
+		$fn = substr($fn // 'PATCH-no-subject', 6); # drop "PATCH-"
+		return [ 200, [ 'Content-Type', 'text/plain; charset=UTF-8',
+				'Content-Disposition',
+				qq(inline; filename=$fn.patch) ] ];
+	} elsif ($r == 0) {
+		my $log = dbg_log($ctx);
+		warn "premature EOF on $ctx->{patch_oid} $log";
+		return html_page($ctx, 500, $log);
+	} else {
+		undef; # bref keeps growing until "\n\n"
+	}
+}
+
+sub show_patch ($$) {
+	my ($ctx, $res) = @_;
+	my ($git, $oid) = @$res;
+	my @cmd = ('git', "--git-dir=$git->{git_dir}",
+		qw(format-patch -1 --stdout -C),
+		"--signature=git format-patch -1 --stdout -C $oid", $oid);
+	my $qsp = PublicInbox::Qspawn->new(\@cmd);
+	$ctx->{env}->{'qspawn.wcb'} = delete $ctx->{-wcb};
+	$ctx->{patch_oid} = $oid;
+	$qsp->psgi_return($ctx->{env}, undef, \&stream_patch_parse_hdr, $ctx);
+}
+
 sub show_commit ($$) {
 	my ($ctx, $res) = @_;
+	return show_patch($ctx, $res) if ($ctx->{fn} // '') =~ /\.patch\z/;
 	my ($git, $oid) = @$res;
 	# patch-id needs two passes, and we use the initial show to ensure
 	# a patch embedded inside the commit message body doesn't get fed
