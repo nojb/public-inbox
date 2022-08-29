@@ -287,7 +287,8 @@ EOF
 		while (my ($label, $size) = each %bin) {
 			$res = $cb->(GET("/$name/$oid{$label}/s/"));
 			is($res->code, 200, "$label binary file");
-			ok(index($res->content, "blob $size bytes") >= 0,
+			ok(index($res->content,
+				"blob $oid{$label} $size bytes") >= 0,
 				"showed $label binary blob size");
 			$res = $cb->(GET("/$name/$oid{$label}/s/raw"));
 			is($res->code, 200, "$label raw binary download");

@@ -415,7 +415,7 @@ sub solve_result {
 		return stream_large_blob($ctx, $res) if defined $ctx->{fn};
 		return html_page($ctx, 200, <<EOM . dbg_log($ctx));
 <pre><b>Too big to show, download available</b>
-"$oid $type $size bytes $raw_link</pre>
+blob $oid $size bytes $raw_link</pre>
 EOM
 	}
 
@@ -434,7 +434,7 @@ EOM
 	}
 
 	$bin and return html_page($ctx, 200,
-				"<pre>$oid $type $size bytes (binary)" .
+				"<pre>blob $oid $size bytes (binary)" .
 				" $raw_link</pre>".dbg_log($ctx));
 
 	# TODO: detect + convert to ensure validity
@@ -450,7 +450,7 @@ EOM
 		$$blob = ascii_html($$blob);
 	}
 
-	my $x = "<pre>$oid $type $size bytes $raw_link</pre>" .
+	my $x = "<pre>blob $oid $size bytes $raw_link</pre>" .
 		"<hr /><table\nclass=blob>".
 		"<tr><td\nclass=linenumbers><pre>";
 	$x .= sprintf("<a id=n$_ href=#n$_>% ${pad}u</a>\n", $_) for (1..$nl);
