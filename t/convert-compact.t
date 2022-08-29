@@ -101,7 +101,7 @@ foreach (@xdir) {
 	is($st[2] & 07777, -f _ ? 0444 : 0755,
 		'sharedRepository respected after v2 compact');
 }
-my $msgs = $ibx->recent({limit => 1000});
+my $msgs = $ibx->over->recent({limit => 1000});
 is($msgs->[0]->{mid}, 'a-mid@b', 'message exists in history');
 is(scalar @$msgs, 1, 'only one message in history');
 

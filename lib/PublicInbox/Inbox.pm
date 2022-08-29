@@ -351,11 +351,6 @@ sub msg_by_mid ($$) {
 	$smsg ? msg_by_smsg($self, $smsg) : msg_by_path($self, mid2path($mid));
 }
 
-sub recent {
-	my ($self, $opts, $after, $before) = @_;
-	$self->over->recent($opts, $after, $before);
-}
-
 sub modified {
 	my ($self) = @_;
 	if (my $over = $self->over) {

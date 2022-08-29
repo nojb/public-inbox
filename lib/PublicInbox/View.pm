@@ -1237,12 +1237,11 @@ sub paginate_recent ($$) {
 	$t =~ s/\A([0-9]{8,14})-// and $after = str2ts($1);
 	$t =~ /\A([0-9]{8,14})\z/ and $before = str2ts($1);
 
-	my $ibx = $ctx->{ibx};
-	my $msgs = $ibx->recent($opts, $after, $before);
+	my $msgs = $ctx->{ibx}->over->recent($opts, $after, $before);
 	my $nr = scalar @$msgs;
 	if ($nr < $lim && defined($after)) {
 		$after = $before = undef;
-		$msgs = $ibx->recent($opts);
+		$msgs = $ctx->{ibx}->over->recent($opts);
 		$nr = scalar @$msgs;
 	}
 	my $more = $nr == $lim;

@@ -49,7 +49,7 @@ EOF
 	$im->done;
 	my $thread_a = $ibx->over->get_thread('replace@example.com');
 
-	my %before = map {; delete($_->{blob}) => $_ } @{$ibx->recent};
+	my %before = map {; delete($_->{blob}) => $_ } @{$ibx->over->recent};
 	my $reject = PublicInbox::Eml->new($orig->as_string);
 	foreach my $mid (['<replace@example.com>', '<extra@example.com>'],
 				[], ['<replaced@example.com>']) {
@@ -126,7 +126,7 @@ EOF
 	}
 
 	# check overview matches:
-	my %after = map {; delete($_->{blob}) => $_ } @{$ibx->recent};
+	my %after = map {; delete($_->{blob}) => $_ } @{$ibx->over->recent};
 	my @before_blobs = keys %before;
 	foreach my $blob (@before_blobs) {
 		delete $before{$blob} if delete $after{$blob};

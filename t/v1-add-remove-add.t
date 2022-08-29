@@ -32,7 +32,7 @@ ok($im->add($mime), 'message added again');
 $im->done;
 my $rw = PublicInbox::SearchIdx->new($ibx, 1);
 $rw->index_sync;
-my $msgs = $ibx->recent({limit => 10});
+my $msgs = $ibx->over->recent({limit => 10});
 is($msgs->[0]->{mid}, 'a-mid@b', 'message exists in history');
 is(scalar @$msgs, 1, 'only one message in history');
 is($ibx->mm->num_for('a-mid@b'), 2, 'exists with second article number');

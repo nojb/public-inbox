@@ -32,7 +32,7 @@ ok($im->add($mime), 'message added');
 ok($im->remove($mime), 'message removed');
 ok($im->add($mime), 'message added again');
 $im->done;
-my $msgs = $ibx->recent({limit => 1000});
+my $msgs = $ibx->over->recent({limit => 1000});
 is($msgs->[0]->{mid}, 'a-mid@b', 'message exists in history');
 is(scalar @$msgs, 1, 'only one message in history');
 

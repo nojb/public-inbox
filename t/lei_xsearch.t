@@ -61,7 +61,7 @@ for my $mi ($mset->items) {
 }
 is(scalar(@msgs), $nr, 'smsgs retrieved for all');
 
-$mset = $lxs->recent(undef, { limit => 1 });
+$mset = $lxs->mset('z:1..', { relevance => -2, limit => 1 });
 is($mset->size, 1, 'one result');
 
 my @ibxish = $lxs->locals;

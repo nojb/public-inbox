@@ -103,13 +103,6 @@ sub smsg_for {
 	$smsg;
 }
 
-sub recent {
-	my ($self, $qstr, $opt) = @_;
-	$opt //= {};
-	$opt->{relevance} //= -2;
-	$self->mset($qstr //= 'z:1..', $opt);
-}
-
 sub over {}
 
 sub _check_mset_limit ($$$) {

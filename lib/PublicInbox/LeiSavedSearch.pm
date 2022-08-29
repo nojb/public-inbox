@@ -299,7 +299,6 @@ no warnings 'once';
 *smsg_by_mid = \&PublicInbox::Inbox::smsg_by_mid;
 *msg_by_mid = \&PublicInbox::Inbox::msg_by_mid;
 *modified = \&PublicInbox::Inbox::modified;
-*recent = \&PublicInbox::Inbox::recent;
 *max_git_epoch = *nntp_usable = *msg_by_path = \&mm; # undef
 *isrch = *search = \&mm; # TODO
 *DESTROY = \&pause_dedupe;

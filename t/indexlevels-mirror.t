@@ -41,7 +41,7 @@ my $import_index_incremental = sub {
 		inboxdir => $ibx->{inboxdir},
 		indexlevel => $level
 	});
-	my $msgs = $ro_master->recent;
+	my $msgs = $ro_master->over->recent;
 	is(scalar(@$msgs), 1, 'only one message in master, so far');
 	is($msgs->[0]->{mid}, 'm@1', 'first message in master indexed');
 
@@ -71,7 +71,7 @@ my $import_index_incremental = sub {
 		inboxdir => $mirror,
 		indexlevel => $level,
 	});
-	$msgs = $ro_mirror->recent;
+	$msgs = $ro_mirror->over->recent;
 	is(scalar(@$msgs), 1, 'only one message, so far');
 	is($msgs->[0]->{mid}, 'm@1', 'read first message');
 
@@ -83,7 +83,7 @@ my $import_index_incremental = sub {
 	# mirror updates
 	is(xsys('git', "--git-dir=$fetch_dir", qw(fetch -q)), 0, 'fetch OK');
 	ok(run_script([qw(-index -j0), $mirror]), "v$v index mirror again OK");
-	$msgs = $ro_mirror->recent;
+	$msgs = $ro_mirror->over->recent;
 	is(scalar(@$msgs), 2, '2nd message seen in mirror');
 	is_deeply([sort { $a cmp $b } map { $_->{mid} } @$msgs],
 		['m@1','m@2'], 'got both messages in mirror');
@@ -91,7 +91,7 @@ my $import_index_incremental = sub {
 	# incremental index master (required for v1)
 	ok(run_script([qw(-index -j0), $ibx->{inboxdir}, "-L$level"]),
 		'index master OK');
-	$msgs = $ro_master->recent;
+	$msgs = $ro_master->over->recent;
 	is(scalar(@$msgs), 2, '2nd message seen in master');
 	is_deeply([sort { $a cmp $b } map { $_->{mid} } @$msgs],
 		['m@1','m@2'], 'got both messages in master');
@@ -120,7 +120,7 @@ my $import_index_incremental = sub {
 	# sync the mirror
 	is(xsys('git', "--git-dir=$fetch_dir", qw(fetch -q)), 0, 'fetch OK');
 	ok(run_script([qw(-index -j0), $mirror]), "v$v index mirror again OK");
-	$msgs = $ro_mirror->recent;
+	$msgs = $ro_mirror->over->recent;
 	is(scalar(@$msgs), 1, '2nd message gone from mirror');
 	is_deeply([map { $_->{mid} } @$msgs], ['m@1'],
 		'message unavailable in mirror');
