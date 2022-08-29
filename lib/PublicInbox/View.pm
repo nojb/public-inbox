@@ -248,7 +248,7 @@ sub eml_entry {
 
 	# scan through all parts, looking for displayable text
 	$ctx->{mhref} = $mhref;
-	$ctx->{end_id} = "e$id";
+	$ctx->{changed_href} = "#e$id"; # for diffstat "files? changed,"
 	$ctx->{obuf} = \$rv;
 	$eml->each_part(\&add_text_body, $ctx, 1);
 	delete $ctx->{obuf};

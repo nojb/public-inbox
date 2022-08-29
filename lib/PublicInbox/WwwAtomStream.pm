@@ -156,6 +156,7 @@ sub feed_entry {
 		qq(<pre\nstyle="white-space:pre-wrap">);
 	$ctx->{obuf} = \$s;
 	$ctx->{mhref} = $href;
+	$ctx->{changed_href} = "${href}#related";
 	PublicInbox::View::multipart_text_as_html($eml, $ctx);
 	delete $ctx->{obuf};
 	$s .= '</pre></div></content></entry>';

@@ -180,8 +180,8 @@ sub diff_before_or_after ($$) {
 			$$dst .= $linkify->to_html($l);
 		}
 		$$dst .= $x[2]; # $3 /^ \d+ files? /
-		my $end = $ctx->{end_id} // 'related';
-		$$dst .= "<a href=#$end>changed</a>,";
+		my $ch = $ctx->{changed_href} // '#related';
+		$$dst .= qq(<a href="$ch">changed</a>,);
 		$$dst .= ascii_html($x[1]); # $4: insertions/deletions
 		$$dst .= $linkify->to_html($x[0]); # notes, commit message, etc
 	} else {
