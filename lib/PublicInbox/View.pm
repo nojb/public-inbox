@@ -20,6 +20,7 @@ use PublicInbox::WwwStream qw(html_oneshot);
 use PublicInbox::Reply;
 use PublicInbox::ViewDiff qw(flush_diff);
 use PublicInbox::Eml;
+use POSIX qw(strftime);
 use Time::Local qw(timegm);
 use PublicInbox::Smsg qw(subject_normalized);
 use PublicInbox::ContentHash qw(content_hash);
@@ -1161,9 +1162,10 @@ sub dump_topics {
 	}
 
 	my @out;
-	my $ibx = $ctx->{ibx};
-	my $obfs_ibx = $ibx->{obfuscate} ? $ibx : undef;
-
+	my $obfs_ibx = $ctx->{ibx}->{obfuscate} ? $ctx->{ibx} : undef;
+	if (my $note = delete $ctx->{t_note}) {
+		push @out, $note; # "messages from ... to ..."
+	}
 	# sort by recency, this allows new posts to "bump" old topics...
 	foreach my $topic (sort { $b->[0] <=> $a->[0] } @$order) {
 		my ($ds, $n, $seen, $top_subj, @extra) = @$topic;
@@ -1222,7 +1224,7 @@ sub pagination_footer ($$) {
 		$next = $next ? "$next | " : '             | ';
 		$prev .= qq[ | <a\nhref="$latest">latest</a>];
 	}
-	($next || $prev) ? "<hr><pre>page: $next$prev</pre>" : '';
+	($next || $prev) ? "<hr><pre id=nav>page: $next$prev</pre>" : '';
 }
 
 sub paginate_recent ($$) {
@@ -1238,32 +1240,35 @@ sub paginate_recent ($$) {
 	$t =~ /\A([0-9]{8,14})\z/ and $before = str2ts($1);
 
 	my $msgs = $ctx->{ibx}->over->recent($opts, $after, $before);
-	my $nr = scalar @$msgs;
-	if ($nr < $lim && defined($after)) {
+	if (defined($after) && scalar(@$msgs) < $lim) {
 		$after = $before = undef;
 		$msgs = $ctx->{ibx}->over->recent($opts);
-		$nr = scalar @$msgs;
 	}
-	my $more = $nr == $lim;
+	my $more = scalar(@$msgs) == $lim;
 	my ($newest, $oldest);
-	if ($nr) {
+	if (@$msgs) {
 		$newest = $msgs->[0]->{ts};
 		$oldest = $msgs->[-1]->{ts};
 		# if we only had $after, our SQL query in ->recent ordered
 		if ($newest < $oldest) {
 			($oldest, $newest) = ($newest, $oldest);
-			$more = 0 if defined($after) && $after < $oldest;
+			$more = undef if defined($after) && $after < $oldest;
+		}
+		if (defined($after // $before)) {
+			my $n = strftime('%Y-%m-%d %H:%M:%S', gmtime($newest));
+			my $o = strftime('%Y-%m-%d %H:%M:%S', gmtime($oldest));
+			$ctx->{t_note} = <<EOM;
+ messages from $o to $n UTC, [<a href="#nav">more...</a>]
+EOM
+			my $s = ts2str($newest);
+			$ctx->{prev_page} = qq[<a\nhref="?t=$s-"\nrel=prev>] .
+						'prev (newer)</a>';
 		}
 	}
 	if (defined($oldest) && $more) {
 		my $s = ts2str($oldest);
 		$ctx->{next_page} = qq[<a\nhref="?t=$s"\nrel=next>] .
 					'next (older)</a>';
-	}
-	if (defined($newest) && (defined($before) || defined($after))) {
-		my $s = ts2str($newest);
-		$ctx->{prev_page} = qq[<a\nhref="?t=$s-"\nrel=prev>] .
-					'prev (newer)</a>';
 	}
 	$msgs;
 }
