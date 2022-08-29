@@ -313,15 +313,15 @@ EOM
 		$$blob = ascii_html($$blob);
 	}
 
-	# using some of the same CSS class names and ids as cgit
-	html_page($ctx, 200, "<pre>$oid $type $size bytes $raw_link</pre>" .
+	my $x = "<pre>$oid $type $size bytes $raw_link</pre>" .
 		"<hr /><table\nclass=blob>".
-		"<tr><td\nclass=linenumbers><pre>" . join('', map {
-			sprintf("<a id=n$_ href=#n$_>% ${pad}u</a>\n", $_)
-		} (1..$nl)) . '</pre></td>' .
-		'<td><pre> </pre></td>'. # pad for non-CSS users
-		"<td\nclass=lines><pre\nstyle='white-space:pre'><code>" .
-		$ctx->{-linkify}->linkify_2($$blob) .
+		"<tr><td\nclass=linenumbers><pre>";
+	$x .= sprintf("<a id=n$_ href=#n$_>% ${pad}u</a>\n", $_) for (1..$nl);
+	$x .= '</pre></td><td><pre> </pre></td>'. # pad for non-CSS users
+		"<td\nclass=lines><pre\nstyle='white-space:pre'><code>";
+
+	# using some of the same CSS class names and ids as cgit
+	html_page($ctx, 200, $x, $ctx->{-linkify}->linkify_2($$blob),
 		'</code></pre></td></tr></table>'.dbg_log($ctx));
 }
 
