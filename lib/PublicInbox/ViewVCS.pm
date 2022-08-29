@@ -231,12 +231,10 @@ sub show_commit ($$$$) {
 		'git show --encoding=UTF-8 --pretty=format:%n -M'.
 		" --stat -p $oid >p && ".
 		"git patch-id --stable <p" ];
-	my $xenv = { GIT_DIR => $git->{git_dir} };
-	my $tmp = File::Temp->newdir("show-$oid-XXXX", TMPDIR => 1);
-	my $qsp = PublicInbox::Qspawn->new($cmd, $xenv, { -C => "$tmp" });
+	my $e = { GIT_DIR => $git->{git_dir} };
+	my $qsp = PublicInbox::Qspawn->new($cmd, $e, { -C => "$ctx->{-tmp}" });
 	$qsp->{qsp_err} = \($ctx->{-qsp_err} = '');
 	$ctx->{-logref} = $logref;
-	$ctx->{-tmp} = $tmp;
 	$ctx->{env}->{'qspawn.wcb'} = delete $ctx->{-wcb};
 	$ctx->{git} = $git;
 	$qsp->psgi_qx($ctx->{env}, undef, \&show_commit_start, $ctx);
@@ -260,7 +258,7 @@ sub show_other ($$$$) {
 # user_cb for SolverGit, called as: user_cb->($result_or_error, $uarg)
 sub solve_result {
 	my ($res, $ctx) = @_;
-	my ($log, $hints, $fn) = delete @$ctx{qw(log hints fn)};
+	my ($log, $hints, $fn) = delete @$ctx{qw(lh hints fn)};
 
 	unless (seek($log, 0, 0)) {
 		warn "seek(log): $!";
@@ -345,15 +343,16 @@ sub show ($$;$) {
 		defined(my $v = $qp->{$from}) or next;
 		$hints->{$to} = $v if $v ne '';
 	}
-
-	$ctx->{'log'} = tmpfile("solve.$oid_b") // die "tmpfile: $!";
 	$ctx->{fn} = $fn;
+	$ctx->{-tmp} = File::Temp->newdir("solver.$oid_b-XXXX", TMPDIR => 1);
+	open $ctx->{lh}, '+>>', "$ctx->{-tmp}/solve.log" or die "open: $!";
 	my $solver = PublicInbox::SolverGit->new($ctx->{ibx},
 						\&solve_result, $ctx);
+	$solver->{tmp} = $ctx->{-tmp}; # share tmpdir
 	# PSGI server will call this immediately and give us a callback (-wcb)
 	sub {
 		$ctx->{-wcb} = $_[0]; # HTTP write callback
-		$solver->solve($ctx->{env}, $ctx->{log}, $oid_b, $hints);
+		$solver->solve($ctx->{env}, $ctx->{lh}, $oid_b, $hints);
 	};
 }
 
