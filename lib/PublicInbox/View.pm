@@ -849,7 +849,7 @@ action=$upfx
 href=#t>this message</a>:
 <textarea name=q cols=${\COLS} rows=$rows>$q</textarea>
 <input type=submit value=search
-/>\t(<a href=${upfx}_/text/help/>help</a>)</pre></form>
+/>\t(<a href=${upfx}_/text/help/#search>help</a>)</pre></form>
 EOM
 	}
 	if ($ctx->{ibx}->over) {

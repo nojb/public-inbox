@@ -67,6 +67,7 @@ sub get_text {
 		$txt = ascii_html($txt);
 	}
 	$txt = '<pre>' . $l->linkify_2($txt) . '</pre>';
+	$txt =~ s!^search$!<a\nid=search>search</a>!sm;
 	$txt =~ s!\bPOP3\b!<a\nid=pop3>POP3</a>!;
 	$txt =~ s!\b(Newsgroups?)\b!<a\nid=nntp>$1</a>!;
 	$txt =~ s!\bIMAP\b!<a\nid=imap>IMAP</a>!;
