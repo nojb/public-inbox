@@ -148,6 +148,7 @@ sub show_commit_start { # ->psgi_qx callback
 sub cmt_finalize {
 	my ($ctx) = @_;
 	$ctx->{-linkify} //= PublicInbox::Linkify->new;
+	my $upfx = $ctx->{-upfx} = '../../'; # from "/$INBOX/$OID/s/"
 	# try to keep author and committer dates lined up
 	my ($au, $co) = delete @$ctx{qw(cmt_au cmt_co)};
 	my $x = length($au) - length($co);
@@ -159,9 +160,15 @@ sub cmt_finalize {
 		$au =~ s/>/>$x/;
 	}
 	$_ = ascii_html($_) for ($au, $co);
+	$au =~ s!(&gt; +)([0-9]{4,}-\S+ \S+)!
+		my ($gt, $t) = ($1, $2);
+		$t =~ tr/ :-//d;
+		qq($gt<a
+href="$upfx?t=$t"
+title="list contemporary emails">$2</a>)
+		!e;
 	my $s = $ctx->{-linkify}->to_html(delete $ctx->{cmt_s});
 	$ctx->{-title_html} = $s;
-	my $upfx = $ctx->{-upfx} = '../../'; # from "/$INBOX/$OID/s/"
 	my ($P, $p, $pt) = delete @$ctx{qw(-cmt_P -cmt_p -cmt_pt)};
 	$_ = qq(<a href="$upfx$_/s/">).shift(@$p).'</a> '.shift(@$pt) for @$P;
 	if (@$P == 1) {
