@@ -37,20 +37,35 @@ my $SHOW_FMT = '--pretty=format:'.join('%n', '%P', '%p', '%H', '%T', '%s',
 	'%an <%ae>  %ai', '%cn <%ce>  %ci', '%b%x00');
 
 sub html_page ($$$) {
-	my ($ctx, $code, $strref) = @_;
+	my ($ctx, $code, $str) = @_;
 	my $wcb = delete $ctx->{-wcb};
 	$ctx->{-upfx} = '../../'; # from "/$INBOX/$OID/s/"
-	my $res = html_oneshot($ctx, $code, $strref);
+	my $res = html_oneshot($ctx, $code, \$str);
 	$wcb ? $wcb->($res) : $res;
+}
+
+sub dbg_log ($) {
+	my ($ctx) = @_;
+	my $log = delete $ctx->{lh} // die 'BUG: already captured debug log';
+	if (!seek($log, 0, 0)) {
+		warn "seek(log): $!";
+		return '<pre>debug log seek error</pre>';
+	}
+	$log = do { local $/; <$log> } // do {
+		warn "readline(log): $!";
+		return '<pre>debug log read error</pre>';
+	};
+	$ctx->{-linkify} //= PublicInbox::Linkify->new;
+	'<pre>debug log:</pre><hr /><pre>'.
+		$ctx->{-linkify}->to_html($log).'</pre>';
 }
 
 sub stream_blob_parse_hdr { # {parse_hdr} for Qspawn
 	my ($r, $bref, $ctx) = @_;
-	my ($res, $logref) = delete @$ctx{qw(-res -logref)};
-	my ($git, $oid, $type, $size, $di) = @$res;
+	my ($git, $oid, $type, $size, $di) = @{$ctx->{-res}};
 	my @cl = ('Content-Length', $size);
-	if (!defined $r) { # error
-		html_page($ctx, 500, $logref);
+	if (!defined $r) { # sysread error
+		html_page($ctx, 500, dbg_log($ctx));
 	} elsif (index($$bref, "\0") >= 0) {
 		[200, [qw(Content-Type application/octet-stream), @cl] ];
 	} else {
@@ -60,17 +75,16 @@ sub stream_blob_parse_hdr { # {parse_hdr} for Qspawn
 				'text/plain; charset=UTF-8', @cl ] ];
 		}
 		if ($r == 0) {
-			warn "premature EOF on $oid $$logref";
-			return html_page($ctx, 500, $logref);
+			my $log = dbg_log($ctx);
+			warn "premature EOF on $oid $log";
+			return html_page($ctx, 500, $log);
 		}
-		@$ctx{qw(-res -logref)} = ($res, $logref);
 		undef; # bref keeps growing
 	}
 }
 
-sub stream_large_blob ($$$$) {
-	my ($ctx, $res, $logref, $fn) = @_;
-	$ctx->{-logref} = $logref;
+sub stream_large_blob ($$) {
+	my ($ctx, $res) = @_;
 	$ctx->{-res} = $res;
 	my ($git, $oid, $type, $size, $di) = @$res;
 	my $cmd = ['git', "--git-dir=$git->{git_dir}", 'cat-file', $type, $oid];
@@ -80,18 +94,16 @@ sub stream_large_blob ($$$$) {
 	$qsp->psgi_return($env, undef, \&stream_blob_parse_hdr, $ctx);
 }
 
-sub show_other_result ($$) {
+sub show_other_result ($$) { # tag, tree, ...
 	my ($bref, $ctx) = @_;
-	my ($qsp_err, $logref) = delete @$ctx{qw(-qsp_err -logref)};
-	if ($qsp_err) {
-		$$logref .= "git show error:$qsp_err";
-		return html_page($ctx, 500, $logref);
+	if (my $qsp_err = delete $ctx->{-qsp_err}) {
+		return html_page($ctx, 500, dbg_log($ctx) .
+				"git show error:$qsp_err");
 	}
 	my $l = PublicInbox::Linkify->new;
 	utf8::decode($$bref);
-	$$bref = '<pre>'. $l->to_html($$bref);
-	$$bref .= '</pre><hr>' . $$logref;
-	html_page($ctx, 200, $bref);
+	html_page($ctx, 200, '<pre>', $l->to_html($$bref), '</pre><hr>',
+		dbg_log($ctx));
 }
 
 sub cmt_title { # git->cat_async callback
@@ -104,10 +116,9 @@ sub cmt_title { # git->cat_async callback
 
 sub show_commit_start { # ->psgi_qx callback
 	my ($bref, $ctx) = @_;
-	my ($qsp_err, $logref) = delete @$ctx{qw(-qsp_err -logref)};
-	if ($qsp_err) {
-		$$logref .= "git show/patch-id error:$qsp_err";
-		return html_page($ctx, 500, $logref);
+	if (my $qsp_err = delete $ctx->{-qsp_err}) {
+		return html_page($ctx, 500, dbg_log($ctx) .
+				"git show/patch-id error:$qsp_err");
 	}
 	my $patchid = (split(/ /, $$bref))[0]; # ignore commit
 	$ctx->{-q_value_html} = "patchid:$patchid" if defined $patchid;
@@ -135,7 +146,7 @@ sub show_commit_start { # ->psgi_qx callback
 
 sub cmt_finalize {
 	my ($ctx) = @_;
-	$ctx->{-linkify} = PublicInbox::Linkify->new;
+	$ctx->{-linkify} //= PublicInbox::Linkify->new;
 	# try to keep author and committer dates lined up
 	my ($au, $co) = delete @$ctx{qw(cmt_au cmt_co)};
 	my $x = length($au) - length($co);
@@ -219,8 +230,8 @@ EOM
 	delete($ctx->{env}->{'qspawn.wcb'})->([200, $res_hdr, [$x]]);
 }
 
-sub show_commit ($$$$) {
-	my ($ctx, $res, $logref, $fn) = @_;
+sub show_commit ($$) {
+	my ($ctx, $res) = @_;
 	my ($git, $oid) = @$res;
 	# patch-id needs two passes, and we use the initial show to ensure
 	# a patch embedded inside the commit message body doesn't get fed
@@ -234,84 +245,67 @@ sub show_commit ($$$$) {
 	my $e = { GIT_DIR => $git->{git_dir} };
 	my $qsp = PublicInbox::Qspawn->new($cmd, $e, { -C => "$ctx->{-tmp}" });
 	$qsp->{qsp_err} = \($ctx->{-qsp_err} = '');
-	$ctx->{-logref} = $logref;
 	$ctx->{env}->{'qspawn.wcb'} = delete $ctx->{-wcb};
 	$ctx->{git} = $git;
 	$qsp->psgi_qx($ctx->{env}, undef, \&show_commit_start, $ctx);
 }
 
-sub show_other ($$$$) {
-	my ($ctx, $res, $logref, $fn) = @_;
+sub show_other ($$) {
+	my ($ctx, $res) = @_;
 	my ($git, $oid, $type, $size) = @$res;
-	if ($size > $MAX_SIZE) {
-		$$logref = "$oid is too big to show\n" . $$logref;
-		return html_page($ctx, 200, $logref);
-	}
+	$size > $MAX_SIZE and return html_page($ctx, 200,
+				"$oid is too big to show\n". dbg_log($ctx));
 	my $cmd = ['git', "--git-dir=$git->{git_dir}",
 		qw(show --encoding=UTF-8 --no-color --no-abbrev), $oid ];
 	my $qsp = PublicInbox::Qspawn->new($cmd);
 	$qsp->{qsp_err} = \($ctx->{-qsp_err} = '');
-	$ctx->{-logref} = $logref;
 	$qsp->psgi_qx($ctx->{env}, undef, \&show_other_result, $ctx);
 }
 
 # user_cb for SolverGit, called as: user_cb->($result_or_error, $uarg)
 sub solve_result {
 	my ($res, $ctx) = @_;
-	my ($log, $hints, $fn) = delete @$ctx{qw(lh hints fn)};
-
-	unless (seek($log, 0, 0)) {
-		warn "seek(log): $!";
-		return html_page($ctx, 500, \'seek error');
-	}
-	$log = do { local $/; <$log> };
-
-	my $l = PublicInbox::Linkify->new;
-	$log = '<pre>debug log:</pre><hr /><pre>' .
-		$l->to_html($log) . '</pre>';
-
-	$res or return html_page($ctx, 404, \$log);
-	ref($res) eq 'ARRAY' or return html_page($ctx, 500, \$log);
+	my $hints = delete $ctx->{hints};
+	$res or return html_page($ctx, 404, dbg_log($ctx));
+	ref($res) eq 'ARRAY' or return html_page($ctx, 500, dbg_log($ctx));
 
 	my ($git, $oid, $type, $size, $di) = @$res;
-	return show_commit($ctx, $res, \$log, $fn) if $type eq 'commit';
-	return show_other($ctx, $res, \$log, $fn) if $type ne 'blob';
+	return show_commit($ctx, $res) if $type eq 'commit';
+	return show_other($ctx, $res) if $type ne 'blob';
 	my $path = to_filename($di->{path_b} // $hints->{path_b} // 'blob');
 	my $raw_link = "(<a\nhref=$path>raw</a>)";
 	if ($size > $MAX_SIZE) {
-		return stream_large_blob($ctx, $res, \$log, $fn) if defined $fn;
-		$log = "<pre><b>Too big to show, download available</b>\n" .
-			"$oid $type $size bytes $raw_link</pre>" . $log;
-		return html_page($ctx, 200, \$log);
+		return stream_large_blob($ctx, $res) if defined $ctx->{fn};
+		return html_page($ctx, 200, <<EOM . dbg_log($ctx));
+<pre><b>Too big to show, download available</b>
+"$oid $type $size bytes $raw_link</pre>
+EOM
 	}
 
 	my $blob = $git->cat_file($oid);
 	if (!$blob) { # WTF?
 		my $e = "Failed to retrieve generated blob ($oid)";
 		warn "$e ($git->{git_dir})";
-		$log = "<pre><b>$e</b></pre>" . $log;
-		return html_page($ctx, 500, \$log);
+		return html_page($ctx, 500, "<pre><b>$e</b></pre>".dbg_log($ctx))
 	}
 
 	my $bin = index(substr($$blob, 0, $BIN_DETECT), "\0") >= 0;
-	if (defined $fn) {
+	if (defined $ctx->{fn}) {
 		my $h = [ 'Content-Length', $size, 'Content-Type' ];
 		push(@$h, ($bin ? 'application/octet-stream' : 'text/plain'));
 		return delete($ctx->{-wcb})->([200, $h, [ $$blob ]]);
 	}
 
-	if ($bin) {
-		$log = "<pre>$oid $type $size bytes (binary)" .
-			" $raw_link</pre>" . $log;
-		return html_page($ctx, 200, \$log);
-	}
+	$bin and return html_page($ctx, 200,
+				"<pre>$oid $type $size bytes (binary)" .
+				" $raw_link</pre>".dbg_log($ctx));
 
 	# TODO: detect + convert to ensure validity
 	utf8::decode($$blob);
 	my $nl = ($$blob =~ s/\r?\n/\n/sg);
 	my $pad = length($nl);
 
-	$l->linkify_1($$blob);
+	($ctx->{-linkify} //= PublicInbox::Linkify->new)->linkify_1($$blob);
 	my $ok = $hl->do_hl($blob, $path) if $hl;
 	if ($ok) {
 		$blob = $ok;
@@ -320,17 +314,15 @@ sub solve_result {
 	}
 
 	# using some of the same CSS class names and ids as cgit
-	$log = "<pre>$oid $type $size bytes $raw_link</pre>" .
+	html_page($ctx, 200, "<pre>$oid $type $size bytes $raw_link</pre>" .
 		"<hr /><table\nclass=blob>".
 		"<tr><td\nclass=linenumbers><pre>" . join('', map {
 			sprintf("<a id=n$_ href=#n$_>% ${pad}u</a>\n", $_)
 		} (1..$nl)) . '</pre></td>' .
 		'<td><pre> </pre></td>'. # pad for non-CSS users
 		"<td\nclass=lines><pre\nstyle='white-space:pre'><code>" .
-		$l->linkify_2($$blob) .
-		'</code></pre></td></tr></table>' . $log;
-
-	html_page($ctx, 200, \$log);
+		$ctx->{-linkify}->linkify_2($$blob) .
+		'</code></pre></td></tr></table>'.dbg_log($ctx));
 }
 
 # GET /$INBOX/$GIT_OBJECT_ID/s/
