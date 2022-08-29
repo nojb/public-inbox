@@ -36,11 +36,11 @@ my $BIN_DETECT = 8000; # same as git
 my $SHOW_FMT = '--pretty=format:'.join('%n', '%P', '%p', '%H', '%T', '%s',
 	'%an <%ae>  %ai', '%cn <%ce>  %ci', '%b%x00');
 
-sub html_page ($$$) {
-	my ($ctx, $code, $str) = @_;
+sub html_page ($$;@) {
+	my ($ctx, $code) = @_[0, 1];
 	my $wcb = delete $ctx->{-wcb};
 	$ctx->{-upfx} = '../../'; # from "/$INBOX/$OID/s/"
-	my $res = html_oneshot($ctx, $code, \$str);
+	my $res = html_oneshot($ctx, $code, @_[2..$#_]);
 	$wcb ? $wcb->($res) : $res;
 }
 

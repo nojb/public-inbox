@@ -164,8 +164,8 @@ sub getline {
 	$ctx->zflush(_html_end($ctx));
 }
 
-sub html_oneshot ($$;$) {
-	my ($ctx, $code, $sref) = @_;
+sub html_oneshot ($$;@) {
+	my ($ctx, $code) = @_[0, 1];
 	my $res_hdr = [ 'Content-Type' => 'text/html; charset=UTF-8',
 		'Content-Length' => undef ];
 	bless $ctx, __PACKAGE__;
@@ -174,8 +174,7 @@ sub html_oneshot ($$;$) {
 		$ctx->zmore(html_top($ctx));
 		$ctx->{base_url} = base_url($ctx);
 	};
-	$ctx->zmore($$sref) if $sref;
-	my $bdy = $ctx->zflush(_html_end($ctx));
+	my $bdy = $ctx->zflush(@_[2..$#_], _html_end($ctx));
 	$res_hdr->[3] = length($bdy);
 	[ $code, $res_hdr, [ $bdy ] ]
 }

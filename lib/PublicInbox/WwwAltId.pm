@@ -33,14 +33,14 @@ sub sqldump ($$) {
 	my $altid_map = $ibx->altid_map;
 	my $fn = $altid_map->{$altid_pfx};
 	unless (defined $fn) {
-		return html_oneshot($ctx, 404, \<<EOF);
+		return html_oneshot($ctx, 404, <<EOF);
 <pre>`$altid_pfx' is not a valid altid for this inbox</pre>
 EOF
 	}
 
 	if ($env->{REQUEST_METHOD} ne 'POST') {
 		my $url = $ibx->base_url($ctx->{env}) . "$altid_pfx.sql.gz";
-		return html_oneshot($ctx, 405, \<<EOF);
+		return html_oneshot($ctx, 405, <<EOF);
 <pre>A POST request is required to retrieve $altid_pfx.sql.gz
 
 	curl -d '' -O $url
@@ -54,7 +54,7 @@ or
 EOF
 	}
 
-	$sqlite3 //= which('sqlite3') // return html_oneshot($ctx, 501, \<<EOF);
+	$sqlite3 //= which('sqlite3') // return html_oneshot($ctx, 501, <<EOF);
 <pre>sqlite3 not available
 
 The administrator needs to install the sqlite3(1) binary

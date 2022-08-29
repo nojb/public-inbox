@@ -64,7 +64,7 @@ sub no_over_html ($) {
 	}
 	delete $ctx->{obuf};
 	eval { $$obuf .= html_footer($ctx, $eml) };
-	html_oneshot($ctx, 200, $obuf);
+	html_oneshot($ctx, 200, $$obuf);
 }
 
 # public functions: (unstable)
@@ -1222,7 +1222,7 @@ sub pagination_footer ($$) {
 		$next = $next ? "$next | " : '             | ';
 		$prev .= qq[ | <a\nhref="$latest">latest</a>];
 	}
-	($next || $prev) ? \"<hr><pre>page: $next$prev</pre>" : \'';
+	($next || $prev) ? "<hr><pre>page: $next$prev</pre>" : '';
 }
 
 sub paginate_recent ($$) {

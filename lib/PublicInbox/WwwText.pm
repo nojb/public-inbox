@@ -70,7 +70,7 @@ sub get_text {
 	$txt =~ s!\bPOP3\b!<a\nid=pop3>POP3</a>!;
 	$txt =~ s!\b(Newsgroups?)\b!<a\nid=nntp>$1</a>!;
 	$txt =~ s!\bIMAP\b!<a\nid=imap>IMAP</a>!;
-	PublicInbox::WwwStream::html_oneshot($ctx, $code, \$txt);
+	PublicInbox::WwwStream::html_oneshot($ctx, $code, $txt);
 }
 
 sub _srch_prefix ($$) {

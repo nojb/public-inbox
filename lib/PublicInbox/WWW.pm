@@ -320,7 +320,7 @@ sub get_altid_dump {
 sub need {
 	my ($ctx, $extra) = @_;
 	require PublicInbox::WwwStream;
-	PublicInbox::WwwStream::html_oneshot($ctx, 501, \<<EOF);
+	PublicInbox::WwwStream::html_oneshot($ctx, 501, <<EOF);
 <pre>$extra is not available for this public-inbox
 <a\nhref="../">Return to index</a></pre>
 EOF
