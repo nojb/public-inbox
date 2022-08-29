@@ -179,19 +179,19 @@ title="list contemporary emails">$2</a>)
 	$_ = qq(<a href="$upfx$_/s/">).shift(@$p).'</a> '.shift(@$pt) for @$P;
 	if (@$P == 1) {
 		$x = qq{ (<a
-href="$f.patch">patch</a>)\n   parent $P->[0]};
+href="$f.patch">patch</a>)\n   <a href=#parent>parent</a> $P->[0]};
 	} elsif (@$P > 1) {
-		$x = qq(\n  parents $P->[0]\n);
+		$x = qq(\n  <a href=#parents>parents</a> $P->[0]\n);
 		shift @$P;
 		$x .= qq(          $_\n) for @$P;
 		chop $x;
 	} else {
-		$x = ' (root commit)';
+		$x = ' (<a href=#root_commit>root commit</a>)';
 	}
 	PublicInbox::WwwStream::html_init($ctx);
 	$ctx->zmore(<<EOM);
-<pre>   commit $H$x
-     tree <a href="$upfx$T/s/">$T</a>
+<pre>   <a href=#commit>commit</a> $H$x
+     <a href=#tree>tree</a> <a href="$upfx$T/s/">$T</a>
    author $au
 committer $co
 
@@ -238,7 +238,24 @@ id=related><pre>find related emails, including ancestors/descendants/conflicts
 EOM
 		}
 	}
-	$x = $ctx->zflush($ctx->_html_end);
+	chop($x = <<EOM);
+<hr><pre>glossary
+--------
+<dfn
+id=commit>Commit</dfn> objects reference one tree, and zero or more parents.
+
+Single <dfn
+id=parent>parent</dfn> commits can typically generate a patch in
+unified diff format via `git format-patch'.
+
+Multiple <dfn id=parents>parents</dfn> means the commit is a merge.
+
+<dfn id=root_commit>Root commits</dfn> have no ancestor.  Note that it is
+possible to have multiple root commits when merging independent histories.
+
+Every commit references one top-level <dfn id=tree>tree</dfn> object.</pre>
+EOM
+	$x = $ctx->zflush($x, $ctx->_html_end);
 	my $res_hdr = delete $ctx->{-res_hdr};
 	push @$res_hdr, 'Content-Length', length($x);
 	delete($ctx->{env}->{'qspawn.wcb'})->([200, $res_hdr, [$x]]);
