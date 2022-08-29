@@ -136,8 +136,7 @@ sub show_commit_start { # ->psgi_qx callback
 	chop(my $buf = do { local $/ = "\0"; <$fh> });
 	chomp $buf;
 	my ($P, $p);
-	($P, $p, @$ctx{qw(cmt_H cmt_T cmt_s cmt_f cmt_au cmt_co cmt_b)})
-		= split(/\n/, $buf, 9);
+	($P, $p, @{$ctx->{cmt_info}}) = split(/\n/, $buf, 9);
 	return cmt_finalize($ctx) if !$P;
 	@{$ctx->{-cmt_P}} = split(/ /, $P);
 	@{$ctx->{-cmt_p}} = split(/ /, $p); # abbreviated
@@ -157,8 +156,8 @@ sub cmt_finalize {
 	my ($ctx) = @_;
 	$ctx->{-linkify} //= PublicInbox::Linkify->new;
 	my $upfx = $ctx->{-upfx} = '../../'; # from "/$INBOX/$OID/s/"
+	my ($H, $T, $s, $f, $au, $co, $bdy) = @{delete $ctx->{cmt_info}};
 	# try to keep author and committer dates lined up
-	my ($au, $co) = delete @$ctx{qw(cmt_au cmt_co)};
 	my $x = length($au) - length($co);
 	if ($x > 0) {
 		$x = ' ' x $x;
@@ -175,13 +174,12 @@ sub cmt_finalize {
 href="$upfx?t=$t"
 title="list contemporary emails">$2</a>)
 		!e;
-	my $s = $ctx->{-linkify}->to_html(delete $ctx->{cmt_s});
-	$ctx->{-title_html} = $s;
+	$ctx->{-title_html} = $s = $ctx->{-linkify}->to_html($s);
 	my ($P, $p, $pt) = delete @$ctx{qw(-cmt_P -cmt_p -cmt_pt)};
 	$_ = qq(<a href="$upfx$_/s/">).shift(@$p).'</a> '.shift(@$pt) for @$P;
 	if (@$P == 1) {
 		$x = qq{ (<a
-href="$ctx->{cmt_f}.patch">patch</a>)\n   parent $P->[0]};
+href="$f.patch">patch</a>)\n   parent $P->[0]};
 	} elsif (@$P > 1) {
 		$x = qq(\n  parents $P->[0]\n);
 		shift @$P;
@@ -192,29 +190,28 @@ href="$ctx->{cmt_f}.patch">patch</a>)\n   parent $P->[0]};
 	}
 	PublicInbox::WwwStream::html_init($ctx);
 	$ctx->zmore(<<EOM);
-<pre>   commit $ctx->{cmt_H}$x
-     tree <a href="$upfx$ctx->{cmt_T}/s/">$ctx->{cmt_T}</a>
+<pre>   commit $H$x
+     tree <a href="$upfx$T/s/">$T</a>
    author $au
 committer $co
 
 <b>$s</b>
 EOM
-	$x = delete $ctx->{cmt_b};
-	$ctx->zmore("\n", $ctx->{-linkify}->to_html($x)) if length($x);
-	undef $x;
+	$ctx->zmore("\n", $ctx->{-linkify}->to_html($bdy)) if length($bdy);
+	$bdy = '';
 	open my $fh, '<:utf8', "$ctx->{-tmp}/p" or
 		die "open $ctx->{-tmp}/p: $!";
 	if (-s $fh > $MAX_SIZE) {
 		$ctx->zmore("---\n patch is too large to show\n");
 	} else { # prepare flush_diff:
-		$ctx->{obuf} = \$x;
+		read($fh, $x, -s _);
+		$ctx->{obuf} = \$bdy;
 		$ctx->{-apfx} = $ctx->{-spfx} = $upfx;
-		read($fh, my $bdy, -s _);
-		$bdy =~ s/\r?\n/\n/gs;
-		$ctx->{-anchors} = {} if $bdy =~ /^diff --git /sm;
-		flush_diff($ctx, \$bdy); # undefs $bdy
-		$ctx->zmore($x);
-		undef $x;
+		$x =~ s/\r?\n/\n/gs;
+		$ctx->{-anchors} = {} if $x =~ /^diff --git /sm;
+		flush_diff($ctx, \$x); # undefs $x
+		$ctx->zmore($bdy);
+		undef $bdy;
 		# TODO: should there be another textarea which attempts to
 		# search for the exact email which was applied to make this
 		# commit?
