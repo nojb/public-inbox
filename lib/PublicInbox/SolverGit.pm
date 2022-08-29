@@ -81,9 +81,8 @@ sub solve_existing ($$) {
 	my $oid_b = $want->{oid_b};
 	my ($oid_full, $type, $size) = $git->check($oid_b);
 
-	# other than {oid_b, try_gits, try_ibxs}
-	my $have_hints = scalar keys %$want > 3;
-	if (defined($type) && (!$have_hints || $type eq 'blob')) {
+	if ($oid_b eq ($oid_full // '') || (defined($type) &&
+-				(!$self->{have_hints} || $type eq 'blob'))) {
 		delete $want->{try_gits};
 		return [ $git, $oid_full, $type, int($size) ]; # done, success
 	}
@@ -683,6 +682,7 @@ sub solve ($$$$$) {
 	$self->{seen_oid} = {};
 	$self->{tot} = 0;
 	$self->{psgi_env} = $env;
+	$self->{have_hints} = 1 if scalar keys %$hints;
 	$self->{todo} = [ { %$hints, oid_b => $oid_want } ];
 	$self->{patches} = []; # [ $di, $di, ... ]
 	$self->{found} = {}; # { abbr => [ ::Git, oid, type, size, $di ] }
