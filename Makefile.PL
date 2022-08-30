@@ -133,7 +133,7 @@ WriteMakefile(
 	NAME => 'PublicInbox', # n.b. camel-case is not our choice
 
 	# XXX drop "PENDING" in .pod before updating this!
-	VERSION => '1.9.0.PENDING',
+	VERSION => '2.0.0.PENDING',
 
 	AUTHOR => 'public-inbox hackers <meta@public-inbox.org>',
 	ABSTRACT => 'an "archives first" approach to mailing lists',
