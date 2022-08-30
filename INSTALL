@@ -5,7 +5,7 @@ This is for folks who want to setup their own public-inbox instance.
 Clients should use normal git-clone/git-fetch, IMAP or NNTP clients
 if they want to import mail into their personal inboxes.
 
-As of 2021, public-inbox is packaged by several OS distributions,
+As of 2022, public-inbox is packaged by several OS distributions,
 listed in alphabetical order: Debian, GNU Guix, NixOS, and Void Linux.
 
 public-inbox is developed on Debian GNU/Linux systems and will
@@ -28,7 +28,7 @@ public-inbox requires a number of other packages to access its full
 functionality.  The core tools are, of course:
 
 * Git (1.8.0+, 2.6+ for writing v2 inboxes)
-* Perl 5.10.1+
+* Perl 5.12.0+
 * DBD::SQLite (needed for IMAP, NNTP, message threading, and v2 inboxes)
 
 To accept incoming mail into a public inbox, you'll likely want:
@@ -210,5 +210,5 @@ RPM-based distros split them out into separate packages:
 Copyright
 ---------
 
-Copyright 2013-2021 all contributors <meta@public-inbox.org>
+Copyright all contributors <meta@public-inbox.org>
 License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
