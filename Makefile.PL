@@ -53,7 +53,8 @@ $v->{-m1} = [ map {
 	lei-import lei-index lei-init lei-inspect lei-lcat
 	lei-ls-external lei-ls-label lei-ls-mail-source lei-ls-mail-sync
 	lei-ls-search lei-ls-watch lei-mail-diff lei-p2q lei-q
-	lei-rediff lei-refresh-mail-sync lei-rm lei-rm-watch lei-tag
+	lei-rediff lei-refresh-mail-sync lei-reindex
+	lei-rm lei-rm-watch lei-tag
 	lei-up)];
 $v->{-m5} = [ qw(public-inbox-config public-inbox-v1-format
 		public-inbox-v2-format public-inbox-extindex-format
