@@ -777,7 +777,6 @@ sub thread_skel ($$$) {
 	# when multiple Subject: headers are present, so we follow suit:
 	my $subj = $hdr->header('Subject') // '';
 	$subj = '(no subject)' if $subj eq '';
-	$ctx->{prev_subj} = [ split(/ /, subject_normalized($subj)) ];
 	$ctx->{cur} = $mid;
 	$ctx->{prev_attr} = '';
 	$ctx->{prev_level} = 0;
