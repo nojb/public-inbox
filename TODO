@@ -156,3 +156,5 @@ all need to be considered for everything we introduce)
 * expose lei contents via read/write IMAP/JMAP server for personal use
 
 * git SHA-256 migration/coexistence path
+
+* decode RFC 3676 format=flowed + DelSp properly (see mflow (mblaze), mutt, ...)
