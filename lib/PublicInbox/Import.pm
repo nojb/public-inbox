@@ -192,7 +192,10 @@ sub _update_git_info ($$) {
 		};
 		warn "$ibx->{inboxdir} index failed: $@\n" if $@;
 	}
-	eval { run_die([@cmd, qw(gc --auto)]) } if $do_gc;
+	if ($do_gc) {
+		my @quiet = (-t STDERR ? () : '-q');
+		eval { run_die([@cmd, qw(gc --auto), @quiet]) }
+	}
 }
 
 sub barrier {
