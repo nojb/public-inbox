@@ -1,5 +1,5 @@
 #!perl -w
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use v5.10.1;
@@ -148,5 +148,8 @@ EOM
 	my $mset = $lse->mset($qstr);
 	is($mset->size, 1, 'rt:1.hour.ago.. works w/ local time');
 }
+
+is_deeply([glob("$store_dir/local/*.git/info/refs")], [],
+	'no info/refs in private lei/store');
 
 done_testing;

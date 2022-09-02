@@ -182,8 +182,8 @@ sub _update_git_info ($$) {
 		my $env = { GIT_INDEX_FILE => $index };
 		run_die([@cmd, qw(read-tree -m -v -i), $self->{ref}], $env);
 	}
-	eval { run_die([@cmd, 'update-server-info']) };
 	my $ibx = $self->{ibx};
+	eval { run_die([@cmd, 'update-server-info']) } if $ibx;
 	if ($ibx && $ibx->version == 1 && -d "$ibx->{inboxdir}/public-inbox" &&
 				eval { require PublicInbox::SearchIdx }) {
 		eval {
