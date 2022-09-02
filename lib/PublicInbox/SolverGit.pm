@@ -407,18 +407,17 @@ sub mark_found ($$$) {
 sub parse_ls_files ($$) {
 	my ($self, $bref) = @_;
 	my ($qsp_err, $di) = delete @$self{qw(-qsp_err -cur_di)};
-	die "git ls-files error:$qsp_err" if $qsp_err;
+	die "git ls-files -s -z error:$qsp_err" if $qsp_err;
 
-	my ($line, @extra) = split(/\0/, $$bref);
+	my @ls = split(/\0/, $$bref);
+	my ($line, @extra) = grep(/\t\Q$di->{path_b}\E\z/, @ls);
 	scalar(@extra) and die "BUG: extra files in index: <",
-				join('> <', @extra), ">";
-
+				join('> <', $line, @extra), ">";
+	$line // die "no \Q$di->{path_b}\E in <",join('> <', @ls), '>';
 	my ($info, $file) = split(/\t/, $line, 2);
 	my ($mode_b, $oid_b_full, $stage) = split(/ /, $info);
-	if ($file ne $di->{path_b}) {
-		die
+	$file eq $di->{path_b} or die
 "BUG: index mismatch: file=$file != path_b=$di->{path_b}";
-	}
 
 	my $tmp_git = $self->{tmp_git} or die 'no git working tree';
 	my (undef, undef, $size) = $tmp_git->check($oid_b_full);
