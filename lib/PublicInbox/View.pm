@@ -717,7 +717,13 @@ sub _msg_page_prepare_obuf {
 	for my $v ($eml->header('Date')) {
 		$v = ascii_html($v);
 		obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx; # possible :P
-		$rv .= qq{Date: $v\t<a\nhref="#r">[thread overview]</a>\n};
+		$rv .= qq{Date: $v\n};
+	}
+	# [thread overview] link is typically added after Date,
+	# but added after Subject, or even nothing.
+	if ($have_over) {
+		chop $rv; # drop "\n", or noop if $rv eq ''
+		$rv .= qq{\t<a\nhref="#r">[thread overview]</a>\n};
 	}
 	if (!$nr) { # first (and only) message, common case
 		$ctx->{-title_html} = join(' - ', @title);
