@@ -486,15 +486,14 @@ sub do_git_apply ($) {
 	my @cmd = (qw(git apply --cached --ignore-whitespace
 			--unidiff-zero --whitespace=warn --verbose));
 	my $len = length(join(' ', @cmd));
-	my $total = $self->{tot};
 	my $di; # keep track of the last one for "git ls-files"
 	my $prv_oid_b;
 
 	do {
 		my $i = ++$self->{nr};
 		$di = shift @$patches;
-		dbg($self, "\napplying [$i/$total] " . di_url($self, $di) .
-			"\n" . $di->{hdr_lines});
+		dbg($self, "\napplying [$i/$self->{nr_p}] " .
+			di_url($self, $di) . "\n" . $di->{hdr_lines});
 		my $path = $di->{n};
 		$len += length($path) + 1;
 		push @cmd, $path;
@@ -557,6 +556,7 @@ sub extract_diffs_done {
 		unshift @{$self->{patches}}, @$diffs;
 		dbg($self, "found $want->{oid_b} in " .  join(" ||\n\t",
 			map { di_url($self, $_) } @$diffs));
+		++$self->{nr_p};
 
 		# good, we can find a path to the oid we $want, now
 		# lets see if we need to apply more patches:
@@ -679,7 +679,7 @@ sub solve ($$$$$) {
 	$self->{oid_want} = $oid_want;
 	$self->{out} = $out;
 	$self->{seen_oid} = {};
-	$self->{tot} = 0;
+	$self->{tot} = $self->{nr_p} = 0;
 	$self->{psgi_env} = $env;
 	$self->{have_hints} = 1 if scalar keys %$hints;
 	$self->{todo} = [ { %$hints, oid_b => $oid_want } ];
