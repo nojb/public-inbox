@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Used by the web interface to link to messages outside of the our
@@ -11,7 +11,7 @@ use warnings;
 use PublicInbox::Hval qw(ascii_html prurl mid_href);
 use PublicInbox::WwwStream qw(html_oneshot);
 use PublicInbox::Smsg;
-our $MIN_PARTIAL_LEN = 16;
+our $MIN_PARTIAL_LEN = 14; # for 'XXXXXXXXXX.fsf' msgids gnus generates
 
 # TODO: user-configurable
 our @EXT_URL = map { ascii_html($_) } (
