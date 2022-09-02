@@ -1,5 +1,5 @@
 #!perl -w
-# Copyright (C) 2014-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use v5.10.1;
@@ -154,6 +154,7 @@ my $c1 = sub {
 	$res = $cb->(GET($pfx . $path));
 	is(200, $res->code, "success for $path");
 	my $html = $res->content;
+	like($html, qr!\bhref="\Q../_/text/help/"!, 'help available');
 	like($html, qr!<title>hihi - Me</title>!, 'HTML returned');
 	like($html, qr!<a\nhref=raw!s, 'raw link present');
 	like($html, qr!&gt; quoted text!s, 'quoted text inline');

@@ -678,7 +678,7 @@ sub _msg_page_prepare_obuf {
 		$ctx->{chash} = content_hash($eml) if $ctx->{smsg}; # reused MID
 		$rv .= "<pre\nid=b>"; # anchor for body start
 	}
-	$ctx->{-upfx} = '../' if $have_over;
+	$ctx->{-upfx} = '../';
 	my @title; # (Subject[0], From[0])
 	for my $v ($eml->header('From')) {
 		my @n = PublicInbox::Address::names($v);
