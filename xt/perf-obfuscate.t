@@ -1,5 +1,5 @@
 #!perl -w
-# Copyright (C) 2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use v5.10.1;
@@ -7,6 +7,7 @@ use PublicInbox::TestCommon;
 use Benchmark qw(:all);
 use PublicInbox::Inbox;
 use PublicInbox::View;
+use PublicInbox::WwwStream;
 
 my $inboxdir = $ENV{GIANT_INBOX_DIR};
 plan skip_all => "GIANT_INBOX_DIR not defined for $0" unless $inboxdir;
@@ -22,7 +23,6 @@ if (require_git(2.19, 1)) {
 "git <2.19, cat-file lacks --unordered, locality suffers\n";
 }
 require_mods qw(Plack::Util);
-use_ok 'Plack::Util';
 my $ibx = PublicInbox::Inbox->new({ inboxdir => $inboxdir, name => 'name' ,
 				    obfuscate => $obfuscate});
 my $git = $ibx->git;
@@ -31,26 +31,28 @@ my $vec = '';
 vec($vec, fileno($fh), 1) = 1;
 select($vec, undef, undef, 60) or die "timed out waiting for --batch-check";
 
-my $ctx = {
+my $ctx = bless {
 	env => { HTTP_HOST => 'example.com', 'psgi.url_scheme' => 'https' },
 	ibx => $ibx,
 	www => Plack::Util::inline_object(style => sub {''}),
-};
-my ($mime, $res, $oid, $type);
+	gz => PublicInbox::GzipFilter::gzip_or_die(),
+}, 'PublicInbox::WwwStream';
+my ($eml, $res, $oid, $type);
 my $n = 0;
-my $obuf = '';
 my $m = 0;
+${$ctx->{obuf}} = '';
+$ctx->{mhref} = '../';
 
 my $cb = sub {
-	$mime = PublicInbox::Eml->new(shift);
-	PublicInbox::View::multipart_text_as_html($mime, $ctx);
+	$eml = PublicInbox::Eml->new(shift);
+	$eml->each_part(\&PublicInbox::View::add_text_body, $ctx, 1);
+	$ctx->zflush;
 	++$m;
-	$obuf = '';
+	delete $ctx->{zbuf};
+	${$ctx->{obuf}} = '';
 };
 
 my $t = timeit(1, sub {
-	$ctx->{obuf} = \$obuf;
-	$ctx->{mhref} = '../';
 	while (<$fh>) {
 		($oid, $type) = split / /;
 		next if $type ne 'blob';
@@ -59,6 +61,6 @@ my $t = timeit(1, sub {
 	}
 	$git->async_wait_all;
 });
-diag 'multipart_text_as_html took '.timestr($t)." for $n <=> $m messages";
+diag 'add_text_body took '.timestr($t)." for $n <=> $m messages";
 is($m, $n, 'rendered all messages');
 done_testing();

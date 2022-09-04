@@ -582,7 +582,6 @@ t/x-unknown-alpine.eml
 t/xcpdb-reshard.t
 version-gen.perl
 xt/cmp-msgstr.t
-xt/cmp-msgview.t
 xt/create-many-inboxes.t
 xt/eml_check_limits.t
 xt/eml_octet-stream.t
