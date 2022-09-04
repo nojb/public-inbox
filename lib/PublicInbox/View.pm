@@ -1262,7 +1262,7 @@ sub paginate_recent ($$) {
 			my $n = strftime('%Y-%m-%d %H:%M:%S', gmtime($newest));
 			my $o = strftime('%Y-%m-%d %H:%M:%S', gmtime($oldest));
 			$ctx->{t_note} = <<EOM;
- messages from $o to $n UTC, [<a href="#nav">more...</a>]
+ messages from $o to $n UTC [<a href="#nav">more...</a>]
 EOM
 			my $s = ts2str($newest);
 			$ctx->{prev_page} = qq[<a\nhref="?t=$s-"\nrel=prev>] .
