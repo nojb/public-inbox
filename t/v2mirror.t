@@ -368,10 +368,11 @@ EOM
 	# wait for plackup socket()+bind()+listen()
 	my %opt = ( Proto => 'tcp', Type => Socket::SOCK_STREAM(),
 		PeerAddr => "$host:$port" );
-	for (0..50) {
+	for (0..100) {
 		tick();
 		last if IO::Socket::INET->new(%opt);
 	}
+	IO::Socket::INET->new(%opt) or xbail "connect $host:$port: $!";
 	my $dst = "$tmpdir/scrape";
 	@cmd = (qw(-clone -q), "http://$host:$port/v2", $dst);
 	run_script(\@cmd, undef, { 2 => \($err = '') });
