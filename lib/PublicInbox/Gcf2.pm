@@ -10,12 +10,14 @@ use PublicInbox::Spawn qw(which popen_rd); # may set PERL_INLINE_DIRECTORY
 use Fcntl qw(LOCK_EX SEEK_SET);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use IO::Handle; # autoflush
+use File::Path qw(make_path);
 BEGIN {
 	my (%CFG, $c_src);
 	# PublicInbox::Spawn will set PERL_INLINE_DIRECTORY
 	# to ~/.cache/public-inbox/inline-c if it exists
 	my $inline_dir = $ENV{PERL_INLINE_DIRECTORY} //
 		die 'PERL_INLINE_DIRECTORY not defined';
+	make_path($inline_dir);
 	my $f = "$inline_dir/.public-inbox.lock";
 	open my $fh, '+>', $f or die "open($f): $!";
 
