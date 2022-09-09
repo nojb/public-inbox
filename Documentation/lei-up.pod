@@ -64,7 +64,9 @@ specified via C<lei q --only>.
 
 =item --mua=CMD
 
-C<--lock>, C<--alert>, and C<--mua> are all supported and
+=item --jobs QUERY_WORKERS[,WRITE_WORKERS]
+
+C<--lock>, C<--alert>, C<--mua>, and C<--jobs> are all supported and
 documented in L<lei-q(1)>.
 
 C<--mua> is incompatible with C<--all>.

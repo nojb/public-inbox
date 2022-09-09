@@ -124,6 +124,23 @@ of the same thread.
 TODO: Warning: this flag may become persistent and saved in
 lei/store unless an MUA unflags it!  (Behavior undecided)
 
+=item --jobs=QUERY_WORKERS[,WRITE_WORKERS]
+=item --jobs=,WRITE_WORKERS
+
+=item -j QUERY_WORKERS[,WRITE_WORKERS]
+=item -j ,WRITE_WORKERS
+
+Set the number of query and write worker processes for parallelism.
+
+C<QUERY_WORKERS> defaults to the number of CPUs available, but 4 per
+remote (HTTP/HTTPS) host.
+
+C<WRITE_WORKERS> defaults to the number of CPUs available for Maildir,
+IMAP/IMAPS, and mbox* destinations.
+
+Omitting C<QUERY_WORKERS> but leaving the comma (C<,>) allows
+one to only set C<WRITE_WORKERS>
+
 =item --dedupe=STRATEGY
 
 =item -d STRATEGY
