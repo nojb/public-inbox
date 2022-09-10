@@ -399,8 +399,10 @@ my %OPTDESC = (
 		'include specified external(s) in search' ],
 'only|O=s@	q' => [ 'LOCATION',
 		'only use specified external(s) for search' ],
-'jobs=s	q' => [ '[SEARCH_JOBS][,WRITER_JOBS]',
-		'control number of search and writer jobs' ],
+'jobs|j=s' => [ 'JOBSPEC',
+		'control number of query and writer jobs' .
+		"integers delimited by `,', either of which may be omitted"
+		],
 'jobs|j=i	add-external' => 'set parallelism when indexing after --mirror',
 
 'in-format|F=s' => $stdin_formats,
