@@ -205,9 +205,9 @@ sub async_next ($) {
 }
 
 sub aresponse {
-	my ($ctx, $code, $cb) = @_;
+	my ($ctx, $cb) = @_;
 	init($ctx, $cb);
-	$ctx->psgi_response($code, delete $ctx->{-res_hdr});
+	$ctx->psgi_response(200, delete $ctx->{-res_hdr});
 }
 
 sub html_init {

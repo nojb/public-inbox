@@ -325,7 +325,7 @@ sub mset_thread {
 
 	@$msgs = reverse @$msgs if $r;
 	$ctx->{msgs} = $msgs;
-	PublicInbox::WwwStream::aresponse($ctx, 200, \&mset_thread_i);
+	PublicInbox::WwwStream::aresponse($ctx, \&mset_thread_i);
 }
 
 # callback for PublicInbox::WwwStream::getline

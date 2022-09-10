@@ -80,7 +80,7 @@ sub msg_page {
 	# allow user to easily browse the range around this message if
 	# they have ->over
 	$ctx->{-t_max} = $smsg->{ts};
-	PublicInbox::WwwStream::aresponse($ctx, 200, \&msg_page_i);
+	PublicInbox::WwwStream::aresponse($ctx, \&msg_page_i);
 }
 
 # /$INBOX/$MESSAGE_ID/#R
@@ -432,7 +432,7 @@ sub stream_thread_i { # PublicInbox::WwwStream::getline callback
 sub stream_thread ($$) {
 	my ($rootset, $ctx) = @_;
 	@{$ctx->{-queue}} = map { (0, $_) } @$rootset;
-	PublicInbox::WwwStream::aresponse($ctx, 200, \&stream_thread_i);
+	PublicInbox::WwwStream::aresponse($ctx, \&stream_thread_i);
 }
 
 # /$INBOX/$MSGID/t/ and /$INBOX/$MSGID/T/
@@ -483,7 +483,7 @@ EOF
 	# flat display: lazy load the full message from smsg
 	$ctx->{msgs} = $msgs;
 	$ctx->{-html_tip} = '<pre>';
-	PublicInbox::WwwStream::aresponse($ctx, 200, \&thread_html_i);
+	PublicInbox::WwwStream::aresponse($ctx, \&thread_html_i);
 }
 
 sub thread_html_i { # PublicInbox::WwwStream::getline callback
