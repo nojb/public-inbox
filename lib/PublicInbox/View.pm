@@ -740,8 +740,7 @@ sub _msg_page_prepare_obuf {
 		$ctx->{-linkify}->linkify_mids('..', \$s, 1);
 		$rv .= $s;
 	}
-	_parent_headers($ctx, $eml);
-	$rv .= "\n";
+	$rv .= _parent_headers($ctx, $eml);
 	1;
 }
 
@@ -795,32 +794,21 @@ sub _parent_headers {
 	my ($ctx, $hdr) = @_;
 	my @irt = $hdr->header_raw('In-Reply-To');
 	my $refs;
-	if (@irt) {
-		my $s = '';
-		$s .= "In-Reply-To: $_\n" for @irt;
-		$ctx->{-linkify}->linkify_mids('..', \$s);
-		${$ctx->{obuf}} .= $s;
-	} else {
+	my $s = '';
+	if (!@irt) {
 		$refs = references($hdr);
-		my $irt = pop @$refs;
-		if (defined $irt) {
-			my $html = ascii_html($irt);
-			my $href = mid_href($irt);
-			${$ctx->{obuf}} .= <<EOM;
-In-Reply-To: &lt;<a\nhref="../$href/">$html</a>&gt;
-EOM
-		}
+		$irt[0] = pop(@$refs) if scalar @$refs;
 	}
+	$s .= "In-Reply-To: $_\n" for @irt;
 
 	# do not display References: if search is present,
 	# we show the thread skeleton at the bottom, instead.
-	return if $ctx->{ibx}->over;
-
-	$refs //= references($hdr);
-	if (@$refs) {
-		$_ = linkify_ref_no_over($_) for @$refs;
-		${$ctx->{obuf}} .= 'References: '. join("\n\t", @$refs) . "\n";
+	if (!$ctx->{ibx}->over) {
+		$refs //= references($hdr);
+		$s .= 'References: <'.join(">\n\t<", @$refs).">\n" if @$refs;
 	}
+	$ctx->{-linkify}->linkify_mids('..', \$s); # escapes HTML
+	$s .= "\n";
 }
 
 # appends to obuf
@@ -899,13 +887,6 @@ EOF
 	# $skel may be big for big threads, don't append it to obuf
 	$skel .= '</pre>' . ($related // '');
 	$ctx->zmore($skel .= msg_reply($ctx, $hdr)); # flushes obuf
-}
-
-sub linkify_ref_no_over {
-	my ($mid) = @_;
-	my $href = mid_href($mid);
-	my $html = ascii_html($mid);
-	"&lt;<a\nhref=\"../$href/\">$html</a>&gt;";
 }
 
 sub ghost_parent {
