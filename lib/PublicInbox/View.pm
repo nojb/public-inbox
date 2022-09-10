@@ -43,7 +43,7 @@ sub msg_page_i {
 			$ctx->zmore('</pre><hr>');
 		}
 		html_footer($ctx, $ctx->{first_hdr}) if !$ctx->{smsg};
-		delete($ctx->{obuf}) // \'';
+		\''; # XXX TODO cleanup
 	} else { # called by WwwStream::async_next or getline
 		$ctx->{smsg}; # may be undef
 	}
@@ -245,9 +245,8 @@ sub eml_entry {
 	# scan through all parts, looking for displayable text
 	$ctx->{mhref} = $mhref;
 	$ctx->{changed_href} = "#e$id"; # for diffstat "files? changed,"
-	$ctx->{obuf} = \$rv;
+	$ctx->zmore($rv); # XXX $rv is small, reuse below
 	$eml->each_part(\&add_text_body, $ctx, 1); # expensive
-	$ctx->zmore; # TODO: remove once add_text_body is updated
 
 	# add the footer
 	$rv = "\n<a\nhref=#$id_m\nid=e$id>^</a> ".
@@ -560,13 +559,9 @@ sub add_text_body { # callback for each_part
 	my ($part, $depth, $idx) = @$p;
 	my $ct = $part->content_type || 'text/plain';
 	my $fn = $part->filename;
-	my $rv = $ctx->{obuf} //= \(my $obuf = '');
 	my ($s, $err) = msg_part_text($part, $ct);
-	$s // return $$rv .= (attach_link($ctx, $ct, $p, $fn) // '');
-	if ($part->{is_submsg}) {
-		$$rv .= submsg_hdr($ctx, $part);
-		$$rv .= "\n";
-	}
+	$s // return $ctx->zmore(attach_link($ctx, $ct, $p, $fn) // '');
+	my $buf = $part->{is_submsg} ? submsg_hdr($ctx, $part)."\n" : '';
 
 	# makes no difference to browsers, and don't screw up filename
 	# link generation in diffs with the extra '%0D'
@@ -614,10 +609,11 @@ sub add_text_body { # callback for each_part
 	undef $s; # free memory
 	if (defined($fn) || ($depth > 0 && !$part->{is_submsg}) || $err) {
 		# badly-encoded message with $err? tell the world about it!
-		$$rv .= attach_link($ctx, $ct, $p, $fn, $err);
-		$$rv .= "\n";
+		$buf .= attach_link($ctx, $ct, $p, $fn, $err) . "\n";
 	}
 	delete $part->{bdy}; # save memory
+	$ctx->zmore($buf);
+	undef $buf;
 	for my $cur (@sections) { # $cur may be huge
 		if ($cur =~ /\A>/) {
 			# we use a <span> here to allow users to specify
@@ -722,7 +718,6 @@ sub _msg_page_prepare {
 	}
 	$ctx->{-linkify}->linkify_mids('..', \$hbuf); # escapes HTML
 	$ctx->zmore($hbuf .= "\n");
-	${$ctx->{obuf}} = ''; # TODO remove
 	1;
 }
 
@@ -842,7 +837,7 @@ EOF
 	$foot .= qq(<a\nhref="#R">reply</a>);
 	# $skel may be big for big threads, don't append it to $foot
 	$skel .= '</pre>' . ($related // '');
-	$ctx->zmore($foot, $skel .= msg_reply($ctx, $hdr)); # flushes obuf
+	$ctx->zmore($foot, $skel .= msg_reply($ctx, $hdr));
 }
 
 sub ghost_parent {

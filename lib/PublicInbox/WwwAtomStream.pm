@@ -146,15 +146,15 @@ sub feed_entry {
 	my $name = ascii_html(join(', ', PublicInbox::Address::names($from)));
 	$email = ascii_html($email // $ctx->{ibx}->{-primary_address});
 
-	my $s = delete($ctx->{emit_header}) ? atom_header($ctx, $title) : '';
-	$s .= "<entry><author><name>$name</name><email>$email</email>" .
+	$ctx->zmore(
+		(delete($ctx->{emit_header}) ? atom_header($ctx, $title) : '').
+		"<entry><author><name>$name</name><email>$email</email>" .
 		"</author>$title$updated" .
 		qq(<link\nhref="$href"/>).
 		"<id>$uuid</id>$irt" .
 		qq{<content\ntype="xhtml">} .
 		qq{<div\nxmlns="http://www.w3.org/1999/xhtml">} .
-		qq(<pre\nstyle="white-space:pre-wrap">);
-	$ctx->{obuf} = \$s;
+		qq(<pre\nstyle="white-space:pre-wrap">));
 	$ctx->{mhref} = $href;
 	$ctx->{changed_href} = "${href}#related";
 	$eml->each_part(\&PublicInbox::View::add_text_body, $ctx, 1);

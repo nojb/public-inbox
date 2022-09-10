@@ -130,11 +130,11 @@ sub write {
 # similar to ->translate; use this when we're sure we know we have
 # more data to buffer after this
 sub zmore {
-	my $self = $_[0]; # $_[1] => input
+	my $self = shift; # $_[1] => input
 	http_out($self);
 	my $err;
-	for (delete $self->{obuf}, @_[1..$#_]) {
-		$err = $self->{gz}->deflate($_ // next, $self->{zbuf});
+	for (@_) {
+		$err = $self->{gz}->deflate($_, $self->{zbuf});
 		die "gzip->deflate: $err" if $err != Z_OK;
 	}
 	undef;
@@ -142,13 +142,12 @@ sub zmore {
 
 # flushes and returns the final bit of gzipped data
 sub zflush ($;@) {
-	my $self = $_[0]; # $_[1..Inf] => final input (optional)
+	my $self = shift; # $_[1..Inf] => final input (optional)
 	my $zbuf = delete $self->{zbuf};
 	my $gz = delete $self->{gz};
 	my $err;
-	# it's a bug iff $gz is undef w/ $obuf or $_[1..]
-	for (delete $self->{obuf}, @_[1..$#_]) {
-		$err = $gz->deflate($_ // next, $zbuf);
+	for (@_) { # it's a bug iff $gz is undef if @_ isn't empty, here:
+		$err = $gz->deflate($_, $zbuf);
 		die "gzip->deflate: $err" if $err != Z_OK;
 	}
 	$gz // return ''; # not a bug, recursing on DS->write failure

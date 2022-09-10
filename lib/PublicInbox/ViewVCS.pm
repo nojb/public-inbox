@@ -205,7 +205,8 @@ EOM
 		$ctx->zmore("---\n patch is too large to show\n");
 	} else { # prepare flush_diff:
 		read($fh, $x, -s _);
-		$ctx->{obuf} = \$bdy;
+		$ctx->zmore($bdy);
+		undef $bdy;
 		$ctx->{-apfx} = $ctx->{-spfx} = $upfx;
 		$x =~ s/\r?\n/\n/gs;
 		$ctx->{-anchors} = {} if $x =~ /^diff --git /sm;
