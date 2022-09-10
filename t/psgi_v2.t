@@ -1,5 +1,5 @@
 #!perl -w
-# Copyright (C) 2018-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use v5.10.1;
@@ -209,6 +209,8 @@ my $client1 = sub {
 	local $SIG{__WARN__} = 'DEFAULT';
 	$res = $cb->(GET('/v2test/a-mid@b/'));
 	$raw = $res->content;
+	like($raw, qr/WARNING: multiple messages have this Message-ID/,
+		'warned about duplicate Message-IDs');
 	like($raw, qr/^hello world$/m, 'got first message');
 	like($raw, qr/^hello world!$/m, 'got second message');
 	like($raw, qr/^hello ghosts$/m, 'got third message');

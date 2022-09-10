@@ -38,7 +38,7 @@ sub msg_page_i {
 				: $ctx->gone('over');
 		$ctx->{mhref} = ($ctx->{nr} || $ctx->{smsg}) ?
 				"../${\mid_href($smsg->{mid})}/" : '';
-		if (_msg_page_prepare_obuf($eml, $ctx)) {
+		if (_msg_page_prepare($eml, $ctx)) {
 			$eml->each_part(\&add_text_body, $ctx, 1);
 			$ctx->zmore('</pre><hr>');
 		}
@@ -56,7 +56,7 @@ sub no_over_html ($) {
 	my $eml = PublicInbox::Eml->new($bref);
 	$ctx->{mhref} = '';
 	PublicInbox::WwwStream::init($ctx);
-	if (_msg_page_prepare_obuf($eml, $ctx)) { # sets {-title_html}
+	if (_msg_page_prepare($eml, $ctx)) { # sets {-title_html}
 		$eml->each_part(\&add_text_body, $ctx, 1);
 		$ctx->zmore('</pre><hr>');
 	}
@@ -635,11 +635,9 @@ sub add_text_body { # callback for each_part
 	}
 }
 
-sub _msg_page_prepare_obuf {
+sub _msg_page_prepare {
 	my ($eml, $ctx) = @_;
 	my $have_over = !!$ctx->{ibx}->over;
-	my $obfs_ibx = $ctx->{-obfs_ibx};
-	$ctx->{obuf} = \(my $rv = '');
 	my $mids = mids_for_index($eml);
 	my $nr = $ctx->{nr}++;
 	if ($nr) { # unlikely
@@ -647,80 +645,86 @@ sub _msg_page_prepare_obuf {
 			warn "W: BUG? @$mids not deduplicated properly\n";
 			return;
 		}
-		$rv .=
+		$ctx->{-html_tip} =
 "<pre>WARNING: multiple messages have this Message-ID\n</pre><pre>";
 	} else {
 		$ctx->{first_hdr} = $eml->header_obj;
 		$ctx->{chash} = content_hash($eml) if $ctx->{smsg}; # reused MID
-		$rv .= "<pre\nid=b>"; # anchor for body start
+		$ctx->{-html_tip} = "<pre\nid=b>"; # anchor for body start
 	}
 	$ctx->{-upfx} = '../';
 	my @title; # (Subject[0], From[0])
+	my $hbuf = '';
 	for my $v ($eml->header('From')) {
 		my @n = PublicInbox::Address::names($v);
-		$v = ascii_html($v);
-		$title[1] //= ascii_html(join(', ', @n));
-		if ($obfs_ibx) {
-			obfuscate_addrs($obfs_ibx, $v);
-			obfuscate_addrs($obfs_ibx, $title[1]);
-		}
-		$rv .= "From: $v\n" if $v ne '';
+		$title[1] //= join(', ', @n);
+		$hbuf .= "From: $v\n" if $v ne '';
 	}
-	foreach my $h (qw(To Cc)) {
+	for my $h (qw(To Cc)) {
 		for my $v ($eml->header($h)) {
 			fold_addresses($v);
-			$v = ascii_html($v);
-			obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx;
-			$rv .= "$h: $v\n" if $v ne '';
+			$hbuf .= "$h: $v\n" if $v ne '';
 		}
 	}
 	my @subj = $eml->header('Subject');
-	if (@subj) {
-		my $v = ascii_html(shift @subj);
-		obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx;
-		$rv .= 'Subject: ';
-		$rv .= $have_over ? qq(<a\nhref="#r"\nid=t>$v</a>\n) : "$v\n";
-		$title[0] = $v;
-		for $v (@subj) { # multi-Subject message :<
-			$v = ascii_html($v);
-			obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx;
-			$rv .= "Subject: $v\n";
-		}
-	} else { # dummy anchor for thread skeleton at bottom of page
-		$rv .= qq(<a\nhref="#r"\nid=t></a>) if $have_over;
-		$title[0] = '(no subject)';
+	$hbuf .= "Subject: $_\n" for @subj;
+	$title[0] = $subj[0] // '(no subject)';
+	$hbuf .= "Date: $_\n" for $eml->header('Date');
+	$hbuf = ascii_html($hbuf);
+	$ctx->{-title_html} = ascii_html(join(' - ', @title));
+	if (my $obfs_ibx = $ctx->{-obfs_ibx}) {
+		obfuscate_addrs($obfs_ibx, $hbuf);
+		obfuscate_addrs($obfs_ibx, $ctx->{-title_html});
 	}
-	for my $v ($eml->header('Date')) {
-		$v = ascii_html($v);
-		obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx; # possible :P
-		$rv .= qq{Date: $v\n};
-	}
+
 	# [thread overview] link is typically added after Date,
 	# but added after Subject, or even nothing.
 	if ($have_over) {
-		chop $rv; # drop "\n", or noop if $rv eq ''
-		$rv .= qq{\t<a\nhref="#r">[thread overview]</a>\n};
+		chop $hbuf; # drop "\n", or noop if $rv eq ''
+		$hbuf .= qq{\t<a\nhref="#r">[thread overview]</a>\n};
+		$hbuf =~ s!^Subject:\x20(.*?)(\n[A-Z]|\z)
+				!Subject: <a\nhref="#r"\nid=t>$1</a>$2!msx or
+			$hbuf .= qq(<a\nhref="#r\nid=t></a>);
+	}
+	if (scalar(@$mids) == 1) { # common case
+		my $x = ascii_html($mids->[0]);
+		$hbuf .= qq[Message-ID: &lt;$x&gt; (<a href="raw">raw</a>)\n];
 	}
 	if (!$nr) { # first (and only) message, common case
-		$ctx->{-title_html} = join(' - ', @title);
-		$rv = $ctx->html_top . $rv;
-	}
-
-	$ctx->{-linkify} //= PublicInbox::Linkify->new;
-	if (scalar(@$mids) == 1) { # common case
-		my $mhtml = ascii_html($mids->[0]);
-		$rv .= qq[Message-ID: &lt;$mhtml&gt; (<a href="raw">raw</a>)\n];
+		$ctx->zmore($ctx->html_top, $hbuf);
 	} else {
+		delete $ctx->{-title_html};
+		$ctx->zmore($ctx->{-html_tip}, $hbuf);
+	}
+	$ctx->{-linkify} //= PublicInbox::Linkify->new;
+	$hbuf = '';
+	if (scalar(@$mids) != 1) { # unlikely, but it happens :<
 		# X-Alt-Message-ID can happen if a message is injected from
 		# public-inbox-nntpd because of multiple Message-ID headers.
-		my $s = '';
 		for my $h (qw(Message-ID X-Alt-Message-ID)) {
-			$s .= "$h: $_\n" for ($eml->header_raw($h));
+			$hbuf .= "$h: $_\n" for ($eml->header_raw($h));
 		}
-		$ctx->{-linkify}->linkify_mids('..', \$s, 1);
-		$rv .= $s;
+		$ctx->{-linkify}->linkify_mids('..', \$hbuf, 1); # escapes HTML
+		$ctx->zmore($hbuf);
+		$hbuf = '';
 	}
-	$rv .= _parent_headers($ctx, $eml);
+	my @irt = $eml->header_raw('In-Reply-To');
+	my $refs;
+	if (!@irt) {
+		$refs = references($eml);
+		$irt[0] = pop(@$refs) if scalar @$refs;
+	}
+	$hbuf .= "In-Reply-To: $_\n" for @irt;
+
+	# do not display References: if search is present,
+	# we show the thread skeleton at the bottom, instead.
+	if (!$have_over) {
+		$refs //= references($eml);
+		$hbuf .= 'References: <'.join(">\n\t<", @$refs).">\n" if @$refs;
+	}
+	$ctx->{-linkify}->linkify_mids('..', \$hbuf); # escapes HTML
+	$ctx->zmore($hbuf .= "\n");
+	${$ctx->{obuf}} = ''; # TODO remove
 	1;
 }
 
@@ -768,27 +772,6 @@ sub thread_skel ($$$) {
 	walk_thread(thread_results($ctx, $msgs), $ctx, \&skel_dump);
 
 	$ctx->{parent_msg} = $parent;
-}
-
-sub _parent_headers {
-	my ($ctx, $hdr) = @_;
-	my @irt = $hdr->header_raw('In-Reply-To');
-	my $refs;
-	my $s = '';
-	if (!@irt) {
-		$refs = references($hdr);
-		$irt[0] = pop(@$refs) if scalar @$refs;
-	}
-	$s .= "In-Reply-To: $_\n" for @irt;
-
-	# do not display References: if search is present,
-	# we show the thread skeleton at the bottom, instead.
-	if (!$ctx->{ibx}->over) {
-		$refs //= references($hdr);
-		$s .= 'References: <'.join(">\n\t<", @$refs).">\n" if @$refs;
-	}
-	$ctx->{-linkify}->linkify_mids('..', \$s); # escapes HTML
-	$s .= "\n";
 }
 
 # appends to obuf
