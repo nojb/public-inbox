@@ -162,9 +162,9 @@ sub diff_before_or_after ($$) {
 	if (exists $ctx->{-anchors} && $$x =~ /\A(.*?) # likely "---\n" # \$1
 			# diffstat lines:
 			((?:^\x20(?:[^\n]+?)(?:\x20+\|\x20[^\n]*\n))+)
-			(\x20[0-9]+\x20files?\x20)changed,([^\n]+\n)
+			(\x20[0-9]+\x20files?\x20)changed,
 			(.*?)\z/msx) { # notes, commit message, etc
-		my @x = ($5, $4, $3, $2, $1);
+		my @x = ($4, $3, $2, $1);
 		undef $$x;
 		my $lnk = $ctx->{-linkify};
 		my $zfh = $ctx->{zfh};
@@ -177,8 +177,8 @@ sub diff_before_or_after ($$) {
 		my $ch = $ctx->{changed_href} // '#related';
 		print $zfh pop(@x), # $3 /^ \d+ files? /
 			qq(<a href="$ch">changed</a>,),
-			ascii_html(pop @x), # insertions/deletions
-			$lnk->to_html(@x); # notes, commit message, etc
+			# insertions/deletions, notes, commit message, etc:
+			$lnk->to_html(@x);
 	} else {
 		print { $ctx->{zfh} } $ctx->{-linkify}->to_html($$x);
 	}
