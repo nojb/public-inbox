@@ -508,17 +508,12 @@ sub thread_html_i { # PublicInbox::WwwStream::getline callback
 
 sub submsg_hdr ($$) {
 	my ($ctx, $eml) = @_;
-	my $obfs_ibx = $ctx->{-obfs_ibx};
-	my $rv = $ctx->{obuf};
-	$$rv .= "\n";
+	my $s = "\n";
 	for my $h (qw(From To Cc Subject Date Message-ID X-Alt-Message-ID)) {
-		my @v = $eml->header($h);
-		for my $v (@v) {
-			obfuscate_addrs($obfs_ibx, $v) if $obfs_ibx;
-			$v = ascii_html($v);
-			$$rv .= "$h: $v\n";
-		}
+		$s .= "$h: $_\n" for $eml->header($h);
 	}
+	obfuscate_addrs($ctx->{-obfs_ibx}, $s) if $ctx->{-obfs_ibx};
+	ascii_html($s);
 }
 
 sub attach_link ($$$$;$) {
@@ -559,7 +554,7 @@ EOF
 	$$rv .= ($desc eq '') ? "$ts --]" : "$desc --]\n[-- $ts --]";
 	$$rv .= "</a>\n";
 
-	submsg_hdr($ctx, $part) if $part->{is_submsg};
+	$$rv .= submsg_hdr($ctx, $part) if $part->{is_submsg};
 
 	undef;
 }
@@ -578,7 +573,7 @@ sub add_text_body { # callback for each_part
 
 	my $rv = $ctx->{obuf};
 	if ($part->{is_submsg}) {
-		submsg_hdr($ctx, $part);
+		$$rv .= submsg_hdr($ctx, $part);
 		$$rv .= "\n";
 	}
 
