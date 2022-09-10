@@ -774,11 +774,12 @@ sub thread_skel ($$$) {
 	$ctx->{parent_msg} = $parent;
 }
 
-# appends to obuf
+# writes to zbuf
 sub html_footer {
 	my ($ctx, $hdr) = @_;
 	my $upfx = '../';
 	my ($related, $skel);
+	my $foot = '<pre>';
 	my $qry = delete $ctx->{-qry};
 	if ($qry && $ctx->{ibx}->isrch) {
 		my $q = ''; # search for either ancestor or descendent patches
@@ -836,15 +837,14 @@ EOF
 		} elsif ($u) { # unlikely
 			$parent = " <a\nhref=\"$u\"\nrel=prev>parent</a>";
 		}
-		${$ctx->{obuf}} .= "<pre>$next $prev$parent ";
+		$foot .= "$next $prev$parent ";
 	} else { # unindexed inboxes w/o over
-		${$ctx->{obuf}} .= '<pre>';
 		$skel = qq( <a\nhref="$upfx">latest</a>);
 	}
-	${$ctx->{obuf}} .= qq(<a\nhref="#R">reply</a>);
-	# $skel may be big for big threads, don't append it to obuf
+	$foot .= qq(<a\nhref="#R">reply</a>);
+	# $skel may be big for big threads, don't append it to $foot
 	$skel .= '</pre>' . ($related // '');
-	$ctx->zmore($skel .= msg_reply($ctx, $hdr)); # flushes obuf
+	$ctx->zmore($foot, $skel .= msg_reply($ctx, $hdr)); # flushes obuf
 }
 
 sub ghost_parent {
