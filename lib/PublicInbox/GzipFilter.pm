@@ -124,7 +124,7 @@ sub http_out ($) {
 
 sub write {
 	# my $ret = bytes::length($_[1]); # XXX does anybody care?
-	http_out($_[0])->write(translate($_[0], $_[1]));
+	http_out($_[0])->write(translate(@_));
 }
 
 sub zfh {
