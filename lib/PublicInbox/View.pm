@@ -40,7 +40,7 @@ sub msg_page_i {
 				"../${\mid_href($smsg->{mid})}/" : '';
 		if (_msg_page_prepare($eml, $ctx)) {
 			$eml->each_part(\&add_text_body, $ctx, 1);
-			$ctx->zadd('</pre><hr>');
+			print { $ctx->{zfh} } '</pre><hr>';
 		}
 		html_footer($ctx, $ctx->{first_hdr}) if !$ctx->{smsg};
 		''; # XXX TODO cleanup
@@ -58,7 +58,7 @@ sub no_over_html ($) {
 	PublicInbox::WwwStream::init($ctx);
 	if (_msg_page_prepare($eml, $ctx)) { # sets {-title_html}
 		$eml->each_part(\&add_text_body, $ctx, 1);
-		$ctx->zadd('</pre><hr>');
+		print { $ctx->{zfh} } '</pre><hr>';
 	}
 	html_footer($ctx, $eml);
 	$ctx->html_done;
@@ -240,12 +240,11 @@ sub eml_entry {
 		my $html = ascii_html($irt);
 		$rv .= qq(In-Reply-To: &lt;<a\nhref="$href">$html</a>&gt;\n)
 	}
-	$rv .= "\n";
+	say { $ctx->zfh } $rv;
 
 	# scan through all parts, looking for displayable text
 	$ctx->{mhref} = $mhref;
 	$ctx->{changed_href} = "#e$id"; # for diffstat "files? changed,"
-	$ctx->zadd($rv); # XXX $rv is small, reuse below
 	$eml->each_part(\&add_text_body, $ctx, 1); # expensive
 
 	# add the footer
@@ -386,8 +385,8 @@ sub pre_thread  { # walk_thread callback
 sub thread_eml_entry {
 	my ($ctx, $eml) = @_;
 	my ($beg, $end) = thread_adj_level($ctx, $ctx->{level});
-	$ctx->zadd($beg.'<pre>');
-	eml_entry($ctx, $eml) . '</pre>' . $end;
+	print { $ctx->zfh } $beg, '<pre>';
+	print { $ctx->{zfh} } eml_entry($ctx, $eml), '</pre>', $end;
 }
 
 sub next_in_queue ($$) {
@@ -414,15 +413,15 @@ sub stream_thread_i { # PublicInbox::WwwStream::getline callback
 				if (!$ghost_ok) { # first non-ghost
 					$ctx->{-title_html} =
 						ascii_html($smsg->{subject});
-					$ctx->zadd($ctx->html_top);
+					print { $ctx->zfh } $ctx->html_top;
 				}
 				return $smsg;
 			}
 			# buffer the ghost entry and loop
-			$ctx->zadd(ghost_index_entry($ctx, $lvl, $smsg));
+			print { $ctx->zfh } ghost_index_entry($ctx, $lvl, $smsg)
 		} else { # all done
-			$ctx->zadd(join('', thread_adj_level($ctx, 0)));
-			$ctx->zadd(${delete($ctx->{skel})});
+			print { $ctx->zfh } thread_adj_level($ctx, 0),
+						${delete($ctx->{skel})};
 			return;
 		}
 	}
@@ -491,7 +490,7 @@ sub thread_html_i { # PublicInbox::WwwStream::getline callback
 		my $smsg = $ctx->{smsg};
 		if (exists $ctx->{-html_tip}) {
 			$ctx->{-title_html} = ascii_html($smsg->{subject});
-			$ctx->zadd($ctx->html_top);
+			print { $ctx->zfh } $ctx->html_top;
 		}
 		return eml_entry($ctx, $eml);
 	} else {
@@ -499,7 +498,7 @@ sub thread_html_i { # PublicInbox::WwwStream::getline callback
 			return $smsg if exists($smsg->{blob});
 		}
 		my $skel = delete($ctx->{skel}) or return; # all done
-		$ctx->zadd($$skel);
+		print { $ctx->zfh } $$skel;
 		undef;
 	}
 }
@@ -560,8 +559,9 @@ sub add_text_body { # callback for each_part
 	my $ct = $part->content_type || 'text/plain';
 	my $fn = $part->filename;
 	my ($s, $err) = msg_part_text($part, $ct);
-	$s // return $ctx->zadd(attach_link($ctx, $ct, $p, $fn) // '');
-	my $buf = $part->{is_submsg} ? submsg_hdr($ctx, $part)."\n" : '';
+	my $zfh = $ctx->zfh;
+	$s // return print $zfh (attach_link($ctx, $ct, $p, $fn) // '');
+	say $zfh submsg_hdr($ctx, $part) if $part->{is_submsg};
 
 	# makes no difference to browsers, and don't screw up filename
 	# link generation in diffs with the extra '%0D'
@@ -609,21 +609,19 @@ sub add_text_body { # callback for each_part
 	undef $s; # free memory
 	if (defined($fn) || ($depth > 0 && !$part->{is_submsg}) || $err) {
 		# badly-encoded message with $err? tell the world about it!
-		$buf .= attach_link($ctx, $ct, $p, $fn, $err) . "\n";
+		say $zfh attach_link($ctx, $ct, $p, $fn, $err);
 	}
 	delete $part->{bdy}; # save memory
-	$ctx->zadd($buf);
-	undef $buf;
 	for my $cur (@sections) { # $cur may be huge
 		if ($cur =~ /\A>/) {
 			# we use a <span> here to allow users to specify
 			# their own color for quoted text
-			$ctx->zadd(qq(<span\nclass="q">),
-					$l->to_html($cur), '</span>');
+			print $zfh qq(<span\nclass="q">),
+					$l->to_html($cur), '</span>';
 		} elsif ($diff) {
 			flush_diff($ctx, \$cur);
 		} else { # regular lines, OK
-			$ctx->zadd($l->to_html($cur));
+			print $zfh $l->to_html($cur);
 		}
 		undef $cur; # free memory
 	}
@@ -685,10 +683,10 @@ sub _msg_page_prepare {
 		$hbuf .= qq[Message-ID: &lt;$x&gt; (<a href="raw">raw</a>)\n];
 	}
 	if (!$nr) { # first (and only) message, common case
-		$ctx->zadd($ctx->html_top, $hbuf);
+		print { $ctx->zfh } $ctx->html_top, $hbuf;
 	} else {
 		delete $ctx->{-title_html};
-		$ctx->zadd($ctx->{-html_tip}, $hbuf);
+		print { $ctx->zfh } $ctx->{-html_tip}, $hbuf;
 	}
 	$ctx->{-linkify} //= PublicInbox::Linkify->new;
 	$hbuf = '';
@@ -699,7 +697,7 @@ sub _msg_page_prepare {
 			$hbuf .= "$h: $_\n" for ($eml->header_raw($h));
 		}
 		$ctx->{-linkify}->linkify_mids('..', \$hbuf, 1); # escapes HTML
-		$ctx->zadd($hbuf);
+		print { $ctx->{zfh} } $hbuf;
 		$hbuf = '';
 	}
 	my @irt = $eml->header_raw('In-Reply-To');
@@ -717,7 +715,7 @@ sub _msg_page_prepare {
 		$hbuf .= 'References: <'.join(">\n\t<", @$refs).">\n" if @$refs;
 	}
 	$ctx->{-linkify}->linkify_mids('..', \$hbuf); # escapes HTML
-	$ctx->zadd($hbuf .= "\n");
+	say { $ctx->{zfh} } $hbuf;
 	1;
 }
 
@@ -771,7 +769,7 @@ sub thread_skel ($$$) {
 sub html_footer {
 	my ($ctx, $hdr) = @_;
 	my $upfx = '../';
-	my ($related, $skel);
+	my (@related, $skel);
 	my $foot = '<pre>';
 	my $qry = delete $ctx->{-qry};
 	if ($qry && $ctx->{ibx}->isrch) {
@@ -786,7 +784,7 @@ sub html_footer {
 		$q = wrap('', '', $q);
 		my $rows = ($q =~ tr/\n/\n/) + 1;
 		$q = ascii_html($q);
-		$related = <<EOM;
+		$related[0] = <<EOM;
 <form id=related
 action=$upfx
 ><pre>find likely ancestor, descendant, or conflicting patches for <a
@@ -799,7 +797,7 @@ EOM
 	if ($ctx->{ibx}->over) {
 		my $t = ts2str($ctx->{-t_max});
 		my $t_fmt = fmt_ts($ctx->{-t_max});
-		my $fallback = $related ? "\t" : "<a id=related>\t</a>";
+		my $fallback = @related ? "\t" : "<a id=related>\t</a>";
 		$skel = <<EOF;
 ${fallback}other threads:[<a
 href="$upfx?t=$t">~$t_fmt UTC</a>|<a
@@ -834,10 +832,10 @@ EOF
 	} else { # unindexed inboxes w/o over
 		$skel = qq( <a\nhref="$upfx">latest</a>);
 	}
-	$foot .= qq(<a\nhref="#R">reply</a>);
 	# $skel may be big for big threads, don't append it to $foot
-	$skel .= '</pre>' . ($related // '');
-	$ctx->zadd($foot, $skel .= msg_reply($ctx, $hdr));
+	print { $ctx->zfh } $foot, qq(<a\nhref="#R">reply</a>),
+				$skel, '</pre>', @related,
+				msg_reply($ctx, $hdr);
 }
 
 sub ghost_parent {

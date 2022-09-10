@@ -331,10 +331,10 @@ sub mset_thread {
 # callback for PublicInbox::WwwStream::getline
 sub mset_thread_i {
 	my ($ctx, $eml) = @_;
-	$ctx->zadd($ctx->html_top) if exists $ctx->{-html_tip};
+	print { $ctx->zfh } $ctx->html_top if exists $ctx->{-html_tip};
 	$eml and return PublicInbox::View::eml_entry($ctx, $eml);
 	my $smsg = shift @{$ctx->{msgs}} or
-		$ctx->zmore(${delete($ctx->{skel})});
+		print { $ctx->zfh } ${delete($ctx->{skel})};
 	$smsg;
 }
 

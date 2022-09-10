@@ -181,11 +181,12 @@ sub html_oneshot ($$;@) {
 		'Content-Length' => undef ];
 	bless $ctx, __PACKAGE__;
 	$ctx->{gz} = PublicInbox::GzipFilter::gz_or_noop($res_hdr, $ctx->{env});
+	my @top;
 	$ctx->{base_url} // do {
-		$ctx->zadd(html_top($ctx));
+		@top = html_top($ctx);
 		$ctx->{base_url} = base_url($ctx);
 	};
-	my $bdy = $ctx->zflush(@_[2..$#_], _html_end($ctx));
+	my $bdy = $ctx->zflush(@top, @_[2..$#_], _html_end($ctx));
 	$res_hdr->[3] = length($bdy);
 	[ $code, $res_hdr, [ $bdy ] ]
 }
@@ -216,7 +217,7 @@ sub html_init {
 	my $h = $ctx->{-res_hdr} = ['Content-Type', 'text/html; charset=UTF-8'];
 	$ctx->{gz} = PublicInbox::GzipFilter::gz_or_noop($h, $ctx->{env});
 	bless $ctx, __PACKAGE__;
-	$ctx->zadd(html_top($ctx));
+	print { $ctx->zfh } html_top($ctx);
 }
 
 1;

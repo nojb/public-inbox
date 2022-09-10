@@ -67,8 +67,8 @@ sub oid ($$$) {
 }
 
 # returns true if diffstat anchor written, false otherwise
-sub anchor0 ($$$$) {
-	my ($dst, $ctx, $fn, $rest) = @_;
+sub anchor0 ($$$) {
+	my ($ctx, $fn, $rest) = @_;
 
 	my $orig = $fn;
 
@@ -84,15 +84,12 @@ sub anchor0 ($$$$) {
 	# long filenames will require us to check in anchor1()
 	push(@{$ctx->{-long_path}}, $fn) if $fn =~ s!\A\.\.\./?!!;
 
-	if (defined(my $attr = to_attr($ctx->{-apfx}.$fn))) {
-		$ctx->{-anchors}->{$attr} = 1;
-		my $spaces = ($orig =~ s/( +)\z//) ? $1 : '';
-		$$dst .= " <a\nid=i$attr\nhref=#$attr>" .
-			ascii_html($orig) . '</a>' . $spaces .
+	my $attr = to_attr($ctx->{-apfx}.$fn) // return;
+	$ctx->{-anchors}->{$attr} = 1;
+	my $spaces = ($orig =~ s/( +)\z//) ? $1 : '';
+	print { $ctx->{zfh} } " <a\nid=i$attr\nhref=#$attr>",
+			ascii_html($orig), '</a>', $spaces,
 			$ctx->{-linkify}->to_html($rest);
-		return 1;
-	}
-	undef;
 }
 
 # returns "diff --git" anchor destination, undef otherwise
@@ -156,33 +153,34 @@ sub diff_header ($$$) {
 		warn "BUG? <$$x> had no ^index line";
 	}
 	$$x =~ s!^diff --git!anchor1($ctx, $pb) // 'diff --git'!ems;
-	$ctx->zadd(qq(<span\nclass="head">$$x</span>));
+	print { $ctx->{zfh} } qq(<span\nclass="head">), $$x, '</span>';
 	$dctx;
 }
 
 sub diff_before_or_after ($$) {
 	my ($ctx, $x) = @_;
-	if (exists $ctx->{-anchors} && $$x =~ /\A(.*?) # likely "---\n"
+	if (exists $ctx->{-anchors} && $$x =~ /\A(.*?) # likely "---\n" # \$1
 			# diffstat lines:
 			((?:^\x20(?:[^\n]+?)(?:\x20+\|\x20[^\n]*\n))+)
 			(\x20[0-9]+\x20files?\x20)changed,([^\n]+\n)
 			(.*?)\z/msx) { # notes, commit message, etc
 		my @x = ($5, $4, $3, $2, $1);
+		undef $$x;
 		my $lnk = $ctx->{-linkify};
-		$$x = $lnk->to_html(pop @x); # uninteresting prefix
-		for my $l (split(/^/m, pop(@x))) { # per-file diffstat lines
+		my $zfh = $ctx->{zfh};
+		print $zfh $lnk->to_html(pop @x); # $1 uninteresting prefix
+		for my $l (split(/^/m, pop(@x))) { # $2 per-file stat lines
 			$l =~ /^ (.+)( +\| .*\z)/s and
-				anchor0($x, $ctx, $1, $2) and next;
-			$$x .= $lnk->to_html($l);
+				anchor0($ctx, $1, $2) and next;
+			 print $zfh $lnk->to_html($l);
 		}
-		$$x .= pop @x; # $3 /^ \d+ files? /
 		my $ch = $ctx->{changed_href} // '#related';
-		$$x .= qq(<a href="$ch">changed</a>,);
-		$$x .= ascii_html(pop @x); # $4: insertions/deletions
-		# notes, commit message, etc
-		$ctx->zadd($$x .= $lnk->to_html(pop @x));
+		print $zfh pop(@x), # $3 /^ \d+ files? /
+			qq(<a href="$ch">changed</a>,),
+			ascii_html(pop @x), # insertions/deletions
+			$lnk->to_html(@x); # notes, commit message, etc
 	} else {
-		$ctx->zadd($ctx->{-linkify}->to_html($$x));
+		print { $ctx->{zfh} } $ctx->{-linkify}->to_html($$x);
 	}
 }
 
@@ -195,6 +193,7 @@ sub flush_diff ($$) {
 
 	my $lnk = $ctx->{-linkify};
 	my $dctx; # {}, keys: Q, oid_a, oid_b
+	my $zfh = $ctx->zfh;
 
 	while (defined(my $x = shift @top)) {
 		if (scalar(@top) >= 4 &&
@@ -202,7 +201,7 @@ sub flush_diff ($$) {
 				$top[0] =~ $IS_OID) {
 			$dctx = diff_header(\$x, $ctx, \@top);
 		} elsif ($dctx) {
-			my $after = '';
+			open(my $afh, '>>', \(my $after='')) or die "open: $!";
 
 			# Quiet "Complex regular subexpression recursion limit"
 			# warning.  Perl will truncate matches upon hitting
@@ -218,25 +217,25 @@ sub flush_diff ($$) {
 					(?:(?:^-[^\n]*\n)+)|
 					(?:^@@ [^\n]+\n))/xsm, $x)) {
 				if (!defined($dctx)) {
-					$after .= $s;
+					print $afh $s;
 				} elsif ($s =~ s/\A@@ (\S+) (\S+) @@//) {
-					$ctx->zadd(qq(<span\nclass="hunk">) .
-						diff_hunk($dctx, $1, $2) .
-						$lnk->to_html($s) .
-						'</span>');
+					print $zfh qq(<span\nclass="hunk">),
+						diff_hunk($dctx, $1, $2),
+						$lnk->to_html($s),
+						'</span>';
 				} elsif ($s =~ /\A\+/) { # $s may be huge
-					$ctx->zadd(qq(<span\nclass="add">),
+					print $zfh qq(<span\nclass="add">),
 							$lnk->to_html($s),
-							'</span>');
+							'</span>';
 				} elsif ($s =~ /\A-- $/sm) { # email sig starts
 					$dctx = undef;
-					$after .= $s;
+					print $afh $s;
 				} elsif ($s =~ /\A-/) { # $s may be huge
-					$ctx->zadd(qq(<span\nclass="del">),
-						$lnk->to_html($s),
-						'</span>');
+					print $zfh qq(<span\nclass="del">),
+							$lnk->to_html($s),
+							'</span>';
 				} else { # $s may be huge
-					$ctx->zadd($lnk->to_html($s));
+					print $zfh $lnk->to_html($s);
 				}
 			}
 			diff_before_or_after($ctx, \$after) if !$dctx;

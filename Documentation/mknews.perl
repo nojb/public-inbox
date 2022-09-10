@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# Copyright (C) 2019-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 # Generates NEWS, NEWS.atom, and NEWS.html files using release emails
 # this uses unstable internal APIs of public-inbox, and this script
@@ -46,6 +46,7 @@ if ($dst eq 'NEWS') {
 		ibx => $ibx,
 		-upfx => "$base_url/",
 		-hr => 1,
+		zfh => $out,
 	};
 	if ($dst eq 'NEWS.html') {
 		html_start($out, $ctx);
