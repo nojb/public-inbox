@@ -246,11 +246,11 @@ sub eml_entry {
 	$ctx->{mhref} = $mhref;
 	$ctx->{changed_href} = "#e$id"; # for diffstat "files? changed,"
 	$ctx->{obuf} = \$rv;
-	$eml->each_part(\&add_text_body, $ctx, 1);
-	delete $ctx->{obuf};
+	$eml->each_part(\&add_text_body, $ctx, 1); # expensive
+	$ctx->zmore; # TODO: remove once add_text_body is updated
 
 	# add the footer
-	$rv .= "\n<a\nhref=#$id_m\nid=e$id>^</a> ".
+	$rv = "\n<a\nhref=#$id_m\nid=e$id>^</a> ".
 		"<a\nhref=\"$mhref\">permalink</a>" .
 		" <a\nhref=\"${mhref}raw\">raw</a>" .
 		" <a\nhref=\"${mhref}#R\">reply</a>";
@@ -388,7 +388,8 @@ sub pre_thread  { # walk_thread callback
 sub thread_eml_entry {
 	my ($ctx, $eml) = @_;
 	my ($beg, $end) = thread_adj_level($ctx, $ctx->{level});
-	$beg . '<pre>' . eml_entry($ctx, $eml) . '</pre>' . $end;
+	$ctx->zmore($beg.'<pre>');
+	eml_entry($ctx, $eml) . '</pre>' . $end;
 }
 
 sub next_in_queue ($$) {
