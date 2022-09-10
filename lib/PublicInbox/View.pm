@@ -39,8 +39,8 @@ sub msg_page_i {
 		$ctx->{mhref} = ($ctx->{nr} || $ctx->{smsg}) ?
 				"../${\mid_href($smsg->{mid})}/" : '';
 		if (_msg_page_prepare_obuf($eml, $ctx)) {
-			multipart_text_as_html($eml, $ctx);
-			${$ctx->{obuf}} .= '</pre><hr>';
+			$eml->each_part(\&add_text_body, $ctx, 1);
+			$ctx->zmore('</pre><hr>');
 		}
 		html_footer($ctx, $ctx->{first_hdr}) if !$ctx->{smsg};
 		delete($ctx->{obuf}) // \'';
@@ -57,8 +57,8 @@ sub no_over_html ($) {
 	$ctx->{mhref} = '';
 	PublicInbox::WwwStream::init($ctx);
 	if (_msg_page_prepare_obuf($eml, $ctx)) { # sets {-title_html}
-		multipart_text_as_html($eml, $ctx);
-		${$ctx->{obuf}} .= '</pre><hr>';
+		$eml->each_part(\&add_text_body, $ctx, 1);
+		$ctx->zmore('</pre><hr>');
 	}
 	html_footer($ctx, $eml);
 	$ctx->html_done;
@@ -504,13 +504,6 @@ sub thread_html_i { # PublicInbox::WwwStream::getline callback
 		$ctx->zmore($$skel);
 		undef;
 	}
-}
-
-sub multipart_text_as_html {
-	# ($mime, $ctx) = @_; # each_part may do "$_[0] = undef"
-
-	# scan through all parts, looking for displayable text
-	$_[0]->each_part(\&add_text_body, $_[1], 1);
 }
 
 sub submsg_hdr ($$) {

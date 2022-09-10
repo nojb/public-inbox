@@ -157,9 +157,8 @@ sub feed_entry {
 	$ctx->{obuf} = \$s;
 	$ctx->{mhref} = $href;
 	$ctx->{changed_href} = "${href}#related";
-	PublicInbox::View::multipart_text_as_html($eml, $ctx);
-	delete $ctx->{obuf};
-	$s .= '</pre></div></content></entry>';
+	$eml->each_part(\&PublicInbox::View::add_text_body, $ctx, 1);
+	'</pre></div></content></entry>';
 }
 
 sub feed_updated {
