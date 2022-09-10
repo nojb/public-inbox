@@ -27,6 +27,9 @@ sub init {
 	my ($ctx, $cb) = @_;
 	$ctx->{cb} = $cb;
 	$ctx->{base_url} = base_url($ctx);
+	$ctx->{-res_hdr} = [ 'Content-Type' => 'text/html; charset=UTF-8' ];
+	$ctx->{gz} = PublicInbox::GzipFilter::gz_or_noop($ctx->{-res_hdr},
+							$ctx->{env});
 	bless $ctx, __PACKAGE__;
 }
 
@@ -164,6 +167,14 @@ sub getline {
 	$ctx->zflush(_html_end($ctx));
 }
 
+sub html_done ($$) {
+	my ($ctx, $code) = @_;
+	my $bdy = $ctx->zflush(_html_end($ctx));
+	my $res_hdr = delete $ctx->{-res_hdr};
+	push @$res_hdr, 'Content-Length', length($bdy);
+	[ $code, $res_hdr, [ $bdy ] ]
+}
+
 sub html_oneshot ($$;@) {
 	my ($ctx, $code) = @_[0, 1];
 	my $res_hdr = [ 'Content-Type' => 'text/html; charset=UTF-8',
@@ -195,9 +206,8 @@ sub async_next ($) {
 
 sub aresponse {
 	my ($ctx, $code, $cb) = @_;
-	my $res_hdr = [ 'Content-Type' => 'text/html; charset=UTF-8' ];
 	init($ctx, $cb);
-	$ctx->psgi_response($code, $res_hdr);
+	$ctx->psgi_response($code, delete $ctx->{-res_hdr});
 }
 
 sub html_init {

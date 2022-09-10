@@ -38,14 +38,12 @@ sub msg_page_i {
 				: $ctx->gone('over');
 		$ctx->{mhref} = ($ctx->{nr} || $ctx->{smsg}) ?
 				"../${\mid_href($smsg->{mid})}/" : '';
-		my $obuf = _msg_page_prepare_obuf($eml, $ctx);
-		if (length($$obuf)) {
+		if (_msg_page_prepare_obuf($eml, $ctx)) {
 			multipart_text_as_html($eml, $ctx);
-			$$obuf .= '</pre><hr>';
+			${$ctx->{obuf}} .= '</pre><hr>';
 		}
-		delete $ctx->{obuf};
-		$$obuf .= html_footer($ctx, $ctx->{first_hdr}) if !$ctx->{smsg};
-		$$obuf;
+		html_footer($ctx, $ctx->{first_hdr}) if !$ctx->{smsg};
+		delete($ctx->{obuf}) // \'';
 	} else { # called by WwwStream::async_next or getline
 		$ctx->{smsg}; # may be undef
 	}
@@ -58,14 +56,12 @@ sub no_over_html ($) {
 	my $eml = PublicInbox::Eml->new($bref);
 	$ctx->{mhref} = '';
 	PublicInbox::WwwStream::init($ctx);
-	my $obuf = _msg_page_prepare_obuf($eml, $ctx);
-	if (length($$obuf)) {
+	if (_msg_page_prepare_obuf($eml, $ctx)) { # sets {-title_html}
 		multipart_text_as_html($eml, $ctx);
-		$$obuf .= '</pre><hr>';
+		${$ctx->{obuf}} .= '</pre><hr>';
 	}
-	delete $ctx->{obuf};
-	eval { $$obuf .= html_footer($ctx, $eml) };
-	html_oneshot($ctx, 200, $$obuf);
+	html_footer($ctx, $eml);
+	$ctx->html_done(200);
 }
 
 # public functions: (unstable)
@@ -669,7 +665,7 @@ sub _msg_page_prepare_obuf {
 	if ($nr) { # unlikely
 		if ($ctx->{chash} eq content_hash($eml)) {
 			warn "W: BUG? @$mids not deduplicated properly\n";
-			return \$rv;
+			return;
 		}
 		$rv .=
 "<pre>WARNING: multiple messages have this Message-ID\n</pre><pre>";
@@ -746,7 +742,7 @@ sub _msg_page_prepare_obuf {
 	}
 	_parent_headers($ctx, $eml);
 	$rv .= "\n";
-	\$rv;
+	1;
 }
 
 sub SKEL_EXPAND () {
@@ -827,13 +823,11 @@ EOM
 	}
 }
 
-# returns a string buffer
+# appends to obuf
 sub html_footer {
 	my ($ctx, $hdr) = @_;
 	my $upfx = '../';
-	my $skel;
-	my $rv = '<pre>';
-	my $related;
+	my ($related, $skel);
 	my $qry = delete $ctx->{-qry};
 	if ($qry && $ctx->{ibx}->isrch) {
 		my $q = ''; # search for either ancestor or descendent patches
@@ -896,15 +890,15 @@ EOF
 		} elsif ($u) { # unlikely
 			$parent = " <a\nhref=\"$u\"\nrel=prev>parent</a>";
 		}
-		$rv .= "$next $prev$parent ";
+		${$ctx->{obuf}} .= "<pre>$next $prev$parent ";
 	} else { # unindexed inboxes w/o over
+		${$ctx->{obuf}} .= '<pre>';
 		$skel = qq( <a\nhref="$upfx">latest</a>);
 	}
-	$rv .= qq(<a\nhref="#R">reply</a>);
-	$rv .= $skel;
-	$rv .= '</pre>';
-	$rv .= $related // '';
-	$rv .= msg_reply($ctx, $hdr);
+	${$ctx->{obuf}} .= qq(<a\nhref="#R">reply</a>);
+	# $skel may be big for big threads, don't append it to obuf
+	$skel .= '</pre>' . ($related // '');
+	$ctx->zmore($skel .= msg_reply($ctx, $hdr)); # flushes obuf
 }
 
 sub linkify_ref_no_over {
