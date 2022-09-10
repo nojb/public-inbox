@@ -11,6 +11,8 @@ use PublicInbox::WwwStream;
 
 my $inboxdir = $ENV{GIANT_INBOX_DIR} // $ENV{GIANT_PI_DIR};
 my $blob = $ENV{TEST_BLOB};
+my $obfuscate = $ENV{PI_OBFUSCATE} ? 1 : 0;
+diag "PI_OBFUSCATE=$obfuscate";
 plan skip_all => "GIANT_INBOX_DIR not defined for $0" unless $inboxdir;
 
 my @cat = qw(cat-file --buffer --batch-check --batch-all-objects);
@@ -21,7 +23,8 @@ if (require_git(2.19, 1)) {
 "git <2.19, cat-file lacks --unordered, locality suffers\n";
 }
 require_mods qw(Plack::Util);
-my $ibx = PublicInbox::Inbox->new({ inboxdir => $inboxdir, name => 'name' });
+my $ibx = PublicInbox::Inbox->new({ inboxdir => $inboxdir, name => 'name',
+				    obfuscate => $obfuscate});
 my $git = $ibx->git;
 my $fh = $blob ? undef : $git->popen(@cat);
 if ($fh) {
@@ -46,10 +49,11 @@ $ctx->{mhref} = '../';
 my $cb = sub {
 	$eml = PublicInbox::Eml->new(shift);
 	$eml->each_part(\&PublicInbox::View::add_text_body, $ctx, 1);
-	$ctx->zflush;
+	$ctx->zflush(grep defined, delete @$ctx{'obuf'}); # compat
 	++$m;
 	delete $ctx->{zbuf};
-	${$ctx->{obuf}} = '';
+	${$ctx->{obuf}} = ''; # compat
+	$ctx->{gz} = PublicInbox::GzipFilter::gzip_or_die();
 };
 
 my $t = timeit(1, sub {

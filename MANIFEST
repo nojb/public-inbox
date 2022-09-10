@@ -602,7 +602,6 @@ xt/nntpd-validate.t
 xt/over-fsck.perl
 xt/perf-msgview.t
 xt/perf-nntpd.t
-xt/perf-obfuscate.t
 xt/perf-threading.t
 xt/pop3d-mpop.t
 xt/solver.t
