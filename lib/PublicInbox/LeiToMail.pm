@@ -310,8 +310,11 @@ sub _imap_write_cb ($$) {
 	my $dedupe = $lei->{dedupe};
 	$dedupe->prepare_dedupe if $dedupe;
 	my $append = $lei->{net}->can('imap_append');
-	my $uri = $self->{uri};
-	my $mic = $lei->{net}->mic_get($uri);
+	my $uri = $self->{uri} // die 'BUG: no {uri}';
+	my $mic = $lei->{net}->mic_get($uri) // die <<EOM;
+E: $uri connection failed.
+E: Consider using `--jobs ,1' to limit IMAP connections
+EOM
 	my $folder = $uri->mailbox;
 	$uri->uidvalidity($mic->uidvalidity($folder));
 	my $lse = $lei->{lse}; # may be undef
@@ -749,7 +752,8 @@ sub do_post_auth {
 		$au_peers->[1] = undef;
 		sysread($au_peers->[0], my $barrier1, 1);
 	}
-	$self->{wcb} = $self->write_cb($lei);
+	eval { $self->{wcb} = $self->write_cb($lei) };
+	$lei->fail($@) if $@;
 	if ($au_peers) { # wait for peer l2m to set write_cb
 		$au_peers->[3] = undef;
 		sysread($au_peers->[2], my $barrier2, 1);

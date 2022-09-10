@@ -685,7 +685,13 @@ sub mic_get {
 	}
 	my $mic = mic_new($self, $mic_arg, $sec, $uri);
 	$cached //= {}; # invalid placeholder if no cache enabled
-	$mic && $mic->IsConnected ? ($cached->{$sec} = $mic) : undef;
+	if ($mic && $mic->IsConnected) {
+		$cached->{$sec} = $mic;
+	} else {
+		warn 'IMAP LastError: ',$mic->LastError, "\n" if $mic;
+		warn "IMAP errno: $!\n" if $!;
+		undef;
+	}
 }
 
 sub imap_each {
