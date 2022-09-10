@@ -208,27 +208,28 @@ sub psgi_triple {
 	my $h = [ 'Content-Type', 'text/html; charset=UTF-8',
 			'Content-Length', undef ];
 	my $gzf = gzf_maybe($h, $ctx->{env});
-	$gzf->zmore('<html><head><title>public-inbox listing</title>' .
-			$ctx->{www}->style('+/') .
-			'</head><body>');
+	my $zfh = $gzf->zfh;
+	print $zfh '<html><head><title>public-inbox listing</title>',
+			$ctx->{www}->style('+/'),
+			'</head><body>';
 	my $code = 404;
 	if (my $list = delete $ctx->{-list}) {
 		my $mset = delete $ctx->{-mset};
 		$code = 200;
 		if ($mset) { # already sorted, so search bar:
-			$gzf->zmore(mset_nav_top($ctx, $mset));
+			print $zfh mset_nav_top($ctx, $mset);
 		} else { # sort config dump by ->modified
 			@$list = map { $_->[1] }
 				sort { $b->[0] <=> $a->[0] } @$list;
 		}
-		$gzf->zmore('<pre>', join("\n", @$list)); # big
-		$gzf->zmore(mset_footer($ctx, $mset)) if $mset;
+		print $zfh '<pre>', join("\n", @$list); # big
+		print $zfh mset_footer($ctx, $mset) if $mset;
 	} elsif (my $mset = delete $ctx->{-mset}) {
-		$gzf->zmore(mset_nav_top($ctx, $mset) .
-				'<pre>no matching inboxes' .
-				mset_footer($ctx, $mset));
+		print $zfh mset_nav_top($ctx, $mset),
+				'<pre>no matching inboxes',
+				mset_footer($ctx, $mset);
 	} else {
-		$gzf->zmore('<pre>no inboxes, yet');
+		print $zfh '<pre>no inboxes, yet';
 	}
 	my $out = $gzf->zflush('</pre><hr><pre>'.
 qq(This is a listing of public inboxes, see the `mirror' link of each inbox
