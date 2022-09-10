@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # XXX This is a totally unstable API for public-inbox internal use only
@@ -77,8 +77,11 @@ sub async_pass {
 	# will automatically close this ($self) object.
 	$http->{forward} = $self;
 
-	# write anything we overread when we were reading headers
-	$fh->write($$bref); # PublicInbox:HTTP::{chunked,identity}_wcb
+	# write anything we overread when we were reading headers.
+	# This is typically PublicInbox:HTTP::{chunked,identity}_wcb,
+	# but may be PublicInbox::GzipFilter::write.  PSGI requires
+	# *_wcb methods respond to ->write (and ->close), not ->print
+	$fh->write($$bref);
 
 	# we're done with this, free this memory up ASAP since the
 	# calls after this may use much memory:
