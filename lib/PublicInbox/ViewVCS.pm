@@ -210,8 +210,6 @@ EOM
 		$x =~ s/\r?\n/\n/gs;
 		$ctx->{-anchors} = {} if $x =~ /^diff --git /sm;
 		flush_diff($ctx, \$x); # undefs $x
-		$ctx->zmore($bdy);
-		undef $bdy;
 		# TODO: should there be another textarea which attempts to
 		# search for the exact email which was applied to make this
 		# commit?

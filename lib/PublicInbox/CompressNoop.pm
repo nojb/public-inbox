@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # Provide the same methods as Compress::Raw::Zlib::Deflate but
@@ -10,7 +10,7 @@ use Compress::Raw::Zlib qw(Z_OK);
 sub new { bless \(my $self), __PACKAGE__ }
 
 sub deflate { # ($self, $input, $output)
-	$_[2] .= $_[1];
+	$_[2] .= ref($_[1]) ? ${$_[1]} : $_[1];
 	Z_OK;
 }
 
