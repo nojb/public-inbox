@@ -335,10 +335,10 @@ sub _th_index_lite {
 	}
 	my $s_s = nr_to_s($nr_s, 'sibling', 'siblings');
 	my $s_c = nr_to_s($nr_c, 'reply', 'replies');
-	$attr =~ s!\n\z!</b>\n!s;
+	chop $attr; # remove "\n"
 	$attr =~ s!<a\nhref.*</a> (?:&#34; )?!!s; # no point in dup subject
 	$attr =~ s!<a\nhref=[^>]+>([^<]+)</a>!$1!s; # no point linking to self
-	$rv .= "<b>@ $attr";
+	$rv .= "<b>@ $attr</b>\n";
 	if ($nr_c) {
 		my $cmid = $children->[0] ? $children->[0]->{mid} : undef;
 		$rv .= $pad . _skel_hdr($mapping, $cmid);
