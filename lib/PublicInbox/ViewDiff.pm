@@ -168,28 +168,26 @@ sub diff_header ($$$) {
 
 sub diff_before_or_after ($$) {
 	my ($ctx, $x) = @_;
-	my $linkify = $ctx->{-linkify};
-	my $dst = $ctx->{obuf};
 	if (exists $ctx->{-anchors} && $$x =~ /\A(.*?) # likely "---\n"
 			# diffstat lines:
 			((?:^\x20(?:[^\n]+?)(?:\x20+\|\x20[^\n]*\n))+)
 			(\x20[0-9]+\x20files?\x20)changed,([^\n]+\n)
 			(.*?)\z/msx) { # notes, commit message, etc
-		undef $$x;
 		my @x = ($5, $4, $3, $2, $1);
-		$$dst .= $linkify->to_html(pop @x); # uninteresting prefix
+		my $lnk = $ctx->{-linkify};
+		$$x = $lnk->to_html(pop @x); # uninteresting prefix
 		for my $l (split(/^/m, pop(@x))) { # per-file diffstat lines
 			$l =~ /^ (.+)( +\| .*\z)/s and
-				anchor0($dst, $ctx, $1, $2) and next;
-			$$dst .= $linkify->to_html($l);
+				anchor0($x, $ctx, $1, $2) and next;
+			$$x .= $lnk->to_html($l);
 		}
-		$$dst .= $x[2]; # $3 /^ \d+ files? /
+		$$x .= pop @x; # $3 /^ \d+ files? /
 		my $ch = $ctx->{changed_href} // '#related';
-		$$dst .= qq(<a href="$ch">changed</a>,);
-		$$dst .= ascii_html($x[1]); # $4: insertions/deletions
-		$$dst .= $linkify->to_html($x[0]); # notes, commit message, etc
+		$$x .= qq(<a href="$ch">changed</a>,);
+		$$x .= ascii_html(pop @x); # $4: insertions/deletions
+		$$x .= $lnk->to_html(pop @x); # notes, commit message, etc
 	} else {
-		$$dst .= $linkify->to_html($$x);
+		$ctx->{-linkify}->to_html($$x);
 	}
 }
 
@@ -247,9 +245,9 @@ sub flush_diff ($$) {
 					$$dst .= $linkify->to_html($s);
 				}
 			}
-			diff_before_or_after($ctx, \$after) unless $dctx;
+			$$dst .= diff_before_or_after($ctx, \$after) if !$dctx;
 		} else {
-			diff_before_or_after($ctx, \$x);
+			$$dst .= diff_before_or_after($ctx, \$x);
 		}
 	}
 }
