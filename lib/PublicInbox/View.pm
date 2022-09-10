@@ -80,6 +80,7 @@ sub msg_page {
 	# allow user to easily browse the range around this message if
 	# they have ->over
 	$ctx->{-t_max} = $smsg->{ts};
+	$ctx->{-spfx} = '../' if $ibx->{coderepo};
 	PublicInbox::WwwStream::aresponse($ctx, \&msg_page_i);
 }
 
@@ -441,6 +442,7 @@ sub thread_html {
 	my $ibx = $ctx->{ibx};
 	my ($nr, $msgs) = $ibx->over->get_thread($mid);
 	return missing_thread($ctx) if $nr == 0;
+	$ctx->{-spfx} = '../../' if $ibx->{coderepo};
 
 	# link $INBOX_DIR/description text to "index_topics" view around
 	# the newest message in this thread
@@ -584,24 +586,6 @@ sub add_text_body { # callback for each_part
 		$ctx->{-anchors} = {} if $s =~ /^diff --git /sm;
 		$diff = 1;
 		delete $ctx->{-long_path};
-		my $spfx;
-		# absolute URL (Atom feeds)
-		if ($ibx->{coderepo}) {
-			if (index($upfx, '//') >= 0) {
-				$spfx = $upfx;
-				$spfx =~ s!/([^/]*)/\z!/!;
-			} else {
-				my $n_slash = $upfx =~ tr!/!/!;
-				if ($n_slash == 0) {
-					$spfx = '../';
-				} elsif ($n_slash == 1) {
-					$spfx = '';
-				} else { # nslash == 2
-					$spfx = '../../';
-				}
-			}
-		}
-		$ctx->{-spfx} = $spfx;
 	};
 
 	# split off quoted and unquoted blocks:

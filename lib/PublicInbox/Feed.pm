@@ -70,6 +70,7 @@ sub new_html {
 	}
 	$ctx->{-html_tip} = '<pre>';
 	$ctx->{-upfx} = '';
+	$ctx->{-spfx} = '' if $ctx->{ibx}->{coderepo};
 	$ctx->{-hr} = 1;
 	PublicInbox::WwwStream::aresponse($ctx, \&new_html_i);
 }

@@ -16,6 +16,7 @@ use PublicInbox::MsgTime qw(msg_timestamp);
 sub new {
 	my ($class, $ctx, $cb) = @_;
 	$ctx->{feed_base_url} = $ctx->{ibx}->base_url($ctx->{env});
+	$ctx->{-spfx} = $ctx->{feed_base_url} if $ctx->{ibx}->{coderepo};
 	$ctx->{cb} = $cb || \&PublicInbox::GzipFilter::close;
 	$ctx->{emit_header} = 1;
 	bless $ctx, $class;
