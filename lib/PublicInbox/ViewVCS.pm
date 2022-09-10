@@ -253,10 +253,7 @@ possible to have multiple root commits when merging independent histories.
 
 Every commit references one top-level <dfn id=tree>tree</dfn> object.</pre>
 EOM
-	$x = $ctx->zflush($x, $ctx->_html_end);
-	my $res_hdr = delete $ctx->{-res_hdr};
-	push @$res_hdr, 'Content-Length', length($x);
-	delete($ctx->{env}->{'qspawn.wcb'})->([200, $res_hdr, [$x]]);
+	delete($ctx->{env}->{'qspawn.wcb'})->($ctx->html_done($x));
 }
 
 sub stream_patch_parse_hdr { # {parse_hdr} for Qspawn

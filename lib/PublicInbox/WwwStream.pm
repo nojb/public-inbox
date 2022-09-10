@@ -167,12 +167,12 @@ sub getline {
 	$ctx->zflush(_html_end($ctx));
 }
 
-sub html_done ($$) {
-	my ($ctx, $code) = @_;
-	my $bdy = $ctx->zflush(_html_end($ctx));
+sub html_done ($;@) {
+	my $ctx = $_[0];
+	my $bdy = $ctx->zflush(@_[1..$#_], _html_end($ctx));
 	my $res_hdr = delete $ctx->{-res_hdr};
 	push @$res_hdr, 'Content-Length', length($bdy);
-	[ $code, $res_hdr, [ $bdy ] ]
+	[ 200, $res_hdr, [ $bdy ] ]
 }
 
 sub html_oneshot ($$;@) {

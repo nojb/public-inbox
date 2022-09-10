@@ -61,7 +61,7 @@ sub no_over_html ($) {
 		${$ctx->{obuf}} .= '</pre><hr>';
 	}
 	html_footer($ctx, $eml);
-	$ctx->html_done(200);
+	$ctx->html_done;
 }
 
 # public functions: (unstable)
