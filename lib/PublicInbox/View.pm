@@ -524,7 +524,6 @@ sub attach_link ($$$$;$) {
 	# downloads for 0-byte multipart attachments
 	return unless $part->{bdy};
 
-	my $nl = $idx eq '1' ? '' : "\n"; # like join("\n", ...)
 	my $size = length($part->body);
 	delete $part->{bdy}; # save memory
 
@@ -540,23 +539,17 @@ sub attach_link ($$$$;$) {
 	} else {
 		$sfn = 'a.bin';
 	}
-	my $rv = $ctx->{obuf};
-	$$rv .= qq($nl<a\nhref="$ctx->{mhref}$idx-$sfn">);
-	if ($err) {
-		$$rv .= <<EOF;
+	my $rv = $idx eq '1' ? '' : "\n"; # like join("\n", ...)
+	$rv .= qq(<a\nhref="$ctx->{mhref}$idx-$sfn">);
+	$rv .= <<EOF if $err;
 [-- Warning: decoded text below may be mangled, UTF-8 assumed --]
 EOF
-	}
-	$$rv .= "[-- Attachment #$idx: ";
-	my $ts = "Type: $ct, Size: $size bytes";
+	$rv .= "[-- Attachment #$idx: ";
 	my $desc = $part->header('Content-Description') // $fn // '';
-	$desc = ascii_html($desc);
-	$$rv .= ($desc eq '') ? "$ts --]" : "$desc --]\n[-- $ts --]";
-	$$rv .= "</a>\n";
-
-	$$rv .= submsg_hdr($ctx, $part) if $part->{is_submsg};
-
-	undef;
+	$rv .= ascii_html($desc)." --]\n[-- " if $desc ne '';
+	$rv .= "Type: $ct, Size: $size bytes --]</a>\n";
+	$rv .= submsg_hdr($ctx, $part) if $part->{is_submsg};
+	$rv;
 }
 
 sub add_text_body { # callback for each_part
@@ -568,10 +561,9 @@ sub add_text_body { # callback for each_part
 	my ($part, $depth, $idx) = @$p;
 	my $ct = $part->content_type || 'text/plain';
 	my $fn = $part->filename;
-	my ($s, $err) = msg_part_text($part, $ct);
-	return attach_link($ctx, $ct, $p, $fn) unless defined $s;
-
 	my $rv = $ctx->{obuf};
+	my ($s, $err) = msg_part_text($part, $ct);
+	$s // return $$rv .= (attach_link($ctx, $ct, $p, $fn) // '');
 	if ($part->{is_submsg}) {
 		$$rv .= submsg_hdr($ctx, $part);
 		$$rv .= "\n";
@@ -623,7 +615,7 @@ sub add_text_body { # callback for each_part
 	undef $s; # free memory
 	if (defined($fn) || ($depth > 0 && !$part->{is_submsg}) || $err) {
 		# badly-encoded message with $err? tell the world about it!
-		attach_link($ctx, $ct, $p, $fn, $err);
+		$$rv .= attach_link($ctx, $ct, $p, $fn, $err);
 		$$rv .= "\n";
 	}
 	delete $part->{bdy}; # save memory
