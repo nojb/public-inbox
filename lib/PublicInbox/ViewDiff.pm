@@ -51,13 +51,10 @@ sub diff_hunk ($$$) {
 	my ($oid_a, $oid_b, $spfx) = @$dctx{qw(oid_a oid_b spfx)};
 
 	if (defined($spfx) && defined($oid_a) && defined($oid_b)) {
-		my ($n) = ($ca =~ /^-([0-9]+)/);
-		$n = defined($n) ? "#n$n" : '';
-
+		my $n = ($ca =~ /^-([0-9]+)/) ? "#n$1" : '';
 		my $x = qq(@@ <a\nhref="$spfx$oid_a/s/$dctx->{Q}$n">$ca</a>);
 
-		($n) = ($cb =~ /^\+([0-9]+)/);
-		$n = defined($n) ? "#n$n" : '';
+		$n = ($cb =~ /^\+([0-9]+)/) ? "#n$1" : '';
 		$x .= qq( <a\nhref="$spfx$oid_b/s/$dctx->{Q}$n">$cb</a> @@);
 	} else {
 		"@@ $ca $cb @@";
