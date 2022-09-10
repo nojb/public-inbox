@@ -100,19 +100,12 @@ sub translate ($$) {
 	# allocate the zlib context lazily here, instead of in ->new.
 	# Deflate contexts are memory-intensive and this object may
 	# be sitting in the Qspawn limiter queue for a while.
-	my $gz = $self->{gz} //= gzip_or_die();
-	my $zbuf = delete($self->{zbuf});
+	$self->{gz} //= gzip_or_die();
 	if (defined $_[1]) { # my $buf = $_[1];
-		my $err = $gz->deflate($_[1], $zbuf);
-		die "gzip->deflate: $err" if $err != Z_OK;
-		return $zbuf if length($zbuf) >= 8192;
-
-		$self->{zbuf} = $zbuf;
-		'';
+		zmore($self, $_[1]);
+		length($self->{zbuf}) >= 8192 ? delete($self->{zbuf}) : '';
 	} else { # undef == EOF
-		my $err = $gz->flush($zbuf);
-		die "gzip->flush: $err" if $err != Z_OK;
-		$zbuf;
+		zflush($self);
 	}
 }
 
