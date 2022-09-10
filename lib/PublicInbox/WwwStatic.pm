@@ -275,12 +275,11 @@ sub dir_response ($$$) {
 	my $path_info = $env->{PATH_INFO};
 	push @entries, '..' if $path_info ne '/';
 	for my $base (@entries) {
+		my @st = stat($fs_path . $base) or next; # unlikely
 		my $href = ascii_html(uri_escape_utf8($base));
 		my $name = ascii_html($base);
-		my @st = stat($fs_path . $base) or next; # unlikely
-		my ($gzipped, $uncompressed, $hsize);
-		my $entry = '';
 		my $mtime = $st[9];
+		my ($entry, $hsize);
 		if (-d _) {
 			$href .= '/';
 			$name .= '/';
@@ -296,12 +295,12 @@ sub dir_response ($$$) {
 			next;
 		}
 		# 54 = 80 - (SP length(strftime(%Y-%m-%d %k:%M)) SP human_size)
-		$hsize = sprintf('% 8s', $hsize);
 		my $pad = 54 - length($name);
 		$pad = 1 if $pad <= 0;
-		$entry .= qq(<a\nhref="$href">$name</a>) . (' ' x $pad);
-		$mtime = strftime('%Y-%m-%d %k:%M', gmtime($mtime));
-		$entry .= $mtime . $hsize;
+		$entry = qq(\n<a\nhref="$href">$name</a>) .
+				(' ' x $pad) .
+				strftime('%Y-%m-%d %k:%M', gmtime($mtime)) .
+				sprintf('% 8s', $hsize);
 	}
 
 	# filter out '.gz' files as long as the mtime matches the
@@ -309,17 +308,16 @@ sub dir_response ($$$) {
 	delete(@other{keys %want_gz});
 	@entries = ((map { ${$dirs{$_}} } sort keys %dirs),
 			(map { ${$other{$_}} } sort keys %other));
-
 	my $path_info_html = ascii_html($path_info);
-	my $h = [qw(Content-Type text/html Content-Length), undef];
-	my $gzf = gzf_maybe($h, $env);
-	$gzf->zmore("<html><head><title>Index of $path_info_html</title>" .
-		${$self->{style}} .
-		"</head><body><pre>Index of $path_info_html</pre><hr><pre>\n");
-	$gzf->zmore(join("\n", @entries));
-	my $out = $gzf->zflush("</pre><hr></body></html>\n");
-	$h->[3] = length($out);
-	[ 200, $h, [ $out ] ]
+	my @h = qw(Content-Type text/html);
+	my $gzf = gzf_maybe(\@h, $env);
+	print { $gzf->zfh } '<html><head><title>Index of ', $path_info_html,
+		'</title>', ${$self->{style}}, '</head><body><pre>Index of ',
+		$path_info_html, '</pre><hr><pre>', @entries,
+		'</pre><hr></body></html>';
+	my $out = $gzf->zflush;
+	push @h, 'Content-Length', length($out);
+	[ 200, \@h, [ $out ] ]
 }
 
 sub call { # PSGI app endpoint
