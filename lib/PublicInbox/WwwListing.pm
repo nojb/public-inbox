@@ -223,13 +223,12 @@ sub psgi_triple {
 			@$list = map { $_->[1] }
 				sort { $b->[0] <=> $a->[0] } @$list;
 		}
-		$gzf->zmore('<pre>');
-		$gzf->zmore(join("\n", @$list));
+		$gzf->zmore('<pre>', join("\n", @$list)); # big
 		$gzf->zmore(mset_footer($ctx, $mset)) if $mset;
 	} elsif (my $mset = delete $ctx->{-mset}) {
-		$gzf->zmore(mset_nav_top($ctx, $mset));
-		$gzf->zmore('<pre>no matching inboxes');
-		$gzf->zmore(mset_footer($ctx, $mset));
+		$gzf->zmore(mset_nav_top($ctx, $mset) .
+				'<pre>no matching inboxes' .
+				mset_footer($ctx, $mset));
 	} else {
 		$gzf->zmore('<pre>no inboxes, yet');
 	}
