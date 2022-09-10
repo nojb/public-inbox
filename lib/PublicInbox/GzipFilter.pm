@@ -94,15 +94,15 @@ sub gone { # what: search/over/mm
 
 # for GetlineBody (via Qspawn) when NOT using $env->{'pi-httpd.async'}
 # Also used for ->getline callbacks
-sub translate ($$) {
-	my $self = $_[0]; # $_[1] => input
+sub translate {
+	my $self = shift; # $_[1] => input
 
 	# allocate the zlib context lazily here, instead of in ->new.
 	# Deflate contexts are memory-intensive and this object may
 	# be sitting in the Qspawn limiter queue for a while.
 	$self->{gz} //= gzip_or_die();
-	if (defined $_[1]) { # my $buf = $_[1];
-		zmore($self, $_[1]);
+	if (defined $_[0]) { # my $buf = $_[1];
+		zmore($self, @_);
 		length($self->{zbuf}) >= 8192 ? delete($self->{zbuf}) : '';
 	} else { # undef == EOF
 		zflush($self);
