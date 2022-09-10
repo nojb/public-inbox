@@ -19,12 +19,10 @@ sub getline {
 	my $smsg = $ctx->{smsg} or return;
 	my $ibx = $ctx->{ibx};
 	my $eml = delete($ctx->{eml}) // $ibx->smsg_eml($smsg) // return;
-	my $n = $ctx->{smsg} = $ibx->over->next_by_mid(@{$ctx->{next_arg}});
-	$ctx->zmore(msg_hdr($ctx, $eml));
-	if ($n) {
-		$ctx->translate(msg_body($eml));
+	if (($ctx->{smsg} = $ibx->over->next_by_mid(@{$ctx->{next_arg}}))) {
+		$ctx->translate(msg_hdr($ctx, $eml), msg_body($eml));
 	} else { # last message
-		$ctx->zflush(msg_body($eml));
+		$ctx->zflush(msg_hdr($ctx, $eml), msg_body($eml));
 	}
 }
 
@@ -45,8 +43,7 @@ sub async_eml { # for async_blob_cb
 	# next message
 	$ctx->{smsg} = $ctx->{ibx}->over->next_by_mid(@{$ctx->{next_arg}});
 	local $ctx->{eml} = $eml; # for mbox_hdr
-	$ctx->zmore(msg_hdr($ctx, $eml));
-	$ctx->write(msg_body($eml));
+	$ctx->write(msg_hdr($ctx, $eml), msg_body($eml));
 }
 
 sub mbox_hdr ($) {

@@ -37,8 +37,7 @@ sub getline {
 	my $cb = $self->{cb} or return;
 	while (my $smsg = $cb->($self)) {
 		my $eml = $self->{ibx}->smsg_eml($smsg) or next;
-		$self->zmore(msg_hdr($self, $eml));
-		return $self->translate(msg_body($eml));
+		return $self->translate(msg_hdr($self, $eml), msg_body($eml));
 	}
 	# signal that we're done and can return undef next call:
 	delete $self->{cb};
