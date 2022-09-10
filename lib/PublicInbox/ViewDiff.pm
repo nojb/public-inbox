@@ -124,12 +124,8 @@ sub diff_header ($$$) {
 		$dctx->{Q} = '?b='.uri_escape_path($pb);
 	} else {
 		my @q;
-		if ($pb ne '/dev/null') {
-			push @q, 'b='.uri_escape_path($pb);
-		}
-		if ($pa ne '/dev/null') {
-			push @q, 'a='.uri_escape_path($pa);
-		}
+		push @q, 'b='.uri_escape_path($pb) if $pb ne '/dev/null';
+		push @q, 'a='.uri_escape_path($pa) if $pa ne '/dev/null';
 		$dctx->{Q} = '?'.join('&amp;', @q);
 	}
 
