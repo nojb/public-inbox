@@ -46,21 +46,21 @@ sub uri_escape_path {
 }
 
 # link to line numbers in blobs
-sub diff_hunk ($$$$) {
-	my ($dst, $dctx, $ca, $cb) = @_;
+sub diff_hunk ($$$) {
+	my ($dctx, $ca, $cb) = @_;
 	my ($oid_a, $oid_b, $spfx) = @$dctx{qw(oid_a oid_b spfx)};
 
 	if (defined($spfx) && defined($oid_a) && defined($oid_b)) {
 		my ($n) = ($ca =~ /^-([0-9]+)/);
 		$n = defined($n) ? "#n$n" : '';
 
-		$$dst .= qq(@@ <a\nhref="$spfx$oid_a/s/$dctx->{Q}$n">$ca</a>);
+		my $x = qq(@@ <a\nhref="$spfx$oid_a/s/$dctx->{Q}$n">$ca</a>);
 
 		($n) = ($cb =~ /^\+([0-9]+)/);
 		$n = defined($n) ? "#n$n" : '';
-		$$dst .= qq( <a\nhref="$spfx$oid_b/s/$dctx->{Q}$n">$cb</a> @@);
+		$x .= qq( <a\nhref="$spfx$oid_b/s/$dctx->{Q}$n">$cb</a> @@);
 	} else {
-		$$dst .= "@@ $ca $cb @@";
+		"@@ $ca $cb @@";
 	}
 }
 
@@ -229,7 +229,7 @@ sub flush_diff ($$) {
 					$after .= $s;
 				} elsif ($s =~ s/\A@@ (\S+) (\S+) @@//) {
 					$$dst .= qq(<span\nclass="hunk">);
-					diff_hunk($dst, $dctx, $1, $2);
+					$$dst .= diff_hunk($dctx, $1, $2);
 					$$dst .= $linkify->to_html($s);
 					$$dst .= '</span>';
 				} elsif ($s =~ /\A\+/) {
