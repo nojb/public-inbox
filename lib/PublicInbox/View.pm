@@ -302,8 +302,7 @@ sub _th_index_lite {
 	my $rv = '';
 	my $mapping = $ctx->{mapping} or return $rv;
 	my $pad = '  ';
-	my $mid_map = $mapping->{$mid_raw};
-	defined $mid_map or
+	my $mid_map = $mapping->{$mid_raw} //
 		return 'public-inbox BUG: '.ascii_html($mid_raw).' not mapped';
 	my ($attr, $node, $idx, $level) = @$mid_map;
 	my $children = $node->{children};
