@@ -31,16 +31,17 @@ sub get_text {
 	my $have_tslash = ($key =~ s!/\z!!) if !$raw;
 
 	my $txt = '';
-	my $hdr = [ 'Content-Type', 'text/plain', 'Content-Length', undef ];
-	if (!_default_text($ctx, $key, $hdr, \$txt)) {
+	if (!_default_text($ctx, $key, \$txt)) {
 		$code = 404;
 		$txt = "404 Not Found ($key)\n";
 	}
 	my $env = $ctx->{env};
 	if ($raw) {
-		$txt = gzf_maybe($hdr, $env)->zflush($txt) if $code == 200;
-		$hdr->[3] = length($txt);
-		return [ $code, $hdr, [ $txt ] ]
+		my $h = delete $ctx->{-res_hdr};
+		$txt = gzf_maybe($h, $env)->zflush($txt) if $code == 200;
+		push @$h, 'Content-Type', 'text/plain',
+			'Content-Length', length($txt);
+		return [ $code, $h, [ $txt ] ]
 	}
 
 	# enforce trailing slash for "wget -r" compatibility
@@ -167,12 +168,13 @@ EOF
 }
 
 # n.b. this is a perfect candidate for memoization
-sub inbox_config ($$$) {
-	my ($ctx, $hdr, $txt) = @_;
+sub inbox_config ($$) {
+	my ($ctx, $txt) = @_;
 	my $ibx = $ctx->{ibx};
-	push @$hdr, 'Content-Disposition', 'inline; filename=inbox.config';
+	push @{$ctx->{-res_hdr}},
+		'Content-Disposition', 'inline; filename=inbox.config';
 	my $t = eval { $ibx->mm->created_at };
-	push(@$hdr, 'Last-Modified', time2str($t)) if $t;
+	push(@{$ctx->{-res_hdr}}, 'Last-Modified', time2str($t)) if $t;
 	my $name = dq_escape($ibx->{name});
 	my $inboxdir = '/path/to/top-level-inbox';
 	my $base_url = $ibx->base_url($ctx->{env});
@@ -219,10 +221,11 @@ EOF
 }
 
 # n.b. this is a perfect candidate for memoization
-sub extindex_config ($$$) {
-	my ($ctx, $hdr, $txt) = @_;
+sub extindex_config ($$) {
+	my ($ctx, $txt) = @_;
 	my $ibx = $ctx->{ibx};
-	push @$hdr, 'Content-Disposition', 'inline; filename=extindex.config';
+	push @{$ctx->{-res_hdr}},
+		'Content-Disposition', 'inline; filename=extindex.config';
 	my $name = dq_escape($ibx->{name});
 	my $base_url = $ibx->base_url($ctx->{env});
 	$$txt .= <<EOS;
@@ -397,16 +400,16 @@ EOF
 	1;
 }
 
-sub _default_text ($$$$) {
-	my ($ctx, $key, $hdr, $txt) = @_;
+sub _default_text ($$$) {
+	my ($ctx, $key, $txt) = @_;
 	if ($key eq 'mirror') {
 		return _mirror_help($ctx, $txt);
 	} elsif ($key eq 'color') {
 		return _colors_help($ctx, $txt);
 	} elsif ($key eq 'config') {
 		return $ctx->{ibx}->can('cloneurl') ?
-			inbox_config($ctx, $hdr, $txt) :
-			extindex_config($ctx, $hdr, $txt);
+			inbox_config($ctx, $txt) :
+			extindex_config($ctx, $txt);
 	}
 	return if $key ne 'help'; # TODO more keys?
 
