@@ -819,23 +819,23 @@ EOF
 
 		if (my $n = $ctx->{next_msg}) {
 			$n = mid_href($n);
-			$next = "<a\nhref=\"$upfx$n/\"\nrel=next>next</a>";
+			$next = qq(<a\nhref="$upfx$n/"\nrel=next>next</a>);
 		}
 		my $par = $ctx->{parent_msg};
 		my $u = $par ? $upfx.mid_href($par).'/' : undef;
 		if (my $p = $ctx->{prev_msg}) {
 			$prev = mid_href($p);
 			if ($p && $par && $p eq $par) {
-				$prev = "<a\nhref=\"$upfx$prev/\"\n" .
+				$prev = qq(<a\nhref="$upfx$prev/"\n) .
 					'rel=prev>prev parent</a>';
 				$parent = '';
 			} else {
-				$prev = "<a\nhref=\"$upfx$prev/\"\n" .
+				$prev = qq(<a\nhref="$upfx$prev/"\n) .
 					'rel=prev>prev</a>';
-				$parent = " <a\nhref=\"$u\">parent</a>" if $u;
+				$parent = qq( <a\nhref="$u">parent</a>) if $u;
 			}
 		} elsif ($u) { # unlikely
-			$parent = " <a\nhref=\"$u\"\nrel=prev>parent</a>";
+			$parent = qq( <a\nhref="$u"\nrel=prev>parent</a>);
 		}
 		$foot .= "$next $prev$parent ";
 	} else { # unindexed inboxes w/o over
