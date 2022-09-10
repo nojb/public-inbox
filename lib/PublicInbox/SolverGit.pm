@@ -554,8 +554,9 @@ sub extract_diffs_done {
 	my $diffs = delete $self->{tmp_diffs};
 	if (scalar @$diffs) {
 		unshift @{$self->{patches}}, @$diffs;
-		dbg($self, "found $want->{oid_b} in " .  join(" ||\n\t",
-			map { di_url($self, $_) } @$diffs));
+		my %seen; # List::Util::uniq requires Perl 5.26+ :<
+		my @u = grep { !$seen{$_}++ } map { di_url($self, $_) } @$diffs;
+		dbg($self, "found $want->{oid_b} in " .  join(" ||\n\t", @u));
 		++$self->{nr_p};
 
 		# good, we can find a path to the oid we $want, now
