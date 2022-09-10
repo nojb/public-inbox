@@ -811,7 +811,6 @@ ${fallback}other threads:[<a
 href="$upfx?t=$t">~$t_fmt UTC</a>|<a
 href="$upfx">newest</a>]
 EOF
-
 		thread_skel(\$skel, $ctx, $hdr);
 		my ($next, $prev);
 		my $parent = '       ';
@@ -821,12 +820,8 @@ EOF
 			$n = mid_href($n);
 			$next = "<a\nhref=\"$upfx$n/\"\nrel=next>next</a>";
 		}
-		my $u;
 		my $par = $ctx->{parent_msg};
-		if ($par) {
-			$u = mid_href($par);
-			$u = "$upfx$u/";
-		}
+		my $u = $par ? $upfx.mid_href($par).'/' : undef;
 		if (my $p = $ctx->{prev_msg}) {
 			$prev = mid_href($p);
 			if ($p && $par && $p eq $par) {
