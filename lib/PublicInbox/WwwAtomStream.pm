@@ -146,7 +146,7 @@ sub feed_entry {
 	my $name = ascii_html(join(', ', PublicInbox::Address::names($from)));
 	$email = ascii_html($email // $ctx->{ibx}->{-primary_address});
 
-	$ctx->zmore(
+	$ctx->zadd(
 		(delete($ctx->{emit_header}) ? atom_header($ctx, $title) : '').
 		"<entry><author><name>$name</name><email>$email</email>" .
 		"</author>$title$updated" .

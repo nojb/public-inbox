@@ -182,7 +182,7 @@ sub html_oneshot ($$;@) {
 	bless $ctx, __PACKAGE__;
 	$ctx->{gz} = PublicInbox::GzipFilter::gz_or_noop($res_hdr, $ctx->{env});
 	$ctx->{base_url} // do {
-		$ctx->zmore(html_top($ctx));
+		$ctx->zadd(html_top($ctx));
 		$ctx->{base_url} = base_url($ctx);
 	};
 	my $bdy = $ctx->zflush(@_[2..$#_], _html_end($ctx));
@@ -216,7 +216,7 @@ sub html_init {
 	my $h = $ctx->{-res_hdr} = ['Content-Type', 'text/html; charset=UTF-8'];
 	$ctx->{gz} = PublicInbox::GzipFilter::gz_or_noop($h, $ctx->{env});
 	bless $ctx, __PACKAGE__;
-	$ctx->zmore(html_top($ctx));
+	$ctx->zadd(html_top($ctx));
 }
 
 1;

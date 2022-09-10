@@ -127,15 +127,21 @@ sub write {
 	http_out($_[0])->write(translate($_[0], $_[1]));
 }
 
+sub zadd {
+	my $self = shift;
+	$self->{pbuf} .= $_ for @_; # perl internal pad memory use here
+}
+
 # similar to ->translate; use this when we're sure we know we have
 # more data to buffer after this
 sub zmore {
 	my $self = shift; # $_[1] => input
 	http_out($self);
-	my $err;
+	my $x;
+	defined($x = delete($self->{pbuf})) and unshift(@_, $x);
 	for (@_) {
-		$err = $self->{gz}->deflate($_, $self->{zbuf});
-		die "gzip->deflate: $err" if $err != Z_OK;
+		($x = $self->{gz}->deflate($_, $self->{zbuf})) == Z_OK or
+			die "gzip->deflate: $x";
 	}
 	undef;
 }
@@ -145,14 +151,14 @@ sub zflush ($;@) {
 	my $self = shift; # $_[1..Inf] => final input (optional)
 	my $zbuf = delete $self->{zbuf};
 	my $gz = delete $self->{gz};
-	my $err;
+	my $x;
+	defined($x = delete($self->{pbuf})) and unshift(@_, $x);
 	for (@_) { # it's a bug iff $gz is undef if @_ isn't empty, here:
-		$err = $gz->deflate($_, $zbuf);
-		die "gzip->deflate: $err" if $err != Z_OK;
+		($x = $gz->deflate($_, $zbuf)) == Z_OK or
+			die "gzip->deflate: $x";
 	}
 	$gz // return ''; # not a bug, recursing on DS->write failure
-	$err = $gz->flush($zbuf);
-	die "gzip->flush: $err" if $err != Z_OK;
+	($x = $gz->flush($zbuf)) == Z_OK or die "gzip->flush: $x";
 	$zbuf;
 }
 

@@ -20,7 +20,7 @@ sub getline {
 	my $ibx = $ctx->{ibx};
 	my $eml = delete($ctx->{eml}) // $ibx->smsg_eml($smsg) // return;
 	my $n = $ctx->{smsg} = $ibx->over->next_by_mid(@{$ctx->{next_arg}});
-	$ctx->zmore(msg_hdr($ctx, $eml));
+	$ctx->zadd(msg_hdr($ctx, $eml));
 	if ($n) {
 		$ctx->translate(msg_body($eml));
 	} else { # last message

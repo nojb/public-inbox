@@ -40,10 +40,10 @@ sub msg_page_i {
 				"../${\mid_href($smsg->{mid})}/" : '';
 		if (_msg_page_prepare($eml, $ctx)) {
 			$eml->each_part(\&add_text_body, $ctx, 1);
-			$ctx->zmore('</pre><hr>');
+			$ctx->zadd('</pre><hr>');
 		}
 		html_footer($ctx, $ctx->{first_hdr}) if !$ctx->{smsg};
-		\''; # XXX TODO cleanup
+		''; # XXX TODO cleanup
 	} else { # called by WwwStream::async_next or getline
 		$ctx->{smsg}; # may be undef
 	}
@@ -58,7 +58,7 @@ sub no_over_html ($) {
 	PublicInbox::WwwStream::init($ctx);
 	if (_msg_page_prepare($eml, $ctx)) { # sets {-title_html}
 		$eml->each_part(\&add_text_body, $ctx, 1);
-		$ctx->zmore('</pre><hr>');
+		$ctx->zadd('</pre><hr>');
 	}
 	html_footer($ctx, $eml);
 	$ctx->html_done;
@@ -245,7 +245,7 @@ sub eml_entry {
 	# scan through all parts, looking for displayable text
 	$ctx->{mhref} = $mhref;
 	$ctx->{changed_href} = "#e$id"; # for diffstat "files? changed,"
-	$ctx->zmore($rv); # XXX $rv is small, reuse below
+	$ctx->zadd($rv); # XXX $rv is small, reuse below
 	$eml->each_part(\&add_text_body, $ctx, 1); # expensive
 
 	# add the footer
@@ -386,7 +386,7 @@ sub pre_thread  { # walk_thread callback
 sub thread_eml_entry {
 	my ($ctx, $eml) = @_;
 	my ($beg, $end) = thread_adj_level($ctx, $ctx->{level});
-	$ctx->zmore($beg.'<pre>');
+	$ctx->zadd($beg.'<pre>');
 	eml_entry($ctx, $eml) . '</pre>' . $end;
 }
 
@@ -414,15 +414,15 @@ sub stream_thread_i { # PublicInbox::WwwStream::getline callback
 				if (!$ghost_ok) { # first non-ghost
 					$ctx->{-title_html} =
 						ascii_html($smsg->{subject});
-					$ctx->zmore($ctx->html_top);
+					$ctx->zadd($ctx->html_top);
 				}
 				return $smsg;
 			}
 			# buffer the ghost entry and loop
-			$ctx->zmore(ghost_index_entry($ctx, $lvl, $smsg));
+			$ctx->zadd(ghost_index_entry($ctx, $lvl, $smsg));
 		} else { # all done
-			$ctx->zmore(join('', thread_adj_level($ctx, 0)));
-			$ctx->zmore(${delete($ctx->{skel})});
+			$ctx->zadd(join('', thread_adj_level($ctx, 0)));
+			$ctx->zadd(${delete($ctx->{skel})});
 			return;
 		}
 	}
@@ -491,7 +491,7 @@ sub thread_html_i { # PublicInbox::WwwStream::getline callback
 		my $smsg = $ctx->{smsg};
 		if (exists $ctx->{-html_tip}) {
 			$ctx->{-title_html} = ascii_html($smsg->{subject});
-			$ctx->zmore($ctx->html_top);
+			$ctx->zadd($ctx->html_top);
 		}
 		return eml_entry($ctx, $eml);
 	} else {
@@ -499,7 +499,7 @@ sub thread_html_i { # PublicInbox::WwwStream::getline callback
 			return $smsg if exists($smsg->{blob});
 		}
 		my $skel = delete($ctx->{skel}) or return; # all done
-		$ctx->zmore($$skel);
+		$ctx->zadd($$skel);
 		undef;
 	}
 }
@@ -560,7 +560,7 @@ sub add_text_body { # callback for each_part
 	my $ct = $part->content_type || 'text/plain';
 	my $fn = $part->filename;
 	my ($s, $err) = msg_part_text($part, $ct);
-	$s // return $ctx->zmore(attach_link($ctx, $ct, $p, $fn) // '');
+	$s // return $ctx->zadd(attach_link($ctx, $ct, $p, $fn) // '');
 	my $buf = $part->{is_submsg} ? submsg_hdr($ctx, $part)."\n" : '';
 
 	# makes no difference to browsers, and don't screw up filename
@@ -612,18 +612,18 @@ sub add_text_body { # callback for each_part
 		$buf .= attach_link($ctx, $ct, $p, $fn, $err) . "\n";
 	}
 	delete $part->{bdy}; # save memory
-	$ctx->zmore($buf);
+	$ctx->zadd($buf);
 	undef $buf;
 	for my $cur (@sections) { # $cur may be huge
 		if ($cur =~ /\A>/) {
 			# we use a <span> here to allow users to specify
 			# their own color for quoted text
-			$ctx->zmore(qq(<span\nclass="q">),
+			$ctx->zadd(qq(<span\nclass="q">),
 					$l->to_html($cur), '</span>');
 		} elsif ($diff) {
 			flush_diff($ctx, \$cur);
 		} else { # regular lines, OK
-			$ctx->zmore($l->to_html($cur));
+			$ctx->zadd($l->to_html($cur));
 		}
 		undef $cur; # free memory
 	}
@@ -685,10 +685,10 @@ sub _msg_page_prepare {
 		$hbuf .= qq[Message-ID: &lt;$x&gt; (<a href="raw">raw</a>)\n];
 	}
 	if (!$nr) { # first (and only) message, common case
-		$ctx->zmore($ctx->html_top, $hbuf);
+		$ctx->zadd($ctx->html_top, $hbuf);
 	} else {
 		delete $ctx->{-title_html};
-		$ctx->zmore($ctx->{-html_tip}, $hbuf);
+		$ctx->zadd($ctx->{-html_tip}, $hbuf);
 	}
 	$ctx->{-linkify} //= PublicInbox::Linkify->new;
 	$hbuf = '';
@@ -699,7 +699,7 @@ sub _msg_page_prepare {
 			$hbuf .= "$h: $_\n" for ($eml->header_raw($h));
 		}
 		$ctx->{-linkify}->linkify_mids('..', \$hbuf, 1); # escapes HTML
-		$ctx->zmore($hbuf);
+		$ctx->zadd($hbuf);
 		$hbuf = '';
 	}
 	my @irt = $eml->header_raw('In-Reply-To');
@@ -717,7 +717,7 @@ sub _msg_page_prepare {
 		$hbuf .= 'References: <'.join(">\n\t<", @$refs).">\n" if @$refs;
 	}
 	$ctx->{-linkify}->linkify_mids('..', \$hbuf); # escapes HTML
-	$ctx->zmore($hbuf .= "\n");
+	$ctx->zadd($hbuf .= "\n");
 	1;
 }
 
@@ -837,7 +837,7 @@ EOF
 	$foot .= qq(<a\nhref="#R">reply</a>);
 	# $skel may be big for big threads, don't append it to $foot
 	$skel .= '</pre>' . ($related // '');
-	$ctx->zmore($foot, $skel .= msg_reply($ctx, $hdr));
+	$ctx->zadd($foot, $skel .= msg_reply($ctx, $hdr));
 }
 
 sub ghost_parent {

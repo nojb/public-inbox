@@ -156,7 +156,7 @@ sub diff_header ($$$) {
 		warn "BUG? <$$x> had no ^index line";
 	}
 	$$x =~ s!^diff --git!anchor1($ctx, $pb) // 'diff --git'!ems;
-	$ctx->zmore(qq(<span\nclass="head">$$x</span>));
+	$ctx->zadd(qq(<span\nclass="head">$$x</span>));
 	$dctx;
 }
 
@@ -180,9 +180,9 @@ sub diff_before_or_after ($$) {
 		$$x .= qq(<a href="$ch">changed</a>,);
 		$$x .= ascii_html(pop @x); # $4: insertions/deletions
 		# notes, commit message, etc
-		$ctx->zmore($$x .= $lnk->to_html(pop @x));
+		$ctx->zadd($$x .= $lnk->to_html(pop @x));
 	} else {
-		$ctx->zmore($ctx->{-linkify}->to_html($$x));
+		$ctx->zadd($ctx->{-linkify}->to_html($$x));
 	}
 }
 
@@ -220,23 +220,23 @@ sub flush_diff ($$) {
 				if (!defined($dctx)) {
 					$after .= $s;
 				} elsif ($s =~ s/\A@@ (\S+) (\S+) @@//) {
-					$ctx->zmore(qq(<span\nclass="hunk">) .
+					$ctx->zadd(qq(<span\nclass="hunk">) .
 						diff_hunk($dctx, $1, $2) .
 						$lnk->to_html($s) .
 						'</span>');
 				} elsif ($s =~ /\A\+/) { # $s may be huge
-					$ctx->zmore(qq(<span\nclass="add">),
+					$ctx->zadd(qq(<span\nclass="add">),
 							$lnk->to_html($s),
 							'</span>');
 				} elsif ($s =~ /\A-- $/sm) { # email sig starts
 					$dctx = undef;
 					$after .= $s;
 				} elsif ($s =~ /\A-/) { # $s may be huge
-					$ctx->zmore(qq(<span\nclass="del">),
+					$ctx->zadd(qq(<span\nclass="del">),
 						$lnk->to_html($s),
 						'</span>');
 				} else { # $s may be huge
-					$ctx->zmore($lnk->to_html($s));
+					$ctx->zadd($lnk->to_html($s));
 				}
 			}
 			diff_before_or_after($ctx, \$after) if !$dctx;
