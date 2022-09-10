@@ -560,7 +560,7 @@ sub add_text_body { # callback for each_part
 	my ($part, $depth, $idx) = @$p;
 	my $ct = $part->content_type || 'text/plain';
 	my $fn = $part->filename;
-	my $rv = $ctx->{obuf};
+	my $rv = $ctx->{obuf} //= \(my $obuf = '');
 	my ($s, $err) = msg_part_text($part, $ct);
 	$s // return $$rv .= (attach_link($ctx, $ct, $p, $fn) // '');
 	if ($part->{is_submsg}) {
@@ -618,18 +618,16 @@ sub add_text_body { # callback for each_part
 		$$rv .= "\n";
 	}
 	delete $part->{bdy}; # save memory
-	foreach my $cur (@sections) {
+	for my $cur (@sections) { # $cur may be huge
 		if ($cur =~ /\A>/) {
 			# we use a <span> here to allow users to specify
 			# their own color for quoted text
-			$$rv .= qq(<span\nclass="q">);
-			$$rv .= $l->to_html($cur);
-			$$rv .= '</span>';
+			$ctx->zmore(qq(<span\nclass="q">),
+					$l->to_html($cur), '</span>');
 		} elsif ($diff) {
 			flush_diff($ctx, \$cur);
-		} else {
-			# regular lines, OK
-			$$rv .= $l->to_html($cur);
+		} else { # regular lines, OK
+			$ctx->zmore($l->to_html($cur));
 		}
 		undef $cur; # free memory
 	}
