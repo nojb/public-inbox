@@ -169,17 +169,15 @@ sub mset_nav_top {
 	my ($ctx, $mset) = @_;
 	my $q = $ctx->{-sq};
 	my $qh = $q->{'q'} // '';
-	utf8::decode($qh);
-	$qh = ascii_html($qh);
-	$qh = qq[\nvalue="$qh"] if $qh ne '';
-	my $rv = <<EOM;
-<form
-action="./"><pre><input name=q type=text$qh
-/><input type=submit value="locate inbox"
-/><input type=submit name=a value="search all inboxes"
-/></pre></form><pre>
+	if ($qh ne '') {
+		utf8::decode($qh);
+		$qh = qq[\nvalue="].ascii_html($qh).'"';
+	}
+	chop(my $rv = <<EOM);
+<form action="./"><pre><input name=q type=text$qh/><input
+type=submit value="locate inbox"/><input type=submit name=a
+value="search all inboxes"/></pre></form><pre>
 EOM
-	chomp $rv;
 	if (defined($q->{'q'})) {
 		my $initial_q = $ctx->{-uxs_retried};
 		if (defined $initial_q) {
