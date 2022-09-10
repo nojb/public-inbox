@@ -189,7 +189,8 @@ href="$f.patch">patch</a>)\n   <a href=#parent>parent</a> $P->[0]};
 		$x = ' (<a href=#root_commit>root commit</a>)';
 	}
 	PublicInbox::WwwStream::html_init($ctx);
-	$ctx->zmore(<<EOM);
+	my $zfh = $ctx->zfh;
+	print $zfh <<EOM;
 <pre>   <a href=#commit>commit</a> $H$x
      <a href=#tree>tree</a> <a href="$upfx$T/s/">$T</a>
    author $au
@@ -197,16 +198,14 @@ committer $co
 
 <b>$s</b>
 EOM
-	$ctx->zmore("\n", $ctx->{-linkify}->to_html($bdy)) if length($bdy);
+	print $zfh "\n", $ctx->{-linkify}->to_html($bdy) if length($bdy);
 	$bdy = '';
 	open my $fh, '<:utf8', "$ctx->{-tmp}/p" or
 		die "open $ctx->{-tmp}/p: $!";
 	if (-s $fh > $MAX_SIZE) {
-		$ctx->zmore("---\n patch is too large to show\n");
+		print $zfh "---\n patch is too large to show\n";
 	} else { # prepare flush_diff:
 		read($fh, $x, -s _);
-		$ctx->zmore($bdy);
-		undef $bdy;
 		$ctx->{-apfx} = $ctx->{-spfx} = $upfx;
 		$x =~ s/\r?\n/\n/gs;
 		$ctx->{-anchors} = {} if $x =~ /^diff --git /sm;
@@ -228,7 +227,7 @@ EOM
 			$q = wrap('', '', $q);
 			my $rows = ($q =~ tr/\n/\n/) + 1;
 			$q = ascii_html($q);
-			$ctx->zmore(<<EOM);
+			print $zfh <<EOM;
 <hr><form action=$upfx
 id=related><pre>find related emails, including ancestors/descendants/conflicts
 <textarea name=q cols=${\PublicInbox::View::COLS} rows=$rows>$q</textarea>
