@@ -19,14 +19,14 @@ sub generate {
 	my ($ctx) = @_;
 	my $msgs = $ctx->{msgs} = recent_msgs($ctx);
 	return _no_thread() unless @$msgs;
-	PublicInbox::WwwAtomStream->response($ctx, 200, \&generate_i);
+	PublicInbox::WwwAtomStream->response($ctx, \&generate_i);
 }
 
 sub generate_thread_atom {
 	my ($ctx) = @_;
 	my $msgs = $ctx->{msgs} = $ctx->{ibx}->over->get_thread($ctx->{mid});
 	return _no_thread() unless @$msgs;
-	PublicInbox::WwwAtomStream->response($ctx, 200, \&generate_i);
+	PublicInbox::WwwAtomStream->response($ctx, \&generate_i);
 }
 
 sub generate_html_index {

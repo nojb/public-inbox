@@ -359,7 +359,7 @@ sub adump {
 	my ($cb, $mset, $q, $ctx) = @_;
 	$ctx->{ids} = $ctx->{ibx}->isrch->mset_to_artnums($mset);
 	$ctx->{search_query} = $q; # used by WwwAtomStream::atom_header
-	PublicInbox::WwwAtomStream->response($ctx, 200, \&adump_i);
+	PublicInbox::WwwAtomStream->response($ctx, \&adump_i);
 }
 
 # callback for PublicInbox::WwwAtomStream::getline

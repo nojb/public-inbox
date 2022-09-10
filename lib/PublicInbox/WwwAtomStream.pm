@@ -1,4 +1,4 @@
-# Copyright (C) 2016-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 #
 # Atom body stream for HTTP responses
@@ -43,10 +43,10 @@ sub async_eml { # for async_blob_cb
 }
 
 sub response {
-	my ($class, $ctx, $code, $cb) = @_;
+	my ($class, $ctx, $cb) = @_;
 	my $res_hdr = [ 'Content-Type' => 'application/atom+xml' ];
 	$class->new($ctx, $cb);
-	$ctx->psgi_response($code, $res_hdr);
+	$ctx->psgi_response(200, $res_hdr);
 }
 
 # called once for each message by PSGI server
