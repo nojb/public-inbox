@@ -51,7 +51,8 @@ sub ibx_async_cat ($$$$) {
 	# {topdir} means ExtSearch (likely [extindex "all"]) with potentially
 	# 100K alternates.  git(1) has a proposed patch for 100K alternates:
 	# <https://lore.kernel.org/git/20210624005806.12079-1-e@80x24.org/>
-	if (!defined($ibx->{topdir}) && ($GCF2C //= eval {
+	if (!defined($ibx->{topdir}) && !defined($git->{-tmp}) &&
+		($GCF2C //= eval {
 		require PublicInbox::Gcf2Client;
 		PublicInbox::Gcf2Client::new();
 	} // 0)) { # 0: do not retry if libgit2 or Inline::C are missing
