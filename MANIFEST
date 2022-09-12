@@ -400,6 +400,7 @@ t/content_hash.t
 t/convert-compact.t
 t/data-gen/.gitignore
 t/data/0001.patch
+t/data/attached-mbox-with-utf8.eml
 t/data/binary.patch
 t/data/message_embed.eml
 t/dir_idle.t

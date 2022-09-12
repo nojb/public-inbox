@@ -13,7 +13,7 @@ my ($tmpdir, $for_destroy) = tmpdir();
 my $pfx = 'http://example.com/test';
 my $eml = eml_load('t/iso-2202-jp.eml');
 # ensure successful message deliveries
-my $ibx = create_inbox('test-1', sub {
+my $ibx = create_inbox('u8-2', sub {
 	my ($im, $ibx) = @_;
 	my $addr = $ibx->{-primary_address};
 	$im->add($eml) or xbail '->add';
@@ -38,6 +38,8 @@ EOF
 
 	# multipart with attached patch + filename
 	$im->add(eml_load('t/plack-attached-patch.eml')) or BAIL_OUT '->add';
+
+	$im->add(eml_load('t/data/attached-mbox-with-utf8.eml')) or xbail 'add';
 
 	# multipart collapsed to single quoted-printable text/plain
 	$im->add(eml_load('t/plack-qp.eml')) or BAIL_OUT '->add';
@@ -181,6 +183,9 @@ my $c1 = sub {
 	$res = $cb->(GET($pfx . '/qp@example.com/'));
 	like($res->content, qr/\bhi = bye\b/, "HTML output decoded QP");
 
+	$res = $cb->(GET($pfx . '/attached-mbox-with-utf8@example/'));
+	like($res->content, qr/: Bj&#248;rn /, 'UTF-8 in mbox #1');
+	like($res->content, qr/: j &#379;en/, 'UTF-8 in mbox #2');
 
 	$res = $cb->(GET($pfx . '/blah@example.com/raw'));
 	is(200, $res->code, 'success response received for /*/raw');
@@ -245,7 +250,6 @@ my $c1 = sub {
 			qr!/test/blah\@example\.com/!,
 			'redirect from x40 MIDs works');
 	}
-
 
 	# dumb HTTP clone/fetch support
 	$path = '/test/info/refs';

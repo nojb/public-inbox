@@ -7,8 +7,7 @@
 # (or reconstruct) blobs.
 
 package PublicInbox::ViewDiff;
-use strict;
-use v5.10.1;
+use v5.12;
 use parent qw(Exporter);
 our @EXPORT_OK = qw(flush_diff uri_escape_path);
 use URI::Escape qw(uri_escape_utf8);
@@ -197,7 +196,8 @@ sub flush_diff ($$) {
 				$top[0] =~ $IS_OID) {
 			$dctx = diff_header(\$x, $ctx, \@top);
 		} elsif ($dctx) {
-			open(my $afh, '>>', \(my $after='')) or die "open: $!";
+			open(my $afh, '>>:utf8', \(my $after='')) or
+				die "open: $!";
 
 			# Quiet "Complex regular subexpression recursion limit"
 			# warning.  Perl will truncate matches upon hitting
@@ -213,7 +213,7 @@ sub flush_diff ($$) {
 					(?:(?:^-[^\n]*\n)+)|
 					(?:^@@ [^\n]+\n))/xsm, $x)) {
 				if (!defined($dctx)) {
-					print $afh $s;
+					print $afh $x;
 				} elsif ($s =~ s/\A@@ (\S+) (\S+) @@//) {
 					print $zfh qq(<span\nclass="hunk">),
 						diff_hunk($dctx, $1, $2),
@@ -234,7 +234,10 @@ sub flush_diff ($$) {
 					print $zfh $lnk->to_html($s);
 				}
 			}
-			diff_before_or_after($ctx, \$after) if !$dctx;
+			if (!$dctx) {
+				utf8::decode($after);
+				diff_before_or_after($ctx, \$after);
+			}
 		} else {
 			diff_before_or_after($ctx, \$x);
 		}
