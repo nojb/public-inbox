@@ -4,6 +4,13 @@
 use v5.12;
 use PublicInbox::TestCommon;
 use Socket qw(IPPROTO_TCP SOL_SOCKET);
+my $cert = 'certs/server-cert.pem';
+my $key = 'certs/server-key.pem';
+unless (-r $key && -r $cert) {
+	plan skip_all =>
+		"certs/ missing for $0, run $^X ./create-certs.perl in certs/";
+}
+
 # Net::POP3 is part of the standard library, but distros may split it off...
 require_mods(qw(DBD::SQLite Net::POP3 IO::Socket::SSL));
 require_git('2.6'); # for v2
@@ -44,14 +51,6 @@ my $pop3s_addr = tcp_host_port($pop3s);
 my $stls_addr = tcp_host_port($stls);
 my $plain_addr = tcp_host_port($plain);
 my $env = { PI_CONFIG => $pi_config };
-my $cert = 'certs/server-cert.pem';
-my $key = 'certs/server-key.pem';
-
-unless (-r $key && -r $cert) {
-	plan skip_all =>
-		"certs/ missing for $0, run $^X ./create-certs.perl in certs/";
-}
-
 my $old = start_script(['-pop3d', '-W0',
 	"--stdout=$tmpdir/plain.out", "--stderr=$olderr" ],
 	$env, { 3 => $plain });
