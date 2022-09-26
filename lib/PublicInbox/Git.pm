@@ -66,7 +66,7 @@ sub new {
 	$git_dir =~ tr!/!/!s;
 	$git_dir =~ s!/*\z!!s;
 	# may contain {-tmp} field for File::Temp::Dir
-	bless { git_dir => $git_dir, alt_st => '', -git_path => {} }, $class
+	bless { git_dir => $git_dir }, $class
 }
 
 sub git_path ($$) {
@@ -90,7 +90,7 @@ sub alternates_changed {
 
 	# can't rely on 'q' on some 32-bit builds, but `d' works
 	my $st = pack('dd', $st[10], $st[7]); # 10: ctime, 7: size
-	return 0 if $self->{alt_st} eq $st;
+	return 0 if ($self->{alt_st} // '') eq $st;
 	$self->{alt_st} = $st; # always a true value
 }
 
