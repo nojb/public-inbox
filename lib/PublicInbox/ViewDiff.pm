@@ -154,16 +154,16 @@ sub diff_header ($$$) {
 
 sub diff_before_or_after ($$) {
 	my ($ctx, $x) = @_;
-	if (exists $ctx->{-anchors} && $$x =~ /\A(.*?) # likely "---\n" # \$1
-			# diffstat lines:
-			((?:^\x20(?:[^\n]+?)(?:\x20+\|\x20[^\n]*\n))+)
-			(\x20[0-9]+\x20files?\x20)changed,
-			(.*?)\z/msx) { # notes, commit message, etc
-		my @x = ($4, $3, $2, $1);
-		undef $$x;
+	if (exists $ctx->{-anchors} && $$x =~ # diffstat lines:
+			/((?:^\x20(?:[^\n]+?)(?:\x20+\|\x20[^\n]*\n))+)
+			(\x20[0-9]+\x20files?\x20)changed,/msx) {
+		my $pre = substr($$x, 0, $-[0]); # (likely) short prefix
+		substr($$x, 0, $+[0], ''); # sv_chop on $$x ($$x may be long)
+		my @x = ($2, $1);
 		my $lnk = $ctx->{-linkify};
 		my $zfh = $ctx->{zfh};
-		print $zfh $lnk->to_html(pop @x); # $1 uninteresting prefix
+		# uninteresting prefix
+		print $zfh $lnk->to_html($pre);
 		for my $l (split(/^/m, pop(@x))) { # $2 per-file stat lines
 			$l =~ /^ (.+)( +\| .*\z)/s and
 				anchor0($ctx, $1, $2) and next;
@@ -173,7 +173,7 @@ sub diff_before_or_after ($$) {
 		print $zfh pop(@x), # $3 /^ \d+ files? /
 			qq(<a href="$ch">changed</a>,),
 			# insertions/deletions, notes, commit message, etc:
-			$lnk->to_html(@x);
+			$lnk->to_html($$x);
 	} else {
 		print { $ctx->{zfh} } $ctx->{-linkify}->to_html($$x);
 	}
