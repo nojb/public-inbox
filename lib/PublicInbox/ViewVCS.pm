@@ -413,11 +413,21 @@ sub solve_result {
 blob $oid $size bytes $raw_link</pre>
 EOM
 	}
+	@{$ctx->{-paths}} = ($path, $raw_link);
+	$ctx->{git} = $git;
+	if ($ctx->{env}->{'pi-httpd.async'}) {
+		ibx_async_cat($ctx, $oid, \&show_blob, $ctx);
+	} else { # synchronous
+		$git->cat_async($oid, \&show_blob, $ctx);
+		$git->cat_async_wait;
+	}
+}
 
-	my $blob = $git->cat_file($oid);
-	if (!$blob) { # WTF?
+sub show_blob { # git->cat_async callback
+	my ($blob, $oid, $type, $size, $ctx) = @_;
+	if (!$blob) {
 		my $e = "Failed to retrieve generated blob ($oid)";
-		warn "$e ($git->{git_dir})";
+		warn "$e ($ctx->{git}->{git_dir}) type=$type";
 		return html_page($ctx, 500, "<pre><b>$e</b></pre>".dbg_log($ctx))
 	}
 
@@ -428,6 +438,7 @@ EOM
 		return delete($ctx->{-wcb})->([200, $h, [ $$blob ]]);
 	}
 
+	my ($path, $raw_link) = @{delete $ctx->{-paths}};
 	$bin and return html_page($ctx, 200,
 				"<pre>blob $oid $size bytes (binary)" .
 				" $raw_link</pre>".dbg_log($ctx));
@@ -445,14 +456,14 @@ EOM
 		$$blob = ascii_html($$blob);
 	}
 
+	# using some of the same CSS class names and ids as cgit
 	my $x = "<pre>blob $oid $size bytes $raw_link</pre>" .
 		"<hr /><table\nclass=blob>".
 		"<tr><td\nclass=linenumbers><pre>";
+	# scratchpad in this loop is faster here than `printf $zfh':
 	$x .= sprintf("<a id=n$_ href=#n$_>% ${pad}u</a>\n", $_) for (1..$nl);
 	$x .= '</pre></td><td><pre> </pre></td>'. # pad for non-CSS users
 		"<td\nclass=lines><pre\nstyle='white-space:pre'><code>";
-
-	# using some of the same CSS class names and ids as cgit
 	html_page($ctx, 200, $x, $ctx->{-linkify}->linkify_2($$blob),
 		'</code></pre></td></tr></table>'.dbg_log($ctx));
 }
