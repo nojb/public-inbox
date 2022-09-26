@@ -80,7 +80,8 @@ EOM
 }
 
 sub add_alt ($$) {
-	my ($gcf2, $objdir) = @_;
+	my ($gcf2, $git_dir) = @_;
+	my $objdir = PublicInbox::Git->new($git_dir)->git_path('objects');
 
 	# libgit2 (tested 0.27.7+dfsg.1-0.2 and 0.28.3+dfsg.1-1~bpo10+1
 	# in Debian) doesn't handle relative epochs properly when nested
@@ -120,7 +121,7 @@ sub loop (;$) {
 	while (<STDIN>) {
 		chomp;
 		my ($oid, $git_dir) = split(/ /, $_, 2);
-		$seen{$git_dir} //= add_alt($gcf2, "$git_dir/objects");
+		$seen{$git_dir} //= add_alt($gcf2, $git_dir);
 		if (!$gcf2->cat_oid(1, $oid)) {
 			# retry once if missing.  We only get unabbreviated OIDs
 			# from SQLite or Xapian DBs, here, so malicious clients
@@ -128,7 +129,7 @@ sub loop (;$) {
 			warn "I: $$ $oid missing, retrying in $git_dir\n";
 
 			$gcf2 = new();
-			%seen = ($git_dir => add_alt($gcf2,"$git_dir/objects"));
+			%seen = ($git_dir => add_alt($gcf2, $git_dir);
 			$check_at = clock_gettime(CLOCK_MONOTONIC) + $exp;
 
 			if ($gcf2->cat_oid(1, $oid)) {
