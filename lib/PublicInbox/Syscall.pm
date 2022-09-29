@@ -454,7 +454,7 @@ no warnings 'once';
 
 *recv_cmd4 = sub ($$$) {
 	my ($sock, undef, $len) = @_;
-	vec($_[1], ($len + 1) * 8, 1) = 0;
+	vec($_[1] //= '', ($len + 1) * 8, 1) = 0;
 	my $cmsghdr = "\0" x msg_controllen; # 10 * sizeof(int)
 	my $iov = pack('P'.TMPL_size_t, $_[1], $len);
 	my $mh = pack('PL' . # msg_name, msg_namelen (socklen_t (U32))
