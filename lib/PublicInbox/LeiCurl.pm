@@ -1,4 +1,4 @@
-# Copyright (C) 2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # common option and torsocks(1) wrapping for curl(1)
@@ -27,7 +27,7 @@ sub new {
 	my ($cls, $lei, $curl) = @_;
 	$curl //= which('curl') // return $lei->fail('curl not found');
 	my $opt = $lei->{opt};
-	my @cmd = ($curl, qw(-Sf));
+	my @cmd = ($curl, qw(-gSf));
 	$cmd[-1] .= 's' if $opt->{quiet}; # already the default for "lei q"
 	$cmd[-1] .= 'v' if $opt->{verbose}; # we use ourselves, too
 	for my $o ($lei->curl_opt) {

@@ -341,7 +341,7 @@ SKIP: {
 	my $url = "$base/sha1";
 	my ($r, $w);
 	pipe($r, $w) or die "pipe: $!";
-	my $cmd = [$curl, qw(--tcp-nodelay -T- -HExpect: -sSN), $url];
+	my $cmd = [$curl, qw(--tcp-nodelay -T- -HExpect: -gsSN), $url];
 	open my $cout, '+>', undef or die;
 	open my $cerr, '>', undef or die;
 	my $rdr = { 0 => $r, 1 => $cout, 2 => $cerr };
@@ -358,7 +358,7 @@ SKIP: {
 	seek($cout, 0, SEEK_SET);
 	is(<$cout>, sha1_hex($str), 'read expected body');
 
-	my $fh = popen_rd([$curl, '-sS', "$base/async-big"]);
+	my $fh = popen_rd([$curl, '-gsS', "$base/async-big"]);
 	my $n = 0;
 	my $non_zero = 0;
 	while (1) {
@@ -372,12 +372,12 @@ SKIP: {
 	is($non_zero, 0, 'read all zeros');
 
 	require_mods(@zmods, 4);
-	my $buf = xqx([$curl, '-sS', "$base/psgi-return-gzip"]);
+	my $buf = xqx([$curl, '-gsS', "$base/psgi-return-gzip"]);
 	is($?, 0, 'curl succesful');
 	IO::Uncompress::Gunzip::gunzip(\$buf => \(my $out));
 	is($out, "hello world\n");
 	my $curl_rdr = { 2 => \(my $curl_err = '') };
-	$buf = xqx([$curl, qw(-sSv --compressed),
+	$buf = xqx([$curl, qw(-gsSv --compressed),
 			"$base/psgi-return-compressible"], undef, $curl_rdr);
 	is($?, 0, 'curl --compressed successful');
 	is($buf, "goodbye world\n", 'gzipped response as expected');
