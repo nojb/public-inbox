@@ -387,7 +387,8 @@ sub thread_eml_entry {
 	my ($ctx, $eml) = @_;
 	my ($beg, $end) = thread_adj_level($ctx, $ctx->{level});
 	print { $ctx->zfh } $beg, '<pre>';
-	print { $ctx->{zfh} } eml_entry($ctx, $eml), '</pre>', $end;
+	print { $ctx->{zfh} } eml_entry($ctx, $eml), '</pre>';
+	$end;
 }
 
 sub next_in_queue ($$) {
