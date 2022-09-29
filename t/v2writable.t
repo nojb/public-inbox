@@ -149,7 +149,7 @@ SELECT COUNT(*) FROM over WHERE num > 0
 }
 
 {
-	use Net::NNTP;
+	require_mods('Net::NNTP', 1);
 	my $err = "$inboxdir/stderr.log";
 	my $out = "$inboxdir/stdout.log";
 	my $group = 'inbox.comp.test.v2writable';

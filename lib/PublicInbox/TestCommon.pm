@@ -117,6 +117,12 @@ sub require_git ($;$) {
 	1;
 }
 
+my %IPv6_VERSION = (
+	'Net::NNTP' => 3.00,
+	'Mail::IMAPClient' => 3.40,
+	'HTTP::Tiny' => 0.042,
+);
+
 sub require_mods {
 	my @mods = @_;
 	my $maybe = pop @mods if $mods[-1] =~ /\A[0-9]+\z/;
@@ -166,6 +172,9 @@ sub require_mods {
 			# https://rt.cpan.org/Ticket/Display.html?id=100529
 				!eval{ IO::Socket::SSL->VERSION(2.007); 1 }) {
 			push @need, $@;
+		}
+		if (defined(my $v = $IPv6_VERSION{$mod})) {
+			$ENV{TEST_IPV4_ONLY} = 1 if !eval { $mod->VERSION($v) };
 		}
 	}
 	return unless @need;

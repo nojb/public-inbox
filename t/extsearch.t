@@ -13,8 +13,6 @@ require PublicInbox::Search;
 use_ok 'PublicInbox::ExtSearch';
 use_ok 'PublicInbox::ExtSearchIdx';
 use_ok 'PublicInbox::OverIdx';
-my $sock = tcp_server();
-my $host_port = tcp_host_port($sock);
 my ($home, $for_destroy) = tmpdir();
 local $ENV{HOME} = $home;
 mkdir "$home/.public-inbox" or BAIL_OUT $!;
@@ -125,6 +123,8 @@ EOF
 
 SKIP: {
 	require_mods(qw(Net::NNTP), 1);
+	my $sock = tcp_server();
+	my $host_port = tcp_host_port($sock);
 	my ($out, $err) = ("$home/nntpd.out.log", "$home/nntpd.err.log");
 	my $cmd = [ '-nntpd', '-W0', "--stdout=$out", "--stderr=$err" ];
 	my $td = start_script($cmd, undef, { 3 => $sock });
