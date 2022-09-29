@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # backend for a git-cat-file-workalike based on libgit2,
@@ -11,6 +11,8 @@ use Fcntl qw(LOCK_EX SEEK_SET);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use IO::Handle; # autoflush
 use File::Path qw(make_path);
+use PublicInbox::Git;
+
 BEGIN {
 	my (%CFG, $c_src);
 	# PublicInbox::Spawn will set PERL_INLINE_DIRECTORY
@@ -129,7 +131,7 @@ sub loop (;$) {
 			warn "I: $$ $oid missing, retrying in $git_dir\n";
 
 			$gcf2 = new();
-			%seen = ($git_dir => add_alt($gcf2, $git_dir);
+			%seen = ($git_dir => add_alt($gcf2, $git_dir));
 			$check_at = clock_gettime(CLOCK_MONOTONIC) + $exp;
 
 			if ($gcf2->cat_oid(1, $oid)) {
