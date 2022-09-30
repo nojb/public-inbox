@@ -15,23 +15,23 @@ test_lei(sub {
 	$s = eml_load('t/utf8.eml')->as_string;
 	lei_ok [qw(import -q -F eml -)], undef, { 0 => \$s, %$lei_opt };
 	lei_ok qw(up --all=local);
-	open my $fh, "$ENV{HOME}/a.mbox.gz" or xbail "open: $!";
+	open my $fh, '<', "$ENV{HOME}/a.mbox.gz" or xbail "open: $!";
 	my $gz = do { local $/; <$fh> };
 	my $uc;
 	gunzip(\$gz => \$uc, MultiStream => 1) or xbail "gunzip $GunzipError";
-	open $fh, "$ENV{HOME}/a" or xbail "open: $!";
+	open $fh, '<', "$ENV{HOME}/a" or xbail "open: $!";
 
 	my $exp = do { local $/; <$fh> };
 	is($uc, $exp, 'compressed and uncompressed match (a.gz)');
 	like($exp, qr/testmessage\@example.com/, '2nd message added');
-	open $fh, "$ENV{HOME}/b.mbox.gz" or xbail "open: $!";
+	open $fh, '<', "$ENV{HOME}/b.mbox.gz" or xbail "open: $!";
 
 	$gz = do { local $/; <$fh> };
 	undef $uc;
 	gunzip(\$gz => \$uc, MultiStream => 1) or xbail "gunzip $GunzipError";
 	is($uc, $exp, 'compressed and uncompressed match (b.gz)');
 
-	open $fh, "$ENV{HOME}/b" or xbail "open: $!";
+	open $fh, '<', "$ENV{HOME}/b" or xbail "open: $!";
 	$uc = do { local $/; <$fh> };
 	is($uc, $exp, 'uncompressed both match');
 

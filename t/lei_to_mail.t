@@ -1,5 +1,5 @@
 #!perl -w
-# Copyright (C) 2020-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict;
 use v5.10.1;
@@ -260,7 +260,7 @@ SKIP: { # FIFO support
 
 	my @f;
 	$mdr->maildir_each_file($md, sub { push @f, shift });
-	open my $fh, $f[0] or BAIL_OUT $!;
+	open my $fh, '<', $f[0] or BAIL_OUT $!;
 	is(do { local $/; <$fh> }, $buf, 'wrote to Maildir');
 
 	$wcb = $wcb_get->('maildir', $md);
@@ -271,7 +271,7 @@ SKIP: { # FIFO support
 	$mdr->maildir_each_file($md, sub { push @x, shift });
 	is(scalar(@x), 1, 'wrote one new file');
 	ok(!-f $f[0], 'old file clobbered');
-	open $fh, $x[0] or BAIL_OUT $!;
+	open $fh, '<', $x[0] or BAIL_OUT $!;
 	is(do { local $/; <$fh> }, $buf."\nx\n", 'wrote new file to Maildir');
 
 	local $lei->{opt}->{augment} = 1;
@@ -283,9 +283,9 @@ SKIP: { # FIFO support
 	is(scalar grep(/\A\Q$x[0]\E\z/, @f), 1, 'old file still there');
 	my @new = grep(!/\A\Q$x[0]\E\z/, @f);
 	is(scalar @new, 1, '1 new file written (b4dc0ffee skipped)');
-	open $fh, $x[0] or BAIL_OUT $!;
+	open $fh, '<', $x[0] or BAIL_OUT $!;
 	is(do { local $/; <$fh> }, $buf."\nx\n", 'old file untouched');
-	open $fh, $new[0] or BAIL_OUT $!;
+	open $fh, '<', $new[0] or BAIL_OUT $!;
 	is(do { local $/; <$fh> }, $buf."\ny\n", 'new file written');
 }
 

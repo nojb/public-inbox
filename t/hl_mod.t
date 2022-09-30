@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# Copyright (C) 2019-2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 use strict; use v5.10.1; use PublicInbox::TestCommon; use IO::Handle; # ->autoflush
 use Fcntl qw(:seek);
@@ -11,7 +11,7 @@ is($hls->_shebang2lang(\"#!/usr/bin/perl -w\n"), 'perl', 'perl shebang OK');
 is($hls->{-ext2lang}->{'pm'}, 'perl', '.pm suffix OK');
 is($hls->{-ext2lang}->{'pl'}, 'perl', '.pl suffix OK');
 like($hls->_path2lang('Makefile'), qr/\Amake/, 'Makefile OK');
-my $str = do { local $/; open(my $fh, __FILE__); <$fh> };
+my $str = do { local $/; open(my $fh, '<', __FILE__); <$fh> };
 my $orig = $str;
 
 {
