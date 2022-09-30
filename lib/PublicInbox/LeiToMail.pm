@@ -132,19 +132,22 @@ sub eml2mboxcl2 {
 }
 
 sub git_to_mail { # git->cat_async callback
-	my ($bref, $oid, $type, $size, $arg) = @_;
+	my ($bref, $oid, $type, $size, $smsg) = @_;
+	my $self = delete $smsg->{l2m} // die "BUG: no l2m";
 	$type // return; # called by git->async_abort
-	my ($write_cb, $smsg) = @$arg;
-	if ($type eq 'missing' && $smsg->{-lms_rw}) {
-		if ($bref = $smsg->{-lms_rw}->local_blob($oid, 1)) {
+	eval {
+		if ($type eq 'missing' &&
+			  ($bref = $self->{-lms_rw}->local_blob($oid, 1))) {
 			$type = 'blob';
 			$size = length($$bref);
 		}
-	}
-	return warn("W: $oid is $type (!= blob)\n") if $type ne 'blob';
-	return warn("E: $oid is empty\n") unless $size;
-	die "BUG: expected=$smsg->{blob} got=$oid" if $smsg->{blob} ne $oid;
-	$write_cb->($bref, $smsg);
+		$type eq 'blob' or return $self->{lei}->child_error(1,
+						"W: $oid is $type (!= blob)");
+		$size or return $self->{lei}->child_error(1,"E: $oid is empty");
+		$smsg->{blob} eq $oid or die "BUG: expected=$smsg->{blob}";
+		$self->{wcb}->($bref, $smsg);
+	};
+	$self->{lei}->fail("$@ (oid=$oid)") if $@;
 }
 
 sub reap_compress { # dwaitpid callback
@@ -790,19 +793,22 @@ sub poke_dst {
 
 sub write_mail { # via ->wq_io_do
 	my ($self, $smsg, $eml) = @_;
-	return $self->{wcb}->(undef, $smsg, $eml) if $eml;
-	$smsg->{-lms_rw} = $self->{-lms_rw};
-	$self->{git}->cat_async($smsg->{blob}, \&git_to_mail,
-				[$self->{wcb}, $smsg]);
+	if ($eml) {
+		eval { $self->{wcb}->(undef, $smsg, $eml) };
+		$self->{lei}->fail("blob=$smsg->{blob} $@") if $@;
+	} else {
+		$smsg->{l2m} = $self;
+		$self->{git}->cat_async($smsg->{blob}, \&git_to_mail, $smsg);
+	}
 }
 
 sub wq_atexit_child {
 	my ($self) = @_;
 	local $PublicInbox::DS::in_loop = 0; # waitpid synchronously
 	my $lei = $self->{lei};
-	delete $self->{wcb};
 	$lei->{ale}->git->async_wait_all;
 	my ($nr_w, $nr_s) = delete(@$lei{qw(-nr_write -nr_seen)});
+	delete $self->{wcb};
 	$nr_s or return;
 	return if $lei->{early_mua} || !$lei->{-progress} || !$lei->{pkt_op_p};
 	$lei->{pkt_op_p}->pkt_do('l2m_progress', $nr_w, $nr_s);
