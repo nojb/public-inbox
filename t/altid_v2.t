@@ -14,9 +14,9 @@ my $ibx = create_inbox 'v2', version => 2, indexlevel => 'medium',
 			altid => $altid, sub {
 	my ($im, $ibx) = @_;
 	my $mm = PublicInbox::Msgmap->new_file("$ibx->{inboxdir}/$another", 2);
-	$mm->mid_set(1234, 'a@example.com') == 1 or BAIL_OUT 'mid_set once';
-	ok(0 == $mm->mid_set(1234, 'a@example.com'), 'mid_set not idempotent');
-	ok(0 == $mm->mid_set(1, 'a@example.com'), 'mid_set fails with dup MID');
+	is($mm->mid_set(1234, 'a@example.com'), 1, 'mid_set') or xbail 'once';
+	is($mm->mid_set(1234, 'a@example.com')+0, 0, 'mid_set not idempotent');
+	is($mm->mid_set(1, 'a@example.com')+0, 0, 'mid_set fails with dup MID');
 	$im->add(PublicInbox::Eml->new(<<'EOF')) or BAIL_OUT;
 From: a@example.com
 To: b@example.com
@@ -27,8 +27,8 @@ hello world gmane:666
 EOF
 };
 my $mm = PublicInbox::Msgmap->new_file("$ibx->{inboxdir}/$another", 2);
-ok(0 == $mm->mid_set(1234, 'a@example.com'), 'mid_set not idempotent');
-ok(0 ==  $mm->mid_set(1, 'a@example.com'), 'mid_set fails with dup MID');
+is($mm->mid_set(1234, 'a@example.com') + 0, 0, 'mid_set not idempotent');
+is($mm->mid_set(1, 'a@example.com') + 0, 0, 'mid_set fails with dup MID');
 my $mset = $ibx->search->mset('gmane:1234');
 my $msgs = $ibx->search->mset_to_smsg($ibx, $mset);
 $msgs = [ map { $_->{mid} } @$msgs ];
