@@ -414,6 +414,7 @@ blob $oid $size bytes $raw_link</pre>
 EOM
 	}
 	@{$ctx->{-paths}} = ($path, $raw_link);
+	bless $ctx, 'PublicInbox::WwwStream'; # for DESTROY
 	$ctx->{git} = $git;
 	if ($ctx->{env}->{'pi-httpd.async'}) {
 		ibx_async_cat($ctx, $oid, \&show_blob, $ctx);

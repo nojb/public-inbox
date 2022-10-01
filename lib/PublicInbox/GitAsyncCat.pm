@@ -45,12 +45,6 @@ sub event_step {
 	}
 }
 
-sub git_tmp_cleanup {
-	my ($git) = @_;
-	$git->cleanup(1) and
-		PublicInbox::DS::add_timer(3, \&git_tmp_cleanup, $git);
-}
-
 sub ibx_async_cat ($$$$) {
 	my ($ibx, $oid, $cb, $arg) = @_;
 	my $git = $ibx->{git} // $ibx->git;
@@ -69,8 +63,6 @@ sub ibx_async_cat ($$$$) {
 		$git->{async_cat} //= do {
 			my $self = bless { git => $git }, __PACKAGE__;
 			$git->{in}->blocking(0);
-			$git->{-tmp} and PublicInbox::DS::add_uniq_timer(
-						3, \&git_tmp_cleanup, $git);
 			$self->SUPER::new($git->{in}, EPOLLIN|EPOLLET);
 			\undef; # this is a true ref()
 		};

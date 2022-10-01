@@ -220,4 +220,9 @@ sub html_init {
 	print { $ctx->zfh } html_top($ctx);
 }
 
+sub DESTROY {
+	my ($ctx) = @_;
+	$ctx->{git}->cleanup if $ctx->{git} && $ctx->{git}->{-tmp};
+}
+
 1;
