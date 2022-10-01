@@ -1,4 +1,4 @@
-# Copyright (C) 2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # handles "lei q" command and provides internals for
@@ -6,6 +6,7 @@
 package PublicInbox::LeiQuery;
 use strict;
 use v5.10.1;
+use PublicInbox::OverIdx;
 
 sub prep_ext { # externals_each callback
 	my ($lxs, $exclude, $loc) = @_;
@@ -17,6 +18,7 @@ sub _start_query { # used by "lei q" and "lei up"
 	require PublicInbox::LeiOverview;
 	PublicInbox::LeiOverview->new($self) or return;
 	my $opt = $self->{opt};
+	PublicInbox::OverIdx::fork_ok($opt);
 	my ($xj, $mj) = split(/,/, $opt->{jobs} // '');
 	(defined($xj) && $xj ne '' && $xj !~ /\A[1-9][0-9]*\z/) and
 		die "`$xj' search jobs must be >= 1\n";

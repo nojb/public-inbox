@@ -670,4 +670,16 @@ sub vivify_xvmd {
 	$smsg->{-vivify_xvmd} = \@vivify_xvmd;
 }
 
+sub fork_ok {
+	return 1 if $DBD::SQLite::sqlite_version >= 3008003;
+	my ($opt) = @_;
+	my @j = split(/,/, $opt->{jobs} // '');
+	state $warned;
+	grep { $_ > 1 } @j and $warned //= warn('DBD::SQLite version is ',
+		 $DBD::SQLite::sqlite_version,
+		", need >= 3008003 (3.8.3) for --jobs > 1\n");
+	$opt->{jobs} = '1,1';
+	undef;
+}
+
 1;

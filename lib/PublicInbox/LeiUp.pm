@@ -1,4 +1,4 @@
-# Copyright (C) 2021 all contributors <meta@public-inbox.org>
+# Copyright (C) all contributors <meta@public-inbox.org>
 # License: AGPL-3.0+ <https://www.gnu.org/licenses/agpl-3.0.txt>
 
 # "lei up" - updates the result of "lei q --save"
@@ -7,7 +7,7 @@ use strict;
 use v5.10.1;
 # n.b. we use LeiInput to setup IMAP auth
 use parent qw(PublicInbox::IPC PublicInbox::LeiInput);
-use PublicInbox::LeiSavedSearch;
+use PublicInbox::LeiSavedSearch; # OverIdx
 use PublicInbox::DS;
 use PublicInbox::PktOp;
 use PublicInbox::LeiFinmsg;
@@ -75,6 +75,7 @@ sub redispatch_all ($$) {
 	my $upq = [ (@{$self->{o_local} // []}, @{$self->{o_remote} // []}) ];
 	return up1($lei, $upq->[0]) if @$upq == 1; # just one, may start MUA
 
+	PublicInbox::OverIdx::fork_ok($lei->{opt});
 	# FIXME: this is also used per-query, see lei->_start_query
 	my $j = $lei->{opt}->{jobs} || do {
 		my $n = $self->detect_nproc // 1;
